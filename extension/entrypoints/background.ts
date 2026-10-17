@@ -103,6 +103,16 @@ async function handle(message: Message): Promise<Reply> {
       });
       void analyze();
       return { ok: true };
+    case 'session:start':
+    case 'session:pause':
+    case 'session:resume':
+    case 'session:end':
+    case 'doc:link':
+    case 'source:remove':
+    case 'help:ask':
+    case 'help:review':
+    case 'hint:dismiss':
+      return { ok: false, error: 'Not built yet (M3 in progress).' };
   }
 }
 
