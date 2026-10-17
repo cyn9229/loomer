@@ -3,7 +3,7 @@
 // factual activity. Every change goes through PanelApi messages.
 import { useEffect, useState, type FormEvent } from 'react';
 import { DOCS_ORIGINS } from '../core/messages';
-import type { DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
+import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { observedAt, shortDate } from './format';
 import { Icon, type IconName } from './Icon';
@@ -77,6 +77,75 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
           Hide
         </button>
       </div>
+    </section>
+  );
+}
+
+/**
+ * Research discovery: one quiet row for the tab in front. It never claims the
+ * page is relevant. Add asks Chrome for this one site inside the click, then
+ * the worker saves one snapshot and gives the access back.
+ */
+export function SuggestionRow({
+  suggestion,
+  leaving,
+  api,
+}: {
+  suggestion: NonNullable<DiscoverySuggestion>;
+  leaving: boolean;
+  api: PanelApi;
+}) {
+  const action = useAction();
+  const [verb, setVerb] = useState<'add' | 'dismiss' | null>(null);
+  const origin = originOf(suggestion.url);
+
+  const add = () => {
+    if (!origin) return;
+    setVerb('add');
+    action.run(() =>
+      // requestOrigins runs synchronously inside this click, before any await.
+      api
+        .requestOrigins([`${origin}/*`])
+        .then((granted) =>
+          granted
+            ? api.send({ type: 'suggestion:add', tabId: suggestion.tabId })
+            : { ok: false as const, error: 'Chrome access to this site was not granted. Nothing was saved.' },
+        )
+        .finally(() => setVerb(null)),
+    );
+  };
+
+  const dismiss = () => {
+    setVerb('dismiss');
+    action.run(() => api.send({ type: 'suggestion:dismiss' }).finally(() => setVerb(null)));
+  };
+
+  return (
+    <section className={leaving ? 'suggestion leaving' : 'suggestion'} aria-label="Page suggestion" aria-hidden={leaving || undefined}>
+      <p className="suggestion-ask">Researching for this assignment? Add this page.</p>
+      <div className="row">
+        <span className="tile">
+          <Icon name="globe" size="sm" />
+        </span>
+        <span className="row-body">
+          <span className="row-title">{suggestion.title}</span>
+          <span className="row-sub">{hostOf(suggestion.url)}</span>
+          {suggestion.matched.length > 0 && <span className="row-sub">Title mentions: {suggestion.matched.join(', ')}</span>}
+        </span>
+      </div>
+      <div className="btn-row" style={{ marginTop: 10 }}>
+        <button type="button" className="btn sm" onClick={add} disabled={action.busy || leaving || !origin} aria-busy={verb === 'add'}>
+          <Icon name="plus" size="sm" />
+          {verb === 'add' ? 'Adding…' : 'Add'}
+        </button>
+        <button type="button" className="link" onClick={dismiss} disabled={action.busy || leaving} aria-busy={verb === 'dismiss'}>
+          {verb === 'dismiss' ? 'Stopping…' : 'Not now'}
+        </button>
+      </div>
+      <p className="field-hint">
+        Add saves this page once. Loomer does not keep reading the site. Not now stops suggestions for this session.
+      </p>
+      {action.error && <p className="status-line error">{action.error}</p>}
     </section>
   );
 }
@@ -331,6 +400,14 @@ export function ActivityCard({ session, now }: { session: ActiveSession; now: Da
       ))}
     </Card>
   );
+}
+
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
 }
 
 function hostOf(url: string): string {

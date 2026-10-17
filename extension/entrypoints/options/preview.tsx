@@ -29,6 +29,7 @@ export function PreviewOptions({ initial }: { initial: string }) {
         settings={isNew ? fresh : connected}
         ai={aiOff}
         proactive={proactiveOn}
+        discovery={{ enabled: false }}
         lastCheck={isNew ? null : { at: new Date(now.getTime() - 720_000).toISOString(), outcome: 'ok', courses: 4, partial: false, replay: false }}
         now={now}
       />

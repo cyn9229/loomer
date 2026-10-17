@@ -34,6 +34,7 @@ const paths = {
       <path d="M12 6v6l4 2" />
     </>
   ),
+  plus: <path d="M5 12h14M12 5v14" />,
   play: <path d="M6 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L7.5 3.64A1 1 0 0 0 6 4.5z" />,
   chevronLeft: <path d="m15 18-6-6 6-6" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,

@@ -19,11 +19,12 @@ export type OptionsProps = {
   settings: Settings | null;
   ai: AiSettings | null;
   proactive: ProactiveSettings | null;
+  discovery: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
 };
 
-export function OptionsPage({ settings, ai, proactive, lastCheck, now }: OptionsProps) {
+export function OptionsPage({ settings, ai, proactive, discovery, lastCheck, now }: OptionsProps) {
   const connected = Boolean(settings?.canvasOrigin);
   const [view, setView] = useState<View | null>(null);
   const current: View = view ?? (connected ? 'privacy' : 'start');
@@ -45,7 +46,7 @@ export function OptionsPage({ settings, ai, proactive, lastCheck, now }: Options
           {current === 'start' ? (
             <GetStarted settings={settings} onDone={() => setView('privacy')} />
           ) : (
-            <Privacy settings={settings} ai={ai} proactive={proactive} lastCheck={lastCheck} now={now} />
+            <Privacy settings={settings} ai={ai} proactive={proactive} discovery={discovery} lastCheck={lastCheck} now={now} />
           )}
         </div>
       </main>
@@ -181,12 +182,14 @@ function Privacy({
   settings,
   ai,
   proactive,
+  discovery,
   lastCheck,
   now,
 }: {
   settings: Settings | null;
   ai: AiSettings | null;
   proactive: ProactiveSettings | null;
+  discovery: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
 }) {
@@ -262,6 +265,7 @@ function Privacy({
         </section>
         {ai && <AiHelpCard ai={ai} />}
         {proactive && <ProactiveCard proactive={proactive} />}
+        {discovery && <DiscoveryCard enabled={discovery.enabled} />}
         <section className="ocard" aria-label="Never read">
           <div className="ocard-head">
             <span className="tile lg">
@@ -382,6 +386,88 @@ function AiHelpCard({ ai }: { ai: AiSettings }) {
           When on, an assignment’s instructions and rubric go to OpenRouter (model openai/gpt-6-luna) through a local
           service on this computer. Providers are asked not to collect or retain the data. Loomer does not send your
           drafts for this step. A teacher’s no-AI rule always turns AI off for that assignment.
+        </p>
+      </div>
+      {error && (
+        <p className="status-line error" role="status">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Research suggestions: off by default. Turning on asks Chrome for the tabs
+ * permission inside the click, then tells the worker; turning off needs no prompt.
+ */
+function DiscoveryCard({ enabled }: { enabled: boolean }) {
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const toggle = () => {
+    setError(null);
+    setWorking(true);
+    const done = () => setWorking(false);
+    if (enabled) {
+      sendMessage({ type: 'discovery:set', enabled: false })
+        .then((reply) => !reply.ok && setError(reply.error))
+        .catch((e: unknown) => setError(String(e)))
+        .finally(done);
+      return;
+    }
+    browser.permissions
+      .request({ permissions: ['tabs'] })
+      .then(async (granted) => {
+        if (!granted) {
+          setError('Chrome did not grant tab access. Research suggestions stay off.');
+          return;
+        }
+        const reply = await sendMessage({ type: 'discovery:set', enabled: true });
+        if (!reply.ok) setError(reply.error);
+      })
+      .catch((e: unknown) => setError(String(e)))
+      .finally(done);
+  };
+
+  return (
+    <section className="ocard" aria-label="Research suggestions">
+      <div className="ocard-head">
+        <span className="tile lg">
+          <Icon name="globe" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">Research suggestions</h2>
+          <p className="ocard-desc">Off by default. You choose.</p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title" id="discovery-switch-label">
+            Suggest pages to add during a session
+          </span>
+          <span className="setting-sub" aria-live="polite">
+            {working ? (enabled ? 'Turning off…' : 'Turning on…') : enabled ? 'On' : 'Off'}
+          </span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          className="switch"
+          aria-checked={enabled}
+          aria-labelledby="discovery-switch-label"
+          disabled={working}
+          onClick={toggle}
+        />
+      </div>
+      <div className="callout accent" style={{ marginTop: 12 }}>
+        <span className="tile">
+          <Icon name="info" size="sm" />
+        </span>
+        <p className="callout-body">
+          Chrome will call this “Read your browsing history”. Loomer only looks at the title and address of the tab in
+          front, only during an active session, on this device, without AI. It never reads a page until you choose Add,
+          and it keeps no list of sites you visit. Turning this off gives the access back.
         </p>
       </div>
       {error && (

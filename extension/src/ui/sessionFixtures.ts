@@ -79,6 +79,7 @@ export function buildSessionFixtures(now: Date) {
     activity,
     help: { availability: 'available' as const, messages, pending: false },
     hint: null,
+    suggestion: null,
   };
 
   return {
@@ -120,6 +121,16 @@ export function buildSessionFixtures(now: Date) {
           { id: 3, role: 'student', text: 'Can you explain more?', kind: 'question', references: [], createdAt: ago(0) },
         ],
         pending: true,
+      },
+    },
+
+    suggestion: {
+      ...base,
+      suggestion: {
+        tabId: 412,
+        title: 'Urban Heat Islands: Causes and Effects',
+        url: 'https://www.example.org/science/urban-heat-islands',
+        matched: ['heat island', 'urban'],
       },
     },
 

@@ -1620,3 +1620,39 @@ details > summary .icon {
     transform: none;
   }
 }
+
+/* ---------- Research suggestion ---------- */
+.suggestion {
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--line), inset 3px 0 0 var(--accent-150);
+  transition:
+    opacity var(--d-enter) var(--ease-out),
+    transform var(--d-enter) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.suggestion-ask {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.suggestion .row {
+  padding-top: 0;
+}
+.suggestion .field-hint {
+  margin-bottom: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .suggestion {
+    transition: opacity 150ms ease;
+    @starting-style {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}

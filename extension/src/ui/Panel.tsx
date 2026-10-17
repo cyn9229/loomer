@@ -20,7 +20,7 @@ import { LogoMark, Wordmark } from './Logo';
 import { Card, CheckBar } from './parts';
 import { ResumeCard } from './resume';
 import { useLingering } from './useLingering';
-import { ActivityCard, DocCard, HintCard, SessionCard, SourcesCard, type ActiveSession } from './session';
+import { ActivityCard, DocCard, HintCard, SessionCard, SourcesCard, SuggestionRow, type ActiveSession } from './session';
 
 type Tab = 'home' | 'chat' | 'sources';
 
@@ -55,6 +55,7 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
   const hint = active?.hint ?? null;
   // Keep a vanished hint briefly so it fades out instead of disappearing.
   const shownHint = useLingering(hint, 200);
+  const shownSuggestion = useLingering(active?.suggestion ?? null, 200);
 
   const refresh = onRefresh
     ? () => {
@@ -172,6 +173,14 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
                     setChatDraft('Can you help me more with this hint?');
                     setTab('chat');
                   }}
+                  api={api}
+                />
+              )}
+              {shownSuggestion.value && (
+                <SuggestionRow
+                  key={shownSuggestion.value.tabId}
+                  suggestion={shownSuggestion.value}
+                  leaving={shownSuggestion.leaving}
                   api={api}
                 />
               )}
