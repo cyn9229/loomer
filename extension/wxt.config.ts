@@ -8,7 +8,11 @@ export default defineConfig({
     name: 'loomer',
     description: 'Know what you are getting into, and pick up where you left off.',
     permissions: ['storage', 'alarms'],
-    optional_host_permissions: ['https://*/*'],
+    // Loopback http is only for the labeled local Canvas replay.
+    optional_host_permissions: ['https://*/*', 'http://127.0.0.1/*', 'http://localhost/*'],
     action: { default_title: 'Open loomer' },
+    // Automated end-to-end runs cannot click Chrome's permission prompt, so the
+    // E2E build pre-grants the loopback replay only. Never set for real builds.
+    ...(process.env.LOOMER_E2E === '1' ? { host_permissions: ['http://127.0.0.1/*'] } : {}),
   },
 });
