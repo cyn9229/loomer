@@ -15,8 +15,22 @@ function at(now: Date, days: number, hh: number, mm: number): string {
   return d.toISOString();
 }
 
-function item(over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId' | 'title'>): WorkItem {
+const WEEK = 7 * 24 * HOUR;
+
+/** Bucket the way the logic does: undated and past items are listed, never ranked. */
+function bucketFor(due: WorkItem['due'], now: Date): WorkItem['bucket'] {
+  if (!due) return 'no-date';
+  const t = Date.parse(due.at) - now.getTime();
+  if (t < 0) return 'past';
+  return t <= WEEK ? 'soon' : 'later';
+}
+
+function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId' | 'title'>): WorkItem {
+  const due = over.due ?? null;
   return {
+    courseKey: `course:${over.courseName ?? 'none'}`,
+    bucket: bucketFor(due, now),
+    hidden: false,
     courseName: null,
     url: 'https://lincolnhs.instructure.com/courses/1840/assignments/88213',
     due: null,
@@ -33,7 +47,7 @@ export function buildFixtures(now: Date) {
   const checkedAt = new Date(now.getTime() - 0.2 * HOUR).toISOString();
 
   const essayDue = at(now, 5, 23, 59);
-  const essay = item({
+  const essay = item(now, {
     assignmentId: 'a-essay',
     title: 'Heat islands comparison essay',
     courseName: 'English 10',
@@ -41,7 +55,7 @@ export function buildFixtures(now: Date) {
     effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.' },
     policy: { state: 'permitted', sourceLabel: 'Course syllabus' },
   });
-  const vocab = item({
+  const vocab = item(now, {
     assignmentId: 'a-vocab',
     title: 'Ch. 6 vocabulary check',
     courseName: 'Biology',
@@ -49,7 +63,7 @@ export function buildFixtures(now: Date) {
     due: { at: at(now, 2, 8, 0), source: 'canvas' },
     effort: { label: 'Short', reason: 'Twenty terms, one short quiz.' },
   });
-  const reflection = item({
+  const reflection = item(now, {
     assignmentId: 'a-reflection',
     title: 'Heat and health reflection',
     courseName: 'Health',
@@ -62,7 +76,7 @@ export function buildFixtures(now: Date) {
       sourceLabel: 'Assignment instructions',
     },
   });
-  const lab = item({
+  const lab = item(now, {
     assignmentId: 'a-lab',
     title: 'Urban field lab',
     courseName: 'Environmental Science',
@@ -70,7 +84,7 @@ export function buildFixtures(now: Date) {
     due: { at: at(now, 13, 15, 0), source: 'canvas' },
     requirements: 'unreadable',
   });
-  const proposal = item({
+  const proposal = item(now, {
     assignmentId: 'a-proposal',
     title: 'Research proposal',
     courseName: 'English 10',
@@ -79,14 +93,23 @@ export function buildFixtures(now: Date) {
     dueConflict: true,
     effort: { label: 'Moderate', reason: 'One page with three sources.' },
   });
-  const reading = item({
+  const reading = item(now, {
     assignmentId: 'a-reading',
     title: 'Independent reading log',
     courseName: 'English 10',
     url: 'https://lincolnhs.instructure.com/courses/1840/assignments/88111',
     due: null,
   });
-  const replayItem = item({
+  const pastQuiz = item(now, {
+    assignmentId: 'a-past',
+    title: 'Ch. 5 reading questions',
+    courseName: 'Biology',
+    url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88200',
+    due: { at: at(now, -3, 8, 0), source: 'canvas' },
+    effort: { label: 'Short', reason: null },
+  });
+  const hiddenItem = { ...item(now, { assignmentId: 'a-hidden', title: 'Optional: extra credit poster', courseName: 'Health' }), hidden: true };
+  const replayItem = item(now, {
     assignmentId: 'r-replay',
     title: 'Sample: tree canopy data table',
     courseName: 'Environmental Science (replay)',
@@ -184,7 +207,7 @@ export function buildFixtures(now: Date) {
         evidence: essayEvidence,
         aiGenerated: true,
       },
-      rest: [vocab, replayItem, reflection, proposal, lab, reading],
+      rest: [vocab, replayItem, reflection, proposal, lab, reading, pastQuiz, hiddenItem],
       lastCheck,
     },
 

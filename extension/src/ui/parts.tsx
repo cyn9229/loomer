@@ -105,7 +105,17 @@ export function itemFlags(item: WorkItem): ReactNode[] {
 }
 
 /** One assignment in a list. Clicking opens its detail in the panel. */
-export function WorkRow({ item, now, onOpen }: { item: WorkItem; now: Date; onOpen?: (id: string) => void }) {
+export function WorkRow({
+  item,
+  onOpen,
+  start,
+}: {
+  item: WorkItem;
+  now: Date;
+  onOpen?: (id: string) => void;
+  /** Start or Continue control, rendered beside the row's open button. */
+  start?: { label: 'Start' | 'Continue'; onClick: () => void; disabled: boolean };
+}) {
   const flags = itemFlags(item);
   const sub = [item.courseName, item.due ? shortDate(item.due.at) : 'No due date'].filter(Boolean).join(' · ');
   const content = (
@@ -117,15 +127,33 @@ export function WorkRow({ item, now, onOpen }: { item: WorkItem; now: Date; onOp
       </span>
       <span className="row-end">
         <Pill>{item.effort.label}</Pill>
-        {onOpen && <Icon name="chevronRight" size="sm" />}
+        {onOpen && !start && <Icon name="chevronRight" size="sm" />}
       </span>
     </>
   );
   if (!onOpen) return <div className="row">{content}</div>;
+  if (!start) {
+    return (
+      <button type="button" className="row" onClick={() => onOpen(item.assignmentId)}>
+        {content}
+      </button>
+    );
+  }
   return (
-    <button type="button" className="row" onClick={() => onOpen(item.assignmentId)}>
-      {content}
-    </button>
+    <div className="row">
+      <button type="button" className="row-main" onClick={() => onOpen(item.assignmentId)}>
+        {content}
+      </button>
+      <button
+        type="button"
+        className="btn sm"
+        disabled={start.disabled}
+        onClick={start.onClick}
+        aria-label={`${start.label} ${item.title}`}
+      >
+        {start.label}
+      </button>
+    </div>
   );
 }
 

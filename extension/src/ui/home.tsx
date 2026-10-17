@@ -19,7 +19,26 @@ import {
 export type HomeActions = {
   openSettings: () => void;
   openItem: (id: string) => void;
+  /** Starts a work session; replaces any other session. */
+  startSession: (assignmentId: string) => void;
+  /** Goes to the running session (Sources tab). */
+  continueSession: () => void;
+  /** Assignment of the running or paused session, if any. */
+  sessionAssignmentId: string | null;
+  starting: boolean;
+  /** Hides an item from lists and ranking, or restores it. */
+  setHidden: (assignmentId: string, hidden: boolean) => void;
 };
+
+/** Start or Continue for one assignment, depending on the current session. */
+export function startControl(item: WorkItem, actions: HomeActions) {
+  const current = actions.sessionAssignmentId === item.assignmentId;
+  return {
+    label: current ? ('Continue' as const) : ('Start' as const),
+    onClick: () => (current ? actions.continueSession() : actions.startSession(item.assignmentId)),
+    disabled: actions.starting,
+  };
+}
 
 type ViewProps<S extends HomeModel['status']> = {
   model: Extract<HomeModel, { status: S }>;
@@ -78,7 +97,7 @@ export function CheckingView({ model, now, actions }: ViewProps<'checking'>) {
             </span>
           )}
         </p>
-        {model.rest.map((item) => {
+        {model.rest.filter((i) => !i.hidden).map((item) => {
           const pending = model.pending.find((p) => p.title === item.title);
           return (
             <div className="row" key={item.assignmentId}>
@@ -116,7 +135,7 @@ export function CheckingView({ model, now, actions }: ViewProps<'checking'>) {
           <p className="callout-body">No top pick until these finish. You can open any assignment now.</p>
         </div>
       </Card>
-      <WorkList title="Known work" items={model.rest} now={now} onOpen={actions.openItem} />
+      <WorkList title="Known work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
     </>
   );
 }
@@ -134,7 +153,7 @@ export function CannotCompareView({ model, now, actions }: ViewProps<'cannot-com
         </div>
         <EvidenceList evidence={model.limitations} now={now} />
       </Card>
-      <WorkList title="Pick one yourself" items={model.rest} now={now} onOpen={actions.openItem} />
+      <WorkList title="Pick one yourself" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
     </>
   );
 }
@@ -143,7 +162,7 @@ export function CannotCompareView({ model, now, actions }: ViewProps<'cannot-com
 export function ReadyView({ model, now, actions }: ViewProps<'ready'>) {
   return (
     <>
-      <NextActionCard next={model.next} now={now} />
+      <NextActionCard next={model.next} now={now} actions={actions} />
       <Card label="Why this?">
         <details className="disclosure" open>
           <summary>
@@ -153,13 +172,14 @@ export function ReadyView({ model, now, actions }: ViewProps<'ready'>) {
           <EvidenceList evidence={model.next.evidence} now={now} />
         </details>
       </Card>
-      <WorkList id="other-work" title="Other work" items={model.rest} now={now} onOpen={actions.openItem} />
+      <WorkList id="other-work" title="Other work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
     </>
   );
 }
 
-function NextActionCard({ next, now }: { next: NextAction; now: Date }) {
+function NextActionCard({ next, now, actions }: { next: NextAction; now: Date; actions: HomeActions }) {
   const { item } = next;
+  const start = startControl(item, actions);
   const rel = item.due ? deadlineLabel(item.due.at, now) : null;
   return (
     <Card label="Next action">
@@ -193,9 +213,13 @@ function NextActionCard({ next, now }: { next: NextAction; now: Date }) {
           <PolicyNotice item={item} />
         </div>
       )}
-      <div className="btn-row" style={{ marginTop: 16, flexWrap: 'nowrap' }}>
-        <OpenInCanvas item={item} grow />
-        <a className="btn pill-shape" href="#other-work">
+      <button type="button" className="cta block" style={{ marginTop: 16 }} onClick={start.onClick} disabled={start.disabled}>
+        {start.label === 'Continue' ? 'Continue session' : 'Start session'}
+        <Icon name="arrowRight" />
+      </button>
+      <div className="btn-row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
+        <OpenInCanvasLink item={item} />
+        <a className="link" href="#other-work">
           Pick another
         </a>
       </div>
@@ -217,58 +241,111 @@ export function EmptyView({ model, now, actions }: ViewProps<'empty'>) {
           </div>
         </div>
       </Card>
-      {model.rest.length > 0 && <WorkList title="Other known work" items={model.rest} now={now} onOpen={actions.openItem} />}
+      {model.rest.length > 0 && <WorkList title="Other known work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />}
     </>
   );
 }
 
+const bucketGroups: { bucket: WorkItem['bucket']; title: string; folded: boolean }[] = [
+  { bucket: 'soon', title: 'Coming up', folded: false },
+  { bucket: 'later', title: 'Later', folded: false },
+  { bucket: 'no-date', title: 'No due date', folded: true },
+  { bucket: 'past', title: 'Deadline passed', folded: true },
+];
+
+/**
+ * Known work grouped by bucket. Undated and past items stay reachable but folded,
+ * and hidden items sit in their own folded group where they can be restored.
+ */
 function WorkList({
   id,
   title,
   items,
   now,
   onOpen,
+  actions,
 }: {
   id?: string;
   title: string;
   items: WorkItem[];
   now: Date;
   onOpen: (id: string) => void;
+  /** When given, each row gets Start or Continue. */
+  actions?: HomeActions;
 }) {
   if (items.length === 0) return null;
+  const visible = items.filter((i) => !i.hidden);
+  const hidden = items.filter((i) => i.hidden);
+  const row = (item: WorkItem) => (
+    <WorkRow key={item.assignmentId} item={item} now={now} onOpen={onOpen} start={actions ? startControl(item, actions) : undefined} />
+  );
   return (
     <section className="card" id={id} tabIndex={id ? -1 : undefined} aria-label={title}>
       <p className="card-label">
         <span className="card-title">{title}</span>
         <span className="aside">
-          {items.length} {items.length === 1 ? 'item' : 'items'}
+          {visible.length} {visible.length === 1 ? 'item' : 'items'}
         </span>
       </p>
-      {items.map((item) => (
-        <WorkRow key={item.assignmentId} item={item} now={now} onOpen={onOpen} />
-      ))}
+      {bucketGroups.map(({ bucket, title: groupTitle, folded }) => {
+        const group = visible.filter((i) => i.bucket === bucket);
+        if (group.length === 0) return null;
+        return (
+          <details className="group" key={bucket} open={!folded}>
+            <summary>
+              {groupTitle}
+              <span className="aside">{group.length}</span>
+              <Icon name="chevronDown" size="sm" />
+            </summary>
+            {group.map(row)}
+          </details>
+        );
+      })}
+      {hidden.length > 0 && (
+        <details className="group">
+          <summary>
+            Hidden by you
+            <span className="aside">{hidden.length}</span>
+            <Icon name="chevronDown" size="sm" />
+          </summary>
+          {hidden.map((item) => (
+            <HiddenRow key={item.assignmentId} item={item} actions={actions} />
+          ))}
+        </details>
+      )}
     </section>
   );
 }
 
-function OpenInCanvas({ item, grow }: { item: WorkItem; grow?: boolean }) {
-  if (!item.url) {
-    return (
-      <button type="button" className="cta" disabled style={grow ? { flex: 1 } : undefined}>
-        No Canvas link
-      </button>
-    );
-  }
+function HiddenRow({ item, actions }: { item: WorkItem; actions?: HomeActions }) {
   return (
-    <a className="cta" href={item.url} target="_blank" rel="noreferrer" style={grow ? { flex: 1 } : undefined}>
+    <div className="row">
+      <span className="row-body">
+        <span className="row-title regular">{item.title}</span>
+        <span className="row-sub">{item.courseName ?? 'No course'}</span>
+      </span>
+      {actions && (
+        <button type="button" className="btn sm" onClick={() => actions.setHidden(item.assignmentId, false)}>
+          Restore
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OpenInCanvasLink({ item }: { item: WorkItem }) {
+  if (!item.url) return <span className="asg-meta">No Canvas link</span>;
+  return (
+    <a className="link" href={item.url} target="_blank" rel="noreferrer">
       {item.replay ? 'Open replay page' : 'Open in Canvas'}
-      <Icon name="external" size="sm" />
+      <Icon name="external" size="xs" />
     </a>
   );
 }
 
 /** Pick 6A: the assignment card with its policy notice and what still works. */
-export function AssignmentDetail({ item, now, onBack }: { item: WorkItem; now: Date; onBack: () => void }) {
+export function AssignmentDetail({ item, now, onBack, actions }: { item: WorkItem; now: Date; onBack: () => void; actions: HomeActions }) {
+  const start = startControl(item, actions);
   const flags = itemFlags(item);
   const blocked = item.policy.state === 'blocked';
   return (
@@ -328,8 +405,17 @@ export function AssignmentDetail({ item, now, onBack }: { item: WorkItem; now: D
           </span>
         </div>
       </Card>
-      <OpenInCanvas item={item} />
-      {blocked && <p className="caption">Hints, reviews, and draft reading are off here.</p>}
+      <button type="button" className="cta block" onClick={start.onClick} disabled={start.disabled}>
+        {start.label === 'Continue' ? 'Continue session' : 'Start session'}
+        <Icon name="arrowRight" />
+      </button>
+      <div className="btn-row" style={{ justifyContent: 'space-between' }}>
+        <OpenInCanvasLink item={item} />
+        <button type="button" className="link" onClick={() => actions.setHidden(item.assignmentId, !item.hidden)}>
+          {item.hidden ? 'Restore to lists' : 'Hide from lists'}
+        </button>
+      </div>
+      {blocked && <p className="caption">Hints, reviews, and draft reading are off here. Your session still keeps your draft and pages together.</p>}
     </>
   );
 }

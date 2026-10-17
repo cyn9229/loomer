@@ -2,14 +2,15 @@ import '../../src/ui/styles.css';
 import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-// ?fixture=<name> renders a labeled fixture instead of live data, for visual
+// ?fixture=<home>&session=<session> renders labeled fixtures instead of live data, for visual
 // review. Both modes load lazily so a preview never touches the live store.
 async function main() {
-  const fixture = new URLSearchParams(location.search).get('fixture');
+  const params = new URLSearchParams(location.search);
+  const fixture = params.get('fixture');
   let app: ReactNode;
   if (fixture !== null) {
     const { PreviewPanel } = await import('./preview');
-    app = <PreviewPanel initial={fixture} />;
+    app = <PreviewPanel initial={fixture} initialSession={params.get('session')} />;
   } else {
     const { LivePanel } = await import('./live');
     app = <LivePanel />;

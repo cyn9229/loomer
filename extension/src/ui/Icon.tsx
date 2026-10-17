@@ -23,6 +23,9 @@ const paths = {
     </>
   ),
   arrowRight: <path d="M5 12h14M12 5l7 7-7 7" />,
+  arrowUp: <path d="m5 12 7-7 7 7M12 19V5" />,
+  x: <path d="M18 6 6 18M6 6l12 12" />,
+  play: <path d="M6 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L7.5 3.64A1 1 0 0 0 6 4.5z" />,
   chevronLeft: <path d="m15 18-6-6 6-6" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,
   chevronDown: <path d="m6 9 6 6 6-6" />,
