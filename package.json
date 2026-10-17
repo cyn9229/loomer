@@ -1,0 +1,16 @@
+{
+  "name": "loomer",
+  "private": true,
+  "type": "module",
+  "workspaces": ["extension", "server"],
+  "scripts": {
+    "dev": "npm run dev -w extension",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w extension",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test -w extension"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

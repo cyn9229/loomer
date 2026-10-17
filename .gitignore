@@ -1,4 +1,10 @@
 .DS_Store
 node_modules/
 dist/
-.env*
+.output/
+.wxt/
+web-ext.config.ts
+*.log
+.env
+.env.*
+!.env.example
