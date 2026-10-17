@@ -3,10 +3,28 @@
   "name": "Loomer G0 probe",
   "version": "0.0.1",
   "description": "Throwaway read-only feasibility probe for Loomer. Reports status codes, counts, hashes, and timings.",
-  "permissions": ["storage", "sidePanel", "alarms", "activeTab", "scripting"],
-  "optional_permissions": ["tabs"],
-  "optional_host_permissions": ["https://*/*"],
-  "background": { "service_worker": "background.js", "type": "module" },
-  "side_panel": { "default_path": "probe.html" },
-  "action": { "default_title": "Loomer G0 probe" }
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "alarms",
+    "activeTab",
+    "scripting",
+    "contextMenus"
+  ],
+  "optional_permissions": [
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "probe.html"
+  },
+  "action": {
+    "default_title": "Loomer G0 probe"
+  }
 }

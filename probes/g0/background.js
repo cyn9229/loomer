@@ -5,6 +5,26 @@ const BG_ALARM = 'g0-background-run';
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+// Capture path without the tabs permission: a context-menu click grants activeTab for that tab.
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({ id: 'g0-capture', title: 'Loomer probe: read this page', contexts: ['page'] });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== 'g0-capture' || !tab?.id) return;
+  let row;
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => ({ titleChars: document.title.length, textChars: document.body?.innerText.length ?? 0 }),
+    });
+    row = { name: 'capture.contextMenu', result: 'PASS', evidence: result };
+  } catch (error) {
+    row = { name: 'capture.contextMenu', result: 'FAIL', evidence: { error: String(error) } };
+  }
+  await chrome.storage.local.set({ ctxResult: { at: new Date().toISOString(), ...row } });
+});
+
 async function handle(msg) {
   switch (msg.type) {
     case 'canvas':

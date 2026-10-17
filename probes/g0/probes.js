@@ -184,6 +184,55 @@ export async function runCanvas(originInput) {
     };
   });
 
+  // Requirements depth: upcoming assignments the student has likely not opened yet.
+  const upcoming = plannerItems
+    .filter((i) => i.plannable_type === 'assignment' && i.course_id && i.plannable_id && Date.parse(i.plannable_date) >= now)
+    .slice(0, 6);
+  const docLinks = [];
+  const fileLinks = [];
+  await step(results, 'canvas.requirements.upcoming', async () => {
+    const rows = [];
+    for (const item of upcoming) {
+      const r = await probeGet(api(`/courses/${item.course_id}/assignments/${item.plannable_id}`));
+      const a = r.json ?? {};
+      const html = a.description ?? '';
+      const hrefs = [...html.matchAll(/href=["']([^"']+)["']/g)].map((m) => m[1]);
+      docLinks.push(...hrefs.filter((h) => /docs\.google\.com\/document\/d\//.test(h)));
+      fileLinks.push(...hrefs.filter((h) => /\/files\/\d+/.test(h)));
+      rows.push({
+        status: r.evidence.status,
+        descriptionChars: stripHtml(html).length,
+        rubricCriteria: Array.isArray(a.rubric) ? a.rubric.length : 0,
+        links: hrefs.length,
+        googleDocLinks: hrefs.filter((h) => /docs\.google\.com\/document\/d\//.test(h)).length,
+        driveLinks: hrefs.filter((h) => /drive\.google\.com/.test(h)).length,
+        canvasFileLinks: hrefs.filter((h) => /\/files\/\d+/.test(h)).length,
+        submissionTypes: a.submission_types ?? [],
+        aiMentions: (stripHtml(html).match(/\b(AI|A\.I\.|artificial intelligence|ChatGPT|generative)\b/gi) ?? []).length,
+      });
+    }
+    return {
+      result: rows.length === 0 ? 'SKIP' : rows.every((r) => r.status === 200) ? 'PASS' : 'FAIL',
+      evidence: { checked: rows.length, withDescription: rows.filter((r) => r.descriptionChars > 0).length, rows },
+    };
+  });
+
+  // Linked teacher instructions in Google Docs: can the export path read a doc the student only views?
+  await step(results, 'canvas.linkedDoc.read', async () => {
+    const id = docLinks[0]?.match(/\/document\/d\/([\w-]+)/)?.[1];
+    if (!id) return { result: 'SKIP', evidence: { reason: 'no Google Doc link in upcoming descriptions' } };
+    const r = await readDoc(id);
+    return { result: r.ok ? 'PASS' : 'FAIL', evidence: { ...r.evidence, finalPath: undefined } };
+  });
+
+  // Linked Canvas files: metadata only (type and size), no download.
+  await step(results, 'canvas.linkedFile.meta', async () => {
+    const id = fileLinks[0]?.match(/\/files\/(\d+)/)?.[1];
+    if (!id) return { result: 'SKIP', evidence: { reason: 'no Canvas file link in upcoming descriptions' } };
+    const r = await probeGet(api(`/files/${id}`));
+    return { result: r.json?.id ? 'PASS' : 'FAIL', evidence: { ...r.evidence, contentType: r.json?.['content-type'], size: r.json?.size } };
+  });
+
   return results;
 }
 

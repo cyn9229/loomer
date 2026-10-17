@@ -172,6 +172,13 @@ $('cap-origin').addEventListener('click', () => {
     .catch((e) => add({ name: 'capture.origin', result: 'FAIL', evidence: { error: String(e) } }));
 });
 
+on('cap-ctx', 'capture.contextMenu', async () => {
+  const { ctxResult } = await chrome.storage.local.get('ctxResult');
+  if (!ctxResult) return add({ name: 'capture.contextMenu', result: 'FAIL', evidence: { error: 'no context-menu result yet' } });
+  const { at, ...row } = ctxResult;
+  add({ ...row, evidence: { ...row.evidence, ranAt: at } });
+});
+
 on('copy', 'copy', async () => {
   const report = rows.map(({ localPreview, ...row }) => row);
   await navigator.clipboard.writeText(JSON.stringify({ probe: 'loomer-g0', chrome: navigator.userAgent, rows: report }, null, 1));
