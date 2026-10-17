@@ -9,3 +9,19 @@ export function useNow(): Date {
   }, []);
   return now;
 }
+
+/**
+ * Whole seconds since `active` became true, ticking once per second; 0 when
+ * inactive. A discrete counter, not an animation, so it costs one render a second.
+ */
+export function useElapsedSeconds(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    setSeconds(0);
+    if (!active) return;
+    const started = Date.now();
+    const id = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return seconds;
+}

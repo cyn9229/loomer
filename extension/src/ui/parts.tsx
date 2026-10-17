@@ -110,15 +110,18 @@ export function WorkRow({
   onOpen,
   start,
   onHide,
+  hiding,
   inClassGroup,
 }: {
   item: WorkItem;
   now: Date;
   onOpen?: (id: string) => void;
   /** Start or Continue control, rendered beside the row's open button. */
-  start?: { label: 'Start' | 'Continue'; onClick: () => void; disabled: boolean };
+  start?: { label: 'Start' | 'Continue'; onClick: () => void; disabled: boolean; busy: boolean };
   /** Hides the item from lists and ranking. Not destructive; Restore brings it back. */
   onHide?: () => void;
+  /** The hide request for this row is in flight. */
+  hiding?: boolean;
   /** Leave the class out of the subline when the row already sits under its class. */
   inClassGroup?: boolean;
 }) {
@@ -159,11 +162,20 @@ export function WorkRow({
         disabled={start.disabled}
         onClick={start.onClick}
         aria-label={`${start.label} ${item.title}`}
+        aria-busy={start.busy}
       >
-        {start.label}
+        {start.busy ? 'Starting…' : start.label}
       </button>
       {onHide && (
-        <button type="button" className="icon-btn sm" onClick={onHide} aria-label={`Hide ${item.title}`} title="Hide">
+        <button
+          type="button"
+          className="icon-btn sm"
+          onClick={onHide}
+          disabled={hiding}
+          aria-busy={hiding}
+          aria-label={hiding ? `Hiding ${item.title}` : `Hide ${item.title}`}
+          title="Hide"
+        >
           <Icon name="eyeOff" size="sm" />
         </button>
       )}
@@ -235,6 +247,19 @@ export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Dat
   );
 }
 
+/**
+ * A bar for real, counted progress (checked of total). It steps when the count
+ * changes; it never moves on its own.
+ */
+export function ProgressBar({ value, max, label }: { value: number; max: number; label: string }) {
+  const ratio = max > 0 ? Math.min(1, value / max) : 0;
+  return (
+    <div className="progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
+      <span style={{ transform: `scaleX(${ratio})` }} />
+    </div>
+  );
+}
+
 /** Last Canvas check, with partial coverage and failures stated plainly. */
 export function CheckBar({
   lastCheck,
@@ -267,7 +292,7 @@ export function CheckBar({
       {lastCheck?.replay && <ReplayPill />}
       {onRefresh && (
         <button type="button" className="btn sm" onClick={onRefresh} disabled={refreshing}>
-          {refreshing ? 'Checking' : 'Refresh'}
+          {refreshing ? 'Checking…' : 'Refresh'}
         </button>
       )}
     </div>

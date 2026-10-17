@@ -1,10 +1,11 @@
 // Chat tab: hint-first help for the session's assignment. The student asks; Loomer
 // answers with hints and questions, never finished work. No copy button on
 // replies. When the AI policy is unknown, one compact question comes first.
-import { useEffect, useRef, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { ChatMessage, HelpState } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { Icon } from './Icon';
+import { useElapsedSeconds } from './useNow';
 import { LogoMark } from './Logo';
 import { Card } from './parts';
 import { Reference, type ActiveSession } from './session';
@@ -36,10 +37,11 @@ export function ChatView({
   const ask = useAction();
   const endRef = useRef<HTMLDivElement>(null);
   const canAsk = help.availability === 'available' && !help.pending && !ask.busy;
+  const thinking = help.pending || ask.busy;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
-  }, [help.messages.length, help.pending]);
+  }, [help.messages.length, thinking]);
 
   const send = (text: string) => {
     const trimmed = text.trim();
@@ -71,14 +73,7 @@ export function ChatView({
         <Message key={m.id} message={m} />
       ))}
 
-      {help.pending && (
-        <div className="msg-loomer">
-          <LogoMark size={26} />
-          <p className="caption" style={{ textAlign: 'left' }} role="status">
-            Loomer is writing a reply
-          </p>
-        </div>
-      )}
+      {thinking && <Thinking />}
 
       {canAsk && last?.role === 'loomer' && (
         <div className="chips">
@@ -125,6 +120,19 @@ export function ChatView({
   );
 }
 
+/** Shown while a reply is in flight: a plain seconds counter, no spinner. */
+function Thinking() {
+  const seconds = useElapsedSeconds(true);
+  return (
+    <div className="msg-loomer">
+      <LogoMark size={26} />
+      <p className="thinking" role="status">
+        Loomer is thinking…<span aria-hidden="true">{seconds > 0 ? ` ${seconds} s` : ''}</span>
+      </p>
+    </div>
+  );
+}
+
 function composerPlaceholder(help: HelpState): string {
   switch (help.availability) {
     case 'available':
@@ -145,6 +153,7 @@ function composerPlaceholder(help: HelpState): string {
 /** Why help is unavailable, or the one-time policy question. */
 function Availability({ help, assignmentId, api }: { help: HelpState; assignmentId: string; api: PanelApi }) {
   const answer = useAction();
+  const [saving, setSaving] = useState<string | null>(null);
   switch (help.availability) {
     case 'available':
       return null;
@@ -168,9 +177,13 @@ function Availability({ help, assignmentId, api }: { help: HelpState; assignment
                 type="button"
                 className="btn sm"
                 disabled={answer.busy}
-                onClick={() => answer.run(() => api.send({ type: 'policy:answer', key: assignmentId, value }))}
+                aria-busy={saving === value}
+                onClick={() => {
+                  setSaving(value);
+                  answer.run(() => api.send({ type: 'policy:answer', key: assignmentId, value }).finally(() => setSaving(null)));
+                }}
               >
-                {label}
+                {saving === value ? 'Saving…' : label}
               </button>
             ))}
           </div>

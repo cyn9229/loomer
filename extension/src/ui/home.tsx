@@ -2,6 +2,7 @@
 // Picks: 1A for checking, 2B for the next action. Views render only what the
 // model says; they never invent progress, time estimates, or checks.
 import { useState, type ReactNode } from 'react';
+import { useElapsedSeconds } from './useNow';
 import type { HomeModel, NextAction, WorkItem } from '../model/home';
 import { groupByClass } from './group';
 import { deadlineLabel, requirementsLabel, shortDate } from './format';
@@ -14,6 +15,7 @@ import {
   itemFlags,
   Pill,
   PolicyNotice,
+  ProgressBar,
   RequirementState,
   WorkRow,
 } from './parts';
@@ -27,7 +29,10 @@ export type HomeActions = {
   continueSession: () => void;
   /** Assignment of the running or paused session, if any. */
   sessionAssignmentId: string | null;
-  starting: boolean;
+  /** Assignment whose session:start is in flight. */
+  startingId: string | null;
+  /** Assignment whose item:hide is in flight. */
+  hidingId: string | null;
   /** Hides an item from lists and ranking, or restores it. */
   setHidden: (assignmentId: string, hidden: boolean) => void;
 };
@@ -38,7 +43,8 @@ export function startControl(item: WorkItem, actions: HomeActions) {
   return {
     label: current ? ('Continue' as const) : ('Start' as const),
     onClick: () => (current ? actions.continueSession() : actions.startSession(item.assignmentId)),
-    disabled: actions.starting,
+    disabled: actions.startingId !== null,
+    busy: actions.startingId === item.assignmentId,
   };
 }
 
@@ -73,32 +79,23 @@ export function NotConnectedView({ actions }: { actions: HomeActions }) {
 
 /** Pick 1A: one row per assignment with its requirement state, then known work. */
 export function CheckingView({ model, now, actions }: ViewProps<'checking'>) {
-  if (model.rest.length === 0 && model.pending.length === 0) {
-    return (
-      <Card>
-        <div className="asg">
-          <RequirementState state="checking" />
-          <div className="asg-body">
-            <h2 className="card-title">Looking for your assignments</h2>
-            <p className="asg-meta">Loomer is reading your Canvas courses.</p>
-          </div>
-        </div>
-      </Card>
-    );
-  }
+  if (model.rest.length === 0 && model.pending.length === 0) return <FindingAssignments />;
   const matched = new Set(model.rest.map((i) => i.title));
   const orphanPending = model.pending.filter((p) => !matched.has(p.title));
   return (
     <>
-      <Card label="Checking assignment requirements">
+      <Card label="Reading requirements">
         <p className="card-label">
-          Checking assignment requirements
+          <span className="card-title">Reading requirements</span>
           {model.progress.total > 0 && (
-            <span className="aside">
-              {model.progress.checked} of {model.progress.total} read
+            <span className="aside" aria-live="polite">
+              {model.progress.checked} of {model.progress.total}
             </span>
           )}
         </p>
+        {model.progress.total > 0 && (
+          <ProgressBar value={model.progress.checked} max={model.progress.total} label="Requirements read" />
+        )}
         {model.rest.filter((i) => !i.hidden).map((item) => {
           const pending = model.pending.find((p) => p.title === item.title);
           return (
@@ -139,6 +136,24 @@ export function CheckingView({ model, now, actions }: ViewProps<'checking'>) {
       </Card>
       <WorkList title="Known work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
     </>
+  );
+}
+
+/** First check, before any assignment is known. Counts seconds so the wait is visible. */
+function FindingAssignments() {
+  const seconds = useElapsedSeconds(true);
+  return (
+    <Card>
+      <div className="asg">
+        <RequirementState state="checking" />
+        <div className="asg-body">
+          <h2 className="card-title">Looking for your assignments</h2>
+          <p className="asg-meta" aria-live="off">
+            Reading your Canvas courses{seconds > 0 ? ` · ${seconds} s` : ''}
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -215,8 +230,8 @@ function NextActionCard({ next, now, actions }: { next: NextAction; now: Date; a
           <PolicyNotice item={item} />
         </div>
       )}
-      <button type="button" className="cta block" style={{ marginTop: 16 }} onClick={start.onClick} disabled={start.disabled}>
-        {start.label === 'Continue' ? 'Continue session' : 'Start session'}
+      <button type="button" className="cta block" style={{ marginTop: 16 }} onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
+        {start.busy ? 'Starting session…' : start.label === 'Continue' ? 'Continue session' : 'Start session'}
         <Icon name="arrowRight" />
       </button>
       <div className="btn-row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
@@ -285,6 +300,7 @@ function WorkList({
       onOpen={onOpen}
       start={actions ? startControl(item, actions) : undefined}
       onHide={actions ? () => actions.setHidden(item.assignmentId, true) : undefined}
+      hiding={actions?.hidingId === item.assignmentId}
       inClassGroup
     />
   );
@@ -449,8 +465,8 @@ export function AssignmentDetail({ item, now, onBack, actions }: { item: WorkIte
           </span>
         </div>
       </Card>
-      <button type="button" className="cta block" onClick={start.onClick} disabled={start.disabled}>
-        {start.label === 'Continue' ? 'Continue session' : 'Start session'}
+      <button type="button" className="cta block" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
+        {start.busy ? 'Starting session…' : start.label === 'Continue' ? 'Continue session' : 'Start session'}
         <Icon name="arrowRight" />
       </button>
       <div className="btn-row" style={{ justifyContent: 'space-between' }}>

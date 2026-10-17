@@ -45,6 +45,8 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
   const [chatDraft, setChatDraft] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
+  const [hidingId, setHidingId] = useState<string | null>(null);
   const start = useAction();
 
   const active: ActiveSession | null = session && session.status !== 'none' ? session : null;
@@ -61,13 +63,18 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
     openSettings: api.openSettings,
     openItem: setOpenId,
     startSession: (assignmentId) => {
+      setStartingId(assignmentId);
       start.run(async () => {
-        const reply = await api.send({ type: 'session:start', assignmentId });
-        if (reply.ok) {
-          setOpenId(null);
-          setTab('sources');
+        try {
+          const reply = await api.send({ type: 'session:start', assignmentId });
+          if (reply.ok) {
+            setOpenId(null);
+            setTab('sources');
+          }
+          return reply;
+        } finally {
+          setStartingId(null);
         }
-        return reply;
       });
     },
     continueSession: () => {
@@ -75,12 +82,18 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
       setTab('sources');
     },
     sessionAssignmentId: active?.assignment.assignmentId ?? null,
-    starting: start.busy,
+    startingId,
+    hidingId,
     setHidden: (assignmentId, hidden) => {
+      setHidingId(assignmentId);
       start.run(async () => {
-        const reply = await api.send({ type: 'item:hide', assignmentId, hidden });
-        if (reply.ok && hidden) setOpenId(null);
-        return reply;
+        try {
+          const reply = await api.send({ type: 'item:hide', assignmentId, hidden });
+          if (reply.ok && hidden) setOpenId(null);
+          return reply;
+        } finally {
+          setHidingId(null);
+        }
       });
     },
   };
@@ -128,7 +141,7 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
           {previewLabel}
         </p>
       )}
-      <main className="panel-body" role="tabpanel">
+      <main className="panel-body" role="tabpanel" key={`${tab}:${openId ?? ''}`}>
         {start.error && (
           <p className="status-line error" role="status">
             {start.error}

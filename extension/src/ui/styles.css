@@ -1,7 +1,9 @@
 /* Loomer design system. Tokens and component classes shared by the side panel
    and the options page. The look follows the six reference images (light
    lavender surfaces, white rounded cards, violet accent); see the picked mocks.
-   No continuous animation anywhere. Status never relies on color alone. */
+   Motion is one-shot only: things ease in when they appear, controls answer a
+   press, collapsibles open by height. Nothing loops, spins, pulses, or shimmers.
+   Status never relies on color alone. */
 
 :root {
   color-scheme: light;
@@ -50,6 +52,13 @@
   --shadow-card: 0 0 0 1px var(--line), 0 2px 6px rgba(17, 19, 46, 0.03);
   --shadow-cta: 0 8px 20px rgba(79, 77, 253, 0.26);
   --focus: 0 0 0 3px rgba(79, 77, 253, 0.35);
+
+  /* Motion (strong curves from the animate skill; UI stays under 300ms) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --d-press: 140ms;
+  --d-enter: 200ms;
+  --d-open: 220ms;
 
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Inter, Roboto, sans-serif;
 }
@@ -1348,4 +1357,163 @@ button.row-main:hover .row-title {
 }
 .group > summary {
   gap: 6px;
+}
+
+/* ================= Motion ================= */
+/* Height animation for <details> (Chrome 131+); older Chrome just snaps open. */
+:root {
+  interpolate-size: allow-keywords;
+}
+
+/* Enter: cards and new rows fade up a few pixels once, when they mount. */
+.card,
+.checkbar,
+.session-strip,
+.hint-row,
+.callout,
+.ocard,
+.bubble,
+.msg-loomer,
+.status-line,
+.preview-banner {
+  transition:
+    opacity var(--d-enter) var(--ease-out),
+    transform var(--d-enter) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* Short stagger for the first cards on a screen (40ms apart, capped). */
+.panel-body > :nth-child(2) {
+  transition-delay: 40ms;
+}
+.panel-body > :nth-child(3) {
+  transition-delay: 80ms;
+}
+.panel-body > :nth-child(n + 4) {
+  transition-delay: 120ms;
+}
+/* Pressable strips and chat messages never wait on the stagger. */
+.panel-body > .session-strip,
+.chat > * {
+  transition-delay: 0ms;
+}
+
+/* Press feedback and hover color on every pressable control. */
+.cta,
+.btn,
+.chip-btn,
+.filter-chip,
+.tab,
+.icon-btn,
+.send-btn,
+.nav-item,
+.switch,
+.session-strip,
+.hint-row-open {
+  transition:
+    transform var(--d-press) var(--ease-out),
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+.cta:active:not(:disabled),
+.btn:active:not(:disabled),
+.chip-btn:active,
+.filter-chip:active,
+.tab:active,
+.icon-btn:active:not(:disabled),
+.send-btn:active:not(:disabled),
+.nav-item:active,
+.session-strip:active {
+  transform: scale(0.97);
+}
+/* The switch thumb slides instead of jumping. */
+.switch::after {
+  transition: left 180ms var(--ease-out);
+}
+/* In-flight controls read as waiting without any looping motion. */
+[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* Collapsibles open by height; the chevron turns with them. */
+details::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size var(--d-open) var(--ease-out),
+    content-visibility var(--d-open) allow-discrete;
+}
+details[open]::details-content {
+  block-size: auto;
+}
+details > summary .icon {
+  transition: transform var(--d-open) var(--ease-out);
+}
+.disclosure:not([open]) > summary .icon {
+  transform: rotate(180deg);
+}
+
+/* Real progress: the bar steps when the checked count changes. */
+.progress {
+  height: 6px;
+  margin: -4px 0 6px;
+  border-radius: 3px;
+  background: var(--accent-100);
+  overflow: hidden;
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transform-origin: left center;
+  transition: transform 300ms var(--ease-out);
+}
+.thinking {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reduced motion: no movement. Opacity fades stay; everything else is instant. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .checkbar,
+  .session-strip,
+  .hint-row,
+  .callout,
+  .ocard,
+  .bubble,
+  .msg-loomer,
+  .status-line,
+  .preview-banner {
+    transition: opacity 150ms ease;
+    @starting-style {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  .cta:active:not(:disabled),
+  .btn:active:not(:disabled),
+  .chip-btn:active,
+  .filter-chip:active,
+  .tab:active,
+  .icon-btn:active:not(:disabled),
+  .send-btn:active:not(:disabled),
+  .nav-item:active,
+  .session-strip:active {
+    transform: none;
+  }
+  .switch::after,
+  details > summary .icon,
+  .progress > span {
+    transition: none;
+  }
+  details::details-content {
+    transition: none;
+  }
 }

@@ -346,7 +346,9 @@ function AiHelpCard({ ai }: { ai: AiSettings }) {
           <span className="setting-title" id="ai-switch-label">
             Read assignment requirements with AI
           </span>
-          <span className="setting-sub">{ai.enabled ? 'On' : 'Off'}</span>
+          <span className="setting-sub" aria-live="polite">
+            {working ? (ai.enabled ? 'Turning off…' : 'Turning on…') : ai.enabled ? 'On' : 'Off'}
+          </span>
         </span>
         <button
           type="button"

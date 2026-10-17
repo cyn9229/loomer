@@ -9,6 +9,10 @@ import { dateTime } from './format';
 
 const HOUR = 3_600_000;
 
+// Spread into each connected fixture. Works whether or not the Home contract has
+// the resume briefing yet (spread properties skip excess-property checks).
+const noResume = { resume: null };
+
 /** A local date `days` from now at hh:mm, as ISO. */
 function at(now: Date, days: number, hh: number, mm: number): string {
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, hh, mm);
@@ -158,6 +162,7 @@ export function buildFixtures(now: Date) {
 
     'checking-first': {
       status: 'checking',
+      ...noResume,
       progress: { checked: 0, total: 0 },
       pending: [],
       rest: [],
@@ -166,6 +171,7 @@ export function buildFixtures(now: Date) {
 
     checking: {
       status: 'checking',
+      ...noResume,
       progress: { checked: 4, total: 6 },
       pending: [{ title: vocab.title, detail: 'Reading description' }],
       rest: [
@@ -181,6 +187,7 @@ export function buildFixtures(now: Date) {
 
     'cannot-compare': {
       status: 'cannot-compare',
+      ...noResume,
       limitations: [
         {
           kind: 'limitation',
@@ -200,6 +207,7 @@ export function buildFixtures(now: Date) {
 
     ready: {
       status: 'ready',
+      ...noResume,
       next: {
         item: essay,
         action: 'Outline the comparison between your two sources',
@@ -213,6 +221,7 @@ export function buildFixtures(now: Date) {
 
     'ready-blocked': {
       status: 'ready',
+      ...noResume,
       next: {
         item: reflection,
         action: `Open the instructions for ${reflection.title}`,
@@ -241,6 +250,7 @@ export function buildFixtures(now: Date) {
 
     'ready-replay': {
       status: 'ready',
+      ...noResume,
       next: {
         item: replayItem,
         action: 'Fill in the canopy data table',
@@ -262,6 +272,7 @@ export function buildFixtures(now: Date) {
 
     'signed-out': {
       status: 'ready',
+      ...noResume,
       next: {
         item: essay,
         action: 'Outline the comparison between your two sources',
@@ -275,6 +286,7 @@ export function buildFixtures(now: Date) {
 
     empty: {
       status: 'empty',
+      ...noResume,
       rest: [reading],
       lastCheck,
     },

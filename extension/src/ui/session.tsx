@@ -78,8 +78,16 @@ export function Reference({ quote, from }: { quote: string; from: 'your draft' |
   );
 }
 
+type SessionVerb = 'pause' | 'resume' | 'end';
+const busyLabel: Record<SessionVerb, string> = { pause: 'Pausing…', resume: 'Resuming…', end: 'Ending…' };
+
 export function SessionCard({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
   const action = useAction();
+  const [verb, setVerb] = useState<SessionVerb | null>(null);
+  const runVerb = (v: SessionVerb) => {
+    setVerb(v);
+    action.run(() => api.send({ type: v === 'end' ? 'session:end' : v === 'pause' ? 'session:pause' : 'session:resume' }).finally(() => setVerb(null)));
+  };
   const { assignment } = session;
   const paused = session.status === 'paused';
   return (
@@ -114,17 +122,12 @@ export function SessionCard({ session, now, api }: { session: ActiveSession; now
         </div>
       )}
       <div className="btn-row" style={{ marginTop: 14 }}>
-        <button
-          type="button"
-          className="btn sm"
-          disabled={action.busy}
-          onClick={() => action.run(() => api.send({ type: paused ? 'session:resume' : 'session:pause' }))}
-        >
+        <button type="button" className="btn sm" disabled={action.busy} aria-busy={verb === 'pause' || verb === 'resume'} onClick={() => runVerb(paused ? 'resume' : 'pause')}>
           <Icon name={paused ? 'play' : 'pause'} size="sm" />
-          {paused ? 'Resume' : 'Pause'}
+          {verb === 'pause' || verb === 'resume' ? busyLabel[verb] : paused ? 'Resume' : 'Pause'}
         </button>
-        <button type="button" className="btn sm" disabled={action.busy} onClick={() => action.run(() => api.send({ type: 'session:end' }))}>
-          End session
+        <button type="button" className="btn sm" disabled={action.busy} aria-busy={verb === 'end'} onClick={() => runVerb('end')}>
+          {verb === 'end' ? busyLabel.end : 'End session'}
         </button>
       </div>
       {action.error && <p className="status-line error">{action.error}</p>}
@@ -182,16 +185,19 @@ function LinkedDoc({ doc, now }: { doc: Extract<DocState, { status: 'linked' }>;
 function LinkDoc({ assignmentId, candidates, api }: { assignmentId: string; candidates: { docId: string; url: string }[]; api: PanelApi }) {
   const action = useAction();
   const [pasted, setPasted] = useState('');
+  const [linking, setLinking] = useState<string | null>(null);
 
-  const link = (docUrl: string) =>
+  const link = (docUrl: string) => {
+    setLinking(docUrl);
     action.run(() =>
       // requestOrigins runs synchronously inside this click, before any await.
       api.requestOrigins(DOCS_ORIGINS).then((granted) =>
         granted
           ? api.send({ type: 'doc:link', assignmentId, docUrl })
           : { ok: false as const, error: 'Chrome access to Google Docs was not granted. Your draft stays unlinked.' },
-      ),
+      ).finally(() => setLinking(null)),
     );
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -221,8 +227,8 @@ function LinkDoc({ assignmentId, candidates, api }: { assignmentId: string; cand
                 <span className="row-title">Google Doc</span>
                 <span className="row-sub">{c.url.replace('https://', '')}</span>
               </span>
-              <button type="button" className="btn sm" disabled={action.busy} onClick={() => link(c.url)}>
-                Link
+              <button type="button" className="btn sm" disabled={action.busy} aria-busy={linking === c.url} onClick={() => link(c.url)}>
+                {linking === c.url ? 'Linking…' : 'Link'}
               </button>
             </div>
           ))}
@@ -240,8 +246,8 @@ function LinkDoc({ assignmentId, candidates, api }: { assignmentId: string; cand
             spellCheck={false}
           />
         </label>
-        <button type="submit" className="btn" disabled={action.busy}>
-          Link
+        <button type="submit" className="btn" disabled={action.busy} aria-busy={linking === pasted.trim()}>
+          {linking !== null && linking === pasted.trim() ? 'Linking…' : 'Link'}
         </button>
       </form>
       {action.error && <p className="status-line error">{action.error}</p>}
@@ -287,9 +293,10 @@ function SourceRow({ source, now, api }: { source: SourceItem; now: Date; api: P
         type="button"
         className="link"
         disabled={action.busy}
+        aria-busy={action.busy}
         onClick={() => action.run(() => api.send({ type: 'source:remove', id: source.id }))}
       >
-        Remove
+        {action.busy ? 'Removing…' : 'Remove'}
       </button>
     </div>
   );
