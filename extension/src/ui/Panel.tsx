@@ -39,9 +39,11 @@ export type PanelProps = {
   onRefresh?: () => Promise<void>;
   /** Shown above the content when the models are fixtures, never for live data. */
   previewLabel?: string;
+  /** Loomer is paused in settings (privacy:pause). */
+  paused: boolean;
 };
 
-export function Panel({ home, session, now, api, onRefresh, previewLabel }: PanelProps) {
+export function Panel({ home, session, now, api, onRefresh, previewLabel, paused }: PanelProps) {
   const [tab, setTab] = useState<Tab>('home');
   const [openId, setOpenId] = useState<string | null>(null);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
@@ -89,6 +91,7 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
     sessionAssignmentId: active?.assignment.assignmentId ?? null,
     startingId,
     hidingId,
+    send: api.send,
     setHidden: (assignmentId, hidden) => {
       setHidingId(assignmentId);
       start.run(async () => {
@@ -111,10 +114,14 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
         <LogoMark size={32} />
         <Wordmark />
         <span className="grow" />
-        {active && (
-          <span className={active.status === 'paused' ? 'state-pill paused' : 'state-pill'}>
-            {active.status === 'paused' ? 'Paused' : 'Session'}
-          </span>
+        {paused ? (
+          <span className="state-pill paused">Loomer paused</span>
+        ) : (
+          active && (
+            <span className={active.status === 'paused' ? 'state-pill paused' : 'state-pill'}>
+              {active.status === 'paused' ? 'Paused' : 'Session'}
+            </span>
+          )
         )}
         <button type="button" className="icon-btn" onClick={api.openSettings} aria-label="Settings">
           <Icon name="settings" />
@@ -147,6 +154,7 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
         </p>
       )}
       <main className="panel-body" role="tabpanel" key={`${tab}:${openId ?? ''}`}>
+        {paused && <PausedStrip api={api} />}
         {start.error && (
           <p className="status-line error" role="status">
             {start.error}
@@ -249,6 +257,34 @@ function findItem(model: HomeModel, id: string): WorkItem | null {
   if (model.status === 'not-connected') return null;
   const items = model.status === 'ready' ? [model.next.item, ...model.rest] : model.rest;
   return items.find((i) => i.assignmentId === id) ?? null;
+}
+
+/** Loomer is paused: say what stops, and offer to resume. Resuming does not resume a session. */
+function PausedStrip({ api }: { api: PanelApi }) {
+  const resume = useAction();
+  return (
+    <div className="callout amber" role="status">
+      <span className="tile amber">
+        <Icon name="pause" size="sm" />
+      </span>
+      <div className="callout-body">
+        <strong className="callout-title">Loomer is paused.</strong>
+        It is not checking Canvas, reading your Doc, adding pages, or suggesting pages.
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            className="btn sm"
+            disabled={resume.busy}
+            aria-busy={resume.busy}
+            onClick={() => resume.run(() => api.send({ type: 'privacy:pause', paused: false }))}
+          >
+            {resume.busy ? 'Resuming…' : 'Resume Loomer'}
+          </button>
+        </div>
+        {resume.error && <p className="status-line error">{resume.error}</p>}
+      </div>
+    </div>
+  );
 }
 
 function NoSession({ text, onHome }: { text: string; onHome: () => void }) {

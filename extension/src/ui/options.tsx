@@ -12,6 +12,8 @@ import { checkProblem, observedAt } from './format';
 import { Icon, type IconName } from './Icon';
 import { LogoMark, Wordmark } from './Logo';
 import { Pill, ReplayPill } from './parts';
+import { ConfirmBox, exclusionScope } from './privacy';
+import { useAction } from './api';
 
 type View = 'start' | 'privacy';
 
@@ -46,7 +48,15 @@ export function OptionsPage({ settings, ai, proactive, discovery, lastCheck, now
           {current === 'start' ? (
             <GetStarted settings={settings} onDone={() => setView('privacy')} />
           ) : (
-            <Privacy settings={settings} ai={ai} proactive={proactive} discovery={discovery} lastCheck={lastCheck} now={now} />
+            <Privacy
+              settings={settings}
+              ai={ai}
+              proactive={proactive}
+              discovery={discovery}
+              lastCheck={lastCheck}
+              now={now}
+              onCleared={() => setView('start')}
+            />
           )}
         </div>
       </main>
@@ -185,6 +195,7 @@ function Privacy({
   discovery,
   lastCheck,
   now,
+  onCleared,
 }: {
   settings: Settings | null;
   ai: AiSettings | null;
@@ -192,6 +203,7 @@ function Privacy({
   discovery: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
+  onCleared: () => void;
 }) {
   const [changing, setChanging] = useState(false);
   const origin = settings?.canvasOrigin ? new URL(settings.canvasOrigin) : null;
@@ -240,19 +252,6 @@ function Privacy({
           ) : (
             <p className="ocard-desc">No source approved yet.</p>
           )}
-          {settings && (
-            <div className="setting">
-              <span className={settings.paused ? 'tile amber' : 'tile green'}>
-                <Icon name={settings.paused ? 'pause' : 'check'} size="sm" />
-              </span>
-              <span className="grow">
-                <span className="setting-title">{settings.paused ? 'Paused' : 'Observing'}</span>
-                <span className="setting-sub">
-                  {settings.paused ? 'Loomer is not reading anything.' : 'Loomer reads approved sources while Chrome is open.'}
-                </span>
-              </span>
-            </div>
-          )}
           <div style={{ marginTop: 14 }}>
             {changing || !origin ? (
               <ConnectForm onConnected={() => setChanging(false)} />
@@ -266,51 +265,9 @@ function Privacy({
         {ai && <AiHelpCard ai={ai} />}
         {proactive && <ProactiveCard proactive={proactive} />}
         {discovery && <DiscoveryCard enabled={discovery.enabled} />}
-        <section className="ocard" aria-label="Never read">
-          <div className="ocard-head">
-            <span className="tile lg">
-              <Icon name="lock" />
-            </span>
-            <div className="grow">
-              <h2 className="ocard-title">Never read</h2>
-              <p className="ocard-desc">These block Loomer, not you.</p>
-            </div>
-          </div>
-          {settings?.exclusions.map((x) => (
-            <div className="setting" key={exclusionKey(x)}>
-              <span className="grow">
-                <span className="setting-title">{x.kind === 'host' ? x.host : `${new URL(x.origin).host}${x.path}`}</span>
-                <span className="setting-sub">{exclusionScope(x)}</span>
-              </span>
-            </div>
-          ))}
-          <div className="setting">
-            <span className="grow">
-              <span className="setting-title">Always excluded</span>
-              <span className="setting-sub">Gmail, Google sign-in and account pages, Google Chat and Messages, Outlook mail</span>
-            </span>
-            <Pill>Built in</Pill>
-          </div>
-        </section>
-        <section className="ocard" aria-label="Your data">
-          <div className="ocard-head">
-            <span className="tile lg red">
-              <Icon name="database" />
-            </span>
-            <div className="grow">
-              <h2 className="ocard-title">Your data</h2>
-              <p className="ocard-desc">
-                Saved in this Chrome profile. Not encrypted. Anyone with access to this profile can read it.
-              </p>
-            </div>
-          </div>
-          <div className="setting">
-            <span className="grow">
-              <span className="setting-title">Chrome site access</span>
-              <span className="setting-sub">Removing Loomer’s access to a site happens in Chrome’s extension settings.</span>
-            </span>
-          </div>
-        </section>
+        {settings && <PauseCard paused={settings.paused} />}
+        {settings && <NeverReadCard exclusions={settings.exclusions} />}
+        <DataCard onCleared={onCleared} />
       </div>
     </>
   );
@@ -571,11 +528,215 @@ function CheckSummary({ lastCheck, now }: { lastCheck: CheckInfo | null; now: Da
   );
 }
 
-function exclusionKey(x: Exclusion): string {
-  return x.kind === 'host' ? `h:${x.host}` : `p:${x.origin}${x.path}`;
+
+
+/** Pause or resume everything Loomer reads. Resuming does not resume a work session. */
+function PauseCard({ paused }: { paused: boolean }) {
+  const action = useAction();
+  return (
+    <section className="ocard" aria-label="Pause Loomer">
+      <div className="ocard-head">
+        <span className={paused ? 'tile lg amber' : 'tile lg'}>
+          <Icon name="pause" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">{paused ? 'Loomer is paused' : 'Pause Loomer'}</h2>
+          <p className="ocard-desc">
+            Pausing stops Canvas checks, reading your Doc, adding pages, and suggestions. It also pauses your work session.
+            Resuming Loomer does not resume the session; press Resume in the session for that.
+          </p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className={paused ? 'tile amber' : 'tile green'}>
+          <Icon name={paused ? 'pause' : 'check'} size="sm" />
+        </span>
+        <span className="grow">
+          <span className="setting-title">{paused ? 'Paused' : 'Running'}</span>
+          <span className="setting-sub">{paused ? 'Loomer is not reading anything.' : 'Loomer reads only what you approved.'}</span>
+        </span>
+        <button
+          type="button"
+          className="btn"
+          disabled={action.busy}
+          aria-busy={action.busy}
+          onClick={() => action.run(() => sendMessage({ type: 'privacy:pause', paused: !paused }))}
+        >
+          {action.busy ? (paused ? 'Resuming…' : 'Pausing…') : paused ? 'Resume Loomer' : 'Pause Loomer'}
+        </button>
+      </div>
+      {action.error && <p className="status-line error">{action.error}</p>}
+    </section>
+  );
 }
 
-function exclusionScope(x: Exclusion): string {
-  if (x.kind === 'page') return 'This page only';
-  return x.includeSubdomains ? 'This site and its subdomains' : 'This host only';
+/** Parses "news.example.com" or a full URL into a lowercase hostname. */
+function parseHost(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+  try {
+    const host = new URL(text.includes('://') ? text : `https://${text}`).hostname.toLowerCase();
+    return host.includes('.') ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The student's "Never read" list with Remove, an add form that shows scope first, and the built-in list. */
+function NeverReadCard({ exclusions }: { exclusions: Exclusion[] }) {
+  const [input, setInput] = useState('');
+  const [includeSubdomains, setIncludeSubdomains] = useState(false);
+  const [deleteSaved, setDeleteSaved] = useState(false);
+  const add = useAction();
+  const host = parseHost(input);
+  const rule: Exclusion | null = host ? { kind: 'host', host, includeSubdomains } : null;
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!rule) {
+      add.setError('Enter a site address, like news.example.com.');
+      return;
+    }
+    add.run(async () => {
+      const reply = await sendMessage({ type: 'exclusion:add', rule, deleteSaved });
+      if (reply.ok) {
+        setInput('');
+        setIncludeSubdomains(false);
+        setDeleteSaved(false);
+      }
+      return reply;
+    });
+  };
+
+  return (
+    <section className="ocard" aria-label="Never read">
+      <div className="ocard-head">
+        <span className="tile lg">
+          <Icon name="eyeOff" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">Never read</h2>
+          <p className="ocard-desc">These block Loomer, not you. You can still visit them.</p>
+        </div>
+      </div>
+      {exclusions.map((x) => (
+        <ExclusionRow key={x.kind === 'host' ? `h:${x.host}:${x.includeSubdomains}` : `p:${x.origin}${x.path}`} rule={x} />
+      ))}
+      <form onSubmit={submit} className="exclusion-form">
+        <label>
+          <span className="field-label">Add site</span>
+          <input
+            className="field sm"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="news.example.com"
+            inputMode="url"
+            spellCheck={false}
+          />
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={includeSubdomains} onChange={(e) => setIncludeSubdomains(e.target.checked)} />
+          Include subdomains
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={deleteSaved} onChange={(e) => setDeleteSaved(e.target.checked)} />
+          Also delete pages already saved from this site
+        </label>
+        <p className="scope-line" aria-live="polite">
+          {rule ? exclusionScope(rule) : 'Type a site to see exactly what it blocks.'}
+        </p>
+        <button type="submit" className="btn" disabled={!rule || add.busy} aria-busy={add.busy}>
+          {add.busy ? 'Saving…' : rule ? `Never read ${rule.host}` : 'Never read'}
+        </button>
+        {add.error && <p className="status-line error">{add.error}</p>}
+      </form>
+      <div className="setting" style={{ marginTop: 14 }}>
+        <span className="grow">
+          <span className="setting-title">Always excluded</span>
+          <span className="setting-sub">
+            Gmail, Google sign-in and account pages, Google Chat and Messages, and Outlook mail. Sign-in, account,
+            settings, payment, inbox, message, and grade pages are never saved as research.
+          </span>
+        </span>
+        <Pill>Built in</Pill>
+      </div>
+    </section>
+  );
+}
+
+function ExclusionRow({ rule }: { rule: Exclusion }) {
+  const remove = useAction();
+  return (
+    <div className="setting">
+      <span className="grow">
+        <span className="setting-title">{rule.kind === 'host' ? rule.host : `${new URL(rule.origin).host}${rule.path}`}</span>
+        <span className="setting-sub">{exclusionScope(rule)}</span>
+        {remove.error && <span className="setting-sub danger-text">{remove.error}</span>}
+      </span>
+      <button
+        type="button"
+        className="link"
+        disabled={remove.busy}
+        aria-busy={remove.busy}
+        onClick={() => remove.run(() => sendMessage({ type: 'exclusion:remove', rule }))}
+      >
+        {remove.busy ? 'Removing…' : 'Remove'}
+      </button>
+    </div>
+  );
+}
+
+/** Local data facts and "Clear all Loomer data" with a confirm step. */
+function DataCard({ onCleared }: { onCleared: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const clear = useAction();
+  return (
+    <section className="ocard" aria-label="Your data">
+      <div className="ocard-head">
+        <span className="tile lg red">
+          <Icon name="database" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">Your data</h2>
+          <p className="ocard-desc">Saved in this Chrome profile. Not encrypted. Anyone with access to this profile can read it.</p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title">Chrome site access</span>
+          <span className="setting-sub">Review it at chrome://extensions › loomer › Details.</span>
+        </span>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        {confirming ? (
+          <ConfirmBox
+            title="Clear all Loomer data?"
+            confirmLabel="Clear all data"
+            busyLabel="Clearing…"
+            busy={clear.busy}
+            error={clear.error}
+            danger
+            onCancel={() => setConfirming(false)}
+            onConfirm={() =>
+              clear.run(async () => {
+                const reply = await sendMessage({ type: 'data:clear-all' });
+                if (reply.ok) onCleared();
+                return reply;
+              })
+            }
+          >
+            <p className="confirm-body">
+              Removes everything Loomer stored on this computer and gives back the site access Loomer was given. It
+              cannot undo AI processing that already happened at the provider. Nothing changes in Canvas or your Docs.
+            </p>
+          </ConfirmBox>
+        ) : (
+          <button type="button" className="btn danger-btn" onClick={() => setConfirming(true)}>
+            <Icon name="trash" size="sm" />
+            Clear all Loomer data
+          </button>
+        )}
+      </div>
+    </section>
+  );
 }

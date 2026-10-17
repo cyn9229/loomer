@@ -1,6 +1,8 @@
 // Live side panel: renders the Home and Session models from the local store and
 // sends actions to the service worker.
 import { sendMessage } from '../../src/core/messages';
+import { settingsItem } from '../../src/core/settings';
+import { useStorageItem } from '../../src/model/useStorageItem';
 import { useHomeModel } from '../../src/model/useHomeModel';
 import { useSessionModel } from '../../src/model/useSessionModel';
 import type { PanelApi } from '../../src/ui/api';
@@ -20,6 +22,7 @@ export function LivePanel() {
       session={useSessionModel()}
       now={useNow()}
       api={api}
+      paused={useStorageItem(settingsItem)?.paused ?? false}
       onRefresh={async () => {
         await sendMessage({ type: 'canvas:refresh' });
       }}

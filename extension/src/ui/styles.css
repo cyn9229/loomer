@@ -1656,3 +1656,107 @@ details > summary .icon {
     }
   }
 }
+
+/* ---------- Privacy actions ---------- */
+.row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+.row-actions.indent {
+  margin: -4px 0 8px 48px;
+}
+.row-actions.center {
+  align-items: center;
+}
+.link.subtle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.link.subtle:hover {
+  color: var(--accent-ink);
+}
+.confirm {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: var(--accent-50);
+  box-shadow: 0 0 0 1px var(--accent-150);
+  transition:
+    opacity var(--d-enter) var(--ease-out),
+    transform var(--d-enter) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.confirm.danger {
+  background: var(--red-50);
+  box-shadow: 0 0 0 1px #f3c4c4;
+}
+.confirm-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.confirm-body {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 8px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.check input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.btn.danger-btn {
+  color: var(--red);
+  box-shadow: inset 0 0 0 1.5px #f2b8b8;
+}
+.btn.danger-btn:hover {
+  background: var(--red-50);
+}
+.source-item + .source-item .row {
+  border-top: 1px solid var(--line-soft);
+}
+.source-item .row {
+  border-top: 0;
+}
+.exclusion-form {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.exclusion-form .btn {
+  justify-self: start;
+  margin-top: 6px;
+}
+.scope-line {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .confirm {
+    transition: opacity 150ms ease;
+    @starting-style {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}

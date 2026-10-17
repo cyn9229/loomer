@@ -8,6 +8,7 @@ import { useAction, type PanelApi } from './api';
 import { observedAt, shortDate } from './format';
 import { Icon, type IconName } from './Icon';
 import { AssignmentTile, Card, Pill } from './parts';
+import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
 export type ActiveSession = Extract<SessionModel, { status: 'active' | 'paused' }>;
 
@@ -146,6 +147,14 @@ export function SuggestionRow({
         Add saves this page once. Loomer does not keep reading the site. Not now stops suggestions for this session.
       </p>
       {action.error && <p className="status-line error">{action.error}</p>}
+      {(() => {
+        const rule = hostRule(suggestion.url);
+        return rule && !leaving ? (
+          <div className="row-actions">
+            <NeverRead rule={rule} label="Never read this site" deleteLabel="Also delete pages already saved from this site" send={api.send} />
+          </div>
+        ) : null;
+      })()}
     </section>
   );
 }
@@ -212,6 +221,9 @@ export function SessionCard({ session, now, api }: { session: ActiveSession; now
         </button>
       </div>
       {action.error && <p className="status-line error">{action.error}</p>}
+      <div className="row-actions">
+        <DeleteAssignmentData assignmentId={assignment.assignmentId} send={api.send} />
+      </div>
     </Card>
   );
 }
@@ -228,13 +240,13 @@ const DOC_URL = /^https:\/\/docs\.google\.com\/document\/d\/[\w-]+/;
 
 export function DocCard({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
   return session.doc.status === 'linked' ? (
-    <LinkedDoc doc={session.doc} now={now} />
+    <LinkedDoc doc={session.doc} now={now} api={api} />
   ) : (
     <LinkDoc assignmentId={session.assignment.assignmentId} candidates={session.doc.candidates} api={api} />
   );
 }
 
-function LinkedDoc({ doc, now }: { doc: Extract<DocState, { status: 'linked' }>; now: Date }) {
+function LinkedDoc({ doc, now, api }: { doc: Extract<DocState, { status: 'linked' }>; now: Date; api: PanelApi }) {
   const state = readStateText[doc.readState];
   const facts = [
     doc.lastReadAt ? `last read ${observedAt(doc.lastReadAt, now)}` : null,
@@ -257,6 +269,9 @@ function LinkedDoc({ doc, now }: { doc: Extract<DocState, { status: 'linked' }>;
           <span className="row-title wrap">{state.text}</span>
           {facts.length > 0 && <span className="row-sub wrap">Google Doc · {facts.join(' · ')}</span>}
         </span>
+      </div>
+      <div className="row-actions">
+        <NeverRead rule={docRule(doc.docId)} label="Never read this Doc" deleteLabel="Also delete Loomer’s copy of this Doc" send={api.send} />
       </div>
     </Card>
   );
@@ -356,29 +371,37 @@ export function SourcesCard({ sources, now, api }: { sources: SourceItem[]; now:
 function SourceRow({ source, now, api }: { source: SourceItem; now: Date; api: PanelApi }) {
   const action = useAction();
   const host = hostOf(source.url);
+  const rule = hostRule(source.url);
   return (
-    <div className="row">
-      <span className="tile">
-        <Icon name="globe" size="sm" />
-      </span>
-      <span className="row-body">
-        <a className="row-title" href={source.url} target="_blank" rel="noreferrer">
-          {source.title}
-        </a>
-        <span className="row-sub">
-          {host} · added {observedAt(source.capturedAt, now)}
+    <div className="source-item">
+      <div className="row">
+        <span className="tile">
+          <Icon name="globe" size="sm" />
         </span>
-        {action.error && <span className="row-sub danger-text">{action.error}</span>}
-      </span>
-      <button
-        type="button"
-        className="link"
-        disabled={action.busy}
-        aria-busy={action.busy}
-        onClick={() => action.run(() => api.send({ type: 'source:remove', id: source.id }))}
-      >
-        {action.busy ? 'Removing…' : 'Remove'}
-      </button>
+        <span className="row-body">
+          <a className="row-title" href={source.url} target="_blank" rel="noreferrer">
+            {source.title}
+          </a>
+          <span className="row-sub">
+            {host} · added {observedAt(source.capturedAt, now)}
+          </span>
+          {action.error && <span className="row-sub danger-text">{action.error}</span>}
+        </span>
+        <button
+          type="button"
+          className="link"
+          disabled={action.busy}
+          aria-busy={action.busy}
+          onClick={() => action.run(() => api.send({ type: 'source:remove', id: source.id }))}
+        >
+          {action.busy ? 'Removing…' : 'Remove'}
+        </button>
+      </div>
+      {rule && (
+        <div className="row-actions indent">
+          <NeverRead rule={rule} label="Never read this site" deleteLabel="Also delete pages already saved from this site" send={api.send} />
+        </div>
+      )}
     </div>
   );
 }

@@ -22,6 +22,7 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
   const sessionNames = Object.keys(sessions) as SessionFixtureName[];
   const [home, setHome] = useState<FixtureName>(pick(initial, homeNames, 'ready'));
   const [session, setSession] = useState<SessionFixtureName>(pick(initialSession, sessionNames, 'none'));
+  const [paused, setPaused] = useState(false);
   return (
     <>
       <div className="preview-picker">
@@ -41,6 +42,9 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
             ))}
           </select>
         </label>
+        <label>
+          <input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} /> Paused
+        </label>
       </div>
       <Panel
         key={`${home}:${session}`}
@@ -48,6 +52,7 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
         session={sessions[session]}
         now={now}
         api={api}
+        paused={paused}
         previewLabel={`Fixture preview: ${home} / ${session}. Not live data.`}
       />
     </>

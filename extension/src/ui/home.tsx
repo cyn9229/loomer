@@ -5,6 +5,8 @@ import { useState, type ReactNode } from 'react';
 import { useElapsedSeconds } from './useNow';
 import type { HomeModel, NextAction, WorkItem } from '../model/home';
 import { groupByClass } from './group';
+import type { PanelApi } from './api';
+import { DeleteAssignmentData } from './privacy';
 import { deadlineLabel, requirementsLabel, shortDate } from './format';
 import { Icon } from './Icon';
 import {
@@ -35,6 +37,8 @@ export type HomeActions = {
   hidingId: string | null;
   /** Hides an item from lists and ranking, or restores it. */
   setHidden: (assignmentId: string, hidden: boolean) => void;
+  /** Raw message sender for privacy actions (delete data). */
+  send?: PanelApi['send'];
 };
 
 /** Start or Continue for one assignment, depending on the current session. */
@@ -475,6 +479,11 @@ export function AssignmentDetail({ item, now, onBack, actions }: { item: WorkIte
           {item.hidden ? 'Restore to lists' : 'Hide from lists'}
         </button>
       </div>
+      {actions.send && (
+        <div className="row-actions center">
+          <DeleteAssignmentData assignmentId={item.assignmentId} send={actions.send} />
+        </div>
+      )}
       {blocked && <p className="caption">Hints, reviews, and draft reading are off here. Your session still keeps your draft and pages together.</p>}
     </>
   );
