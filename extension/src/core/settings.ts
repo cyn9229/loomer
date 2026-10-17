@@ -40,3 +40,14 @@ export type AiSettings = {
 export const aiSettingsItem = storage.defineItem<AiSettings>('local:ai', {
   fallback: { enabled: false, brokerOrigin: 'http://127.0.0.1:8787' },
 });
+
+export type ProactiveSettings = {
+  /** Unprompted writing hints after a pause. A requested review always runs immediately. */
+  enabled: boolean;
+  /** Seconds without edits before a hint may be considered. Agreed default 90. */
+  delaySec: number;
+};
+
+export const proactiveItem = storage.defineItem<ProactiveSettings>('local:proactive', {
+  fallback: { enabled: true, delaySec: 90 },
+});

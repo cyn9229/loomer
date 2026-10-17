@@ -100,3 +100,43 @@ export type HelpRequest = z.infer<typeof helpRequestSchema>;
 export type HelpResponse = z.infer<typeof helpResponseSchema>;
 export type ReviewRequest = z.infer<typeof reviewRequestSchema>;
 export type ReviewResponse = z.infer<typeof reviewResponseSchema>;
+
+export const HINT_ROUTE = '/ai/hint';
+
+/** Fixed issue types, so a reworded hint about a dismissed issue is still recognized. */
+export const HINT_ISSUES = [
+  'claim-unsupported',
+  'evidence-unexplained',
+  'comparison-missing',
+  'summary-without-analysis',
+  'citation-missing',
+  'unclear-sentence',
+  'organization',
+  'requirement-not-addressed',
+  'other',
+] as const;
+
+/** One unprompted hint after a pause. Only sent when the proactive rules allow it. */
+export const hintRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  instructions: z.string().max(12_000),
+  rubric: rubricItems,
+  studentWork: z.string().max(15_000),
+  workScope,
+  /** Lines the student added since the last check; the hint should concern these. */
+  recentChange: z.string().max(3_000),
+  /** Issue types the student dismissed; never raise them again. */
+  dismissedIssues: z.array(z.enum(HINT_ISSUES)).max(HINT_ISSUES.length),
+});
+
+export const hintResponseSchema = z.strictObject({
+  /** False when there is no clearly useful hint right now. That is the expected common case. */
+  useful: z.boolean(),
+  hint: z.string(),
+  /** Exact passage from the student's draft the hint points to. */
+  quote: z.string(),
+  issueKey: z.enum(HINT_ISSUES),
+});
+
+export type HintRequest = z.infer<typeof hintRequestSchema>;
+export type HintResponse = z.infer<typeof hintResponseSchema>;

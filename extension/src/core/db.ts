@@ -106,6 +106,8 @@ export type StudentContext = {
   policyAnswer?: { value: PolicyAnswer; answeredAt: string };
   /** Student hid this item from "Other work". Survives refreshes until restored. */
   hidden?: boolean;
+  /** Hint issue types the student dismissed for this assignment; not raised again. */
+  dismissedHintIssues?: string[];
 };
 
 /** A Doc the student linked to an assignment: the only Doc Loomer may read for it. */
@@ -133,6 +135,10 @@ export type WorkSession = {
   startedAt: string;
   endedAt: string | null;
   lastActivityAt: string;
+  /** Draft state at the last proactive-hint evaluation, to require new evidence. */
+  lastHintEval?: { hash: string; studentWords: number; at: string };
+  /** When the last unprompted hint was shown, for the cooldown. */
+  lastHintAt?: string;
 };
 
 export type SessionEvent = {
@@ -169,6 +175,39 @@ export type ChatRecord = {
   createdAt: string;
 };
 
+/**
+ * Where the student left off on one assignment. Deliberately one small record
+ * with no draft or page text, so opt-in cross-device sync can carry it later.
+ */
+export type ResumePacket = {
+  assignmentId: string;
+  sessionId: number;
+  /** When the session paused or ended. */
+  at: string;
+  docId: string | null;
+  edits: number;
+  wordsDelta: number;
+  sourceIds: string[];
+  /** Fingerprints of the draft's paragraphs at that time; not reversible to text. */
+  paragraphHashes: string[];
+  dismissed: boolean;
+};
+
+/** A proactive hint shown during a session. */
+export type HintRecord = {
+  id: number;
+  sessionId: number;
+  assignmentId: string;
+  text: string;
+  /** Passage from the student's draft the hint points to. */
+  quote: string;
+  issueKey: string;
+  /** Draft version the hint was made from. */
+  docHash: string;
+  createdAt: string;
+  state: 'shown' | 'dismissed' | 'withdrawn';
+};
+
 export class LoomerDb extends Dexie {
   assignments!: EntityTable<Assignment, 'id'>;
   runs!: EntityTable<CollectionRun, 'id'>;
@@ -181,6 +220,8 @@ export class LoomerDb extends Dexie {
   sessionEvents!: EntityTable<SessionEvent, 'id'>;
   sources!: EntityTable<Source, 'id'>;
   chat!: EntityTable<ChatRecord, 'id'>;
+  resumePackets!: EntityTable<ResumePacket, 'assignmentId'>;
+  hints!: EntityTable<HintRecord, 'id'>;
 
   constructor(name = 'loomer') {
     super(name);
@@ -200,6 +241,10 @@ export class LoomerDb extends Dexie {
       sessionEvents: '++id, sessionId, assignmentId, at',
       sources: 'id, assignmentId',
       chat: '++id, assignmentId',
+    });
+    this.version(4).stores({
+      resumePackets: 'assignmentId, at',
+      hints: '++id, sessionId, assignmentId, state',
     });
   }
 }

@@ -29,6 +29,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     workHelpDecision(db, ai, a.id),
   ]);
   const read = link ? await db.docReads.get(link.docId) : undefined;
+  const hint = (await db.hints.where('sessionId').equals(session.id).filter((h) => h.state === 'shown').toArray()).at(-1);
   const contextMap = new Map(context.filter((c) => c !== undefined).map((c) => [c.key, c]));
 
   return {
@@ -46,7 +47,8 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
       messages: chat.map((m: ChatRecord) => ({ id: m.id, role: m.role, text: m.text, kind: m.kind, references: m.references, createdAt: m.createdAt })),
       pending: chat.at(-1)?.role === 'student' && now.getTime() - Date.parse(chat.at(-1)!.createdAt) < PENDING_MS,
     },
-    hint: null,
+    // Never show AI guidance once help is no longer allowed (AI off, new restriction).
+    hint: hint && decision.allowed ? { id: hint.id, text: hint.text, reference: { quote: hint.quote, from: 'your draft' }, createdAt: hint.createdAt } : null,
   };
 }
 

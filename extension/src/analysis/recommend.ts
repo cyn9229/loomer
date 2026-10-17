@@ -1,9 +1,9 @@
 // Builds the HomeModel from stored evidence with inspectable rules. AI output
 // only supplies effort labels and first-step wording; the order is computed here.
-import type { Analysis, Assignment, CollectionRun, Course, StudentContext } from '../core/db';
+import type { Analysis, Assignment, CollectionRun, Course, ResumePacket, Source, StudentContext } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
-import type { CheckInfo, EffortLabel, Evidence, HomeModel, NextAction, WorkItem } from '../model/home';
+import type { CheckInfo, EffortLabel, Evidence, HomeModel, NextAction, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
 import type { PolicyResult } from './policy';
 
@@ -22,11 +22,27 @@ export type RecommendInput = {
   ai: AiSettings;
   lastRun: CollectionRun | undefined;
   now: Date;
+  /** Resume packets; the newest undismissed one becomes Home's briefing. */
+  packets: ResumePacket[];
+  sources: Source[];
+  docUrls: Map<string, string>;
+  /** An active session hides the briefing; the session banner covers it. */
+  activeSession: boolean;
 };
 
 type Candidate = { a: Assignment; item: WorkItem; due: EffectiveDue; policy: PolicyResult; analysis: Extract<Analysis, { status: 'ok' }> | null };
 
+type CoreModel = DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume'> | { status: 'not-connected' };
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
 export function buildHomeModel(input: RecommendInput): HomeModel {
+  const core = buildCore(input);
+  if (core.status === 'not-connected') return core;
+  const next = core.status === 'ready' ? core.next.item.assignmentId : null;
+  return { ...core, resume: resumeBriefing(input, next) };
+}
+
+function buildCore(input: RecommendInput): CoreModel {
   const { connected, lastRun, now } = input;
   if (!connected) return { status: 'not-connected' };
   const lastCheck = lastRun ? checkInfo(lastRun) : null;
@@ -98,6 +114,37 @@ function candidateFor(a: Assignment, { course, analysis: stored, context }: Cand
 /** The WorkItem for one assignment, built with the same rules Home uses. */
 export function workItemFor(a: Assignment, inputs: CandidateInputs, now: Date): WorkItem {
   return candidateFor(a, inputs, now).item;
+}
+
+function resumeBriefing(input: RecommendInput, nextAssignmentId: string | null): ResumeBriefing | null {
+  if (input.activeSession) return null;
+  const packet = input.packets.filter((p) => !p.dismissed).sort((x, y) => y.at.localeCompare(x.at))[0];
+  const a = packet && input.assignments.find((x) => x.id === packet.assignmentId);
+  if (!packet || !a || !isOpen(a)) return null;
+
+  const contextByKey = new Map(input.context.map((c) => [c.key, c]));
+  const stored = input.analyses.find((x) => x.assignmentId === a.id);
+  const course = input.courses.find((c) => c.id === courseKey(a));
+  const candidate = candidateFor(a, { course, analysis: stored, context: contextByKey }, input.now);
+  const sources = input.sources.filter((src) => packet.sourceIds.includes(src.id));
+
+  const facts: string[] = [];
+  if (packet.edits > 0) {
+    const words = packet.wordsDelta === 0 ? '' : ` (${packet.wordsDelta > 0 ? '+' : '−'}${Math.abs(packet.wordsDelta)} words)`;
+    facts.push(`Edited your draft ${packet.edits} ${packet.edits === 1 ? 'time' : 'times'}${words}`);
+  }
+  if (sources.length > 0) facts.push(`Saved ${sources.length} ${sources.length === 1 ? 'source' : 'sources'}`);
+  if (facts.length === 0) facts.push('No edits or saved sources were recorded in that session.');
+
+  return {
+    assignment: candidate.item,
+    at: packet.at,
+    facts,
+    sources: sources.map((src) => ({ title: src.title, url: src.url })),
+    docUrl: packet.docId ? (input.docUrls.get(a.id) ?? null) : null,
+    requirements: candidate.analysis?.deliverables ?? [],
+    recommendationChanged: nextAssignmentId !== null && nextAssignmentId !== a.id,
+  };
 }
 
 function latestStart(c: Candidate): number {

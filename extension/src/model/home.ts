@@ -77,6 +77,24 @@ export type CheckInfo = {
   replay: boolean;
 };
 
+/**
+ * Shown on Home after a session ended or paused, until the student continues it,
+ * starts another, or dismisses it (resume:dismiss). Facts only; no "you were away".
+ */
+export type ResumeBriefing = {
+  assignment: WorkItem;
+  /** When the last session paused or ended. */
+  at: string;
+  /** Factual lines, e.g. "Edited your draft 3 times (+240 words)", "Saved 2 sources". */
+  facts: string[];
+  sources: { title: string; url: string }[];
+  docUrl: string | null;
+  /** Requirements from the instructions, each with its quote (AI interpretation, may be empty). */
+  requirements: { text: string; quote: string }[];
+  /** Home's next action is a different assignment; the UI says why and keeps Continue one tap away. */
+  recommendationChanged: boolean;
+};
+
 export type HomeModel =
   /** No school connected yet. */
   | { status: 'not-connected' }
@@ -88,9 +106,10 @@ export type HomeModel =
       pending: { title: string; detail: string }[];
       rest: WorkItem[];
       lastCheck: CheckInfo | null;
+      resume: ResumeBriefing | null;
     }
   /** Unreadable or unchecked work could change the order, so no confident top pick. */
-  | { status: 'cannot-compare'; limitations: Evidence[]; rest: WorkItem[]; lastCheck: CheckInfo | null }
-  | { status: 'ready'; next: NextAction; rest: WorkItem[]; lastCheck: CheckInfo | null }
+  | { status: 'cannot-compare'; limitations: Evidence[]; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null }
+  | { status: 'ready'; next: NextAction; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null }
   /** Connected and checked, nothing open in the decision window. */
-  | { status: 'empty'; rest: WorkItem[]; lastCheck: CheckInfo | null };
+  | { status: 'empty'; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null };

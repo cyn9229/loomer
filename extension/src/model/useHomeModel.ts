@@ -22,7 +22,7 @@ export function useHomeModel(): HomeModel | undefined {
   }, []);
 
   return useLiveQuery(async () => {
-    const [settings, ai, lastRun, assignments, courses, analyses, context] = await Promise.all([
+    const [settings, ai, lastRun, assignments, courses, analyses, context, packets, sources, links, active] = await Promise.all([
       settingsItem.getValue(),
       aiSettingsItem.getValue(),
       db.runs.orderBy('startedAt').last(),
@@ -30,7 +30,24 @@ export function useHomeModel(): HomeModel | undefined {
       db.courses.toArray(),
       db.analyses.toArray(),
       db.studentContext.toArray(),
+      db.resumePackets.toArray(),
+      db.sources.toArray(),
+      db.docLinks.toArray(),
+      db.sessions.where('state').equals('active').count(),
     ]);
-    return buildHomeModel({ connected: Boolean(settings.canvasOrigin), assignments, courses, analyses, context, ai, lastRun, now: new Date() });
+    return buildHomeModel({
+      connected: Boolean(settings.canvasOrigin),
+      assignments,
+      courses,
+      analyses,
+      context,
+      ai,
+      lastRun,
+      now: new Date(),
+      packets,
+      sources,
+      docUrls: new Map(links.map((l) => [l.assignmentId, l.url])),
+      activeSession: active > 0,
+    });
   }, [tick]);
 }

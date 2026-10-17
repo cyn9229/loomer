@@ -25,7 +25,12 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('source:remove'), id: z.string() }),
   z.object({ type: z.literal('help:ask'), assignmentId: z.string(), text: z.string().min(1).max(2_000) }),
   z.object({ type: z.literal('help:review'), assignmentId: z.string() }),
+  /** Dismiss a proactive hint; its issue type is not raised again for this assignment. */
   z.object({ type: z.literal('hint:dismiss'), id: z.number() }),
+  /** The panel showed the hint; clears the toolbar badge. */
+  z.object({ type: z.literal('hint:seen') }),
+  z.object({ type: z.literal('proactive:set'), enabled: z.boolean(), delaySec: z.number().int().min(30).max(600) }),
+  z.object({ type: z.literal('resume:dismiss'), assignmentId: z.string() }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);

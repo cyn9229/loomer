@@ -64,6 +64,10 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   ai: { enabled: true, brokerOrigin: 'http://127.0.0.1:8787' },
   lastRun: run,
   now,
+  packets: [],
+  sources: [],
+  docUrls: new Map(),
+  activeSession: false,
   ...over,
 });
 

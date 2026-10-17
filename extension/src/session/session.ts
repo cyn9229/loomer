@@ -3,9 +3,14 @@
 import { readDocPaced, studentText, wordCount } from '../adapters/docs/reader';
 import type { LoomerDb, SessionEvent, WorkSession } from '../core/db';
 import type { GateState } from '../core/gate';
+import { writeResumePacket } from './resume';
 
 /** No edit, capture, or panel action for this long suspends the session. */
 export const IDLE_SUSPEND_MS = 15 * 60 * 1000;
+/** With the typing signal, read once typing has paused this long. */
+const TYPING_SETTLE_MS = 3_000;
+/** With the typing signal, still read this often in case a keystroke was missed. */
+const SIGNAL_FALLBACK_MS = 60_000;
 
 export async function currentSession(db: LoomerDb): Promise<WorkSession | undefined> {
   return (await db.sessions.where('state').anyOf('active', 'paused').toArray()).at(-1);
@@ -44,6 +49,7 @@ export async function setState(db: LoomerDb, s: WorkSession, state: 'active' | '
   const at = now.toISOString();
   await db.sessions.update(s.id, { state, lastActivityAt: at });
   await log(db, s, at, state === 'active' ? 'resumed' : 'paused');
+  if (state === 'paused') await writeResumePacket(db, s, now);
 }
 
 export async function endSession(db: LoomerDb, now: Date) {
@@ -52,6 +58,7 @@ export async function endSession(db: LoomerDb, now: Date) {
   const at = now.toISOString();
   await db.sessions.update(s.id, { state: 'ended', endedAt: at });
   await log(db, s, at, 'ended');
+  await writeResumePacket(db, s, now);
 }
 
 export async function touch(db: LoomerDb, s: WorkSession, now: Date) {
@@ -63,15 +70,32 @@ export async function touch(db: LoomerDb, s: WorkSession, now: Date) {
  * pacing allows and record a factual edit event when the student's text changed.
  * Returns true while the session still needs ticking.
  */
-export async function tickSession(db: LoomerDb, gate: GateState, now: Date, fetchImpl?: typeof fetch): Promise<boolean> {
+export async function tickSession(
+  db: LoomerDb,
+  gate: GateState,
+  now: Date,
+  typingAt: (docId: string) => Promise<number | null> = async () => null,
+  fetchImpl?: typeof fetch,
+): Promise<boolean> {
   const s = await currentSession(db);
   if (!s || s.state !== 'active') return false;
-  if (now.getTime() - Date.parse(s.lastActivityAt) > IDLE_SUSPEND_MS) {
+  const link = await db.docLinks.get(s.assignmentId);
+  const typed = link ? await typingAt(link.docId) : null;
+  // Typing counts as activity even before a read confirms the change.
+  const lastActive = Math.max(Date.parse(s.lastActivityAt), typed ?? 0);
+  if (now.getTime() - lastActive > IDLE_SUSPEND_MS) {
     await setState(db, s, 'paused', now);
     return false;
   }
-  const link = await db.docLinks.get(s.assignmentId);
   if (!link) return true;
+
+  // With a typing signal, read after a burst of typing settles instead of on a timer.
+  const prior = await db.docReads.get(link.docId);
+  if (typed !== null && prior?.lastAttemptAt) {
+    const lastAttempt = Date.parse(prior.lastAttemptAt);
+    const settledAfterTyping = typed > lastAttempt && now.getTime() - typed >= TYPING_SETTLE_MS;
+    if (!settledAfterTyping && now.getTime() - lastAttempt < SIGNAL_FALLBACK_MS) return true;
+  }
 
   const result = await readDocPaced(db, gate, link.docId, now, fetchImpl);
   if (!result?.changed || !result.read.current || !result.read.previous) return true;

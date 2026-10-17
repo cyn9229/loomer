@@ -93,8 +93,8 @@ describe('session ticks', () => {
     await startSession(db, assignment.id, t0);
     await db.docLinks.put({ assignmentId: assignment.id, docId: DOC, url: 'u', linkedAt: t0.toISOString() });
     const f = exportFetch({ text: 'Trees cool streets.' }, { text: 'Trees cool streets. Shade lowers heat a lot.' });
-    await tickSession(db, gate, at(0), f);
-    await tickSession(db, gate, at(16_000), f);
+    await tickSession(db, gate, at(0), undefined, f);
+    await tickSession(db, gate, at(16_000), undefined, f);
     const events = await db.sessionEvents.toArray();
     expect(events.map((e) => [e.kind, e.wordsDelta])).toEqual([
       ['started', undefined],
@@ -105,7 +105,7 @@ describe('session ticks', () => {
   it('pauses after idle time and stops reading', async () => {
     await startSession(db, assignment.id, t0);
     const f = exportFetch({ text: 'x' });
-    expect(await tickSession(db, gate, at(IDLE_SUSPEND_MS + 1), f)).toBe(false);
+    expect(await tickSession(db, gate, at(IDLE_SUSPEND_MS + 1), undefined, f)).toBe(false);
     expect((await currentSession(db))?.state).toBe('paused');
     expect(f.calls).toBe(0);
   });

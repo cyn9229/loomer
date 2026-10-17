@@ -6,10 +6,12 @@ import { analyzeRequirements } from '../src/analysis/analyze';
 import { capturePage, type CaptureOutcome } from '../src/capture/capture';
 import { db } from '../src/core/db';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiSettingsItem, loadGateState, settingsItem } from '../src/core/settings';
+import { aiSettingsItem, loadGateState, proactiveItem, settingsItem } from '../src/core/settings';
 import { parseSourceUrl } from '../src/core/url';
 import { askHelp, requestReview } from '../src/session/help';
+import { dismissHint, proactiveStep } from '../src/session/proactive';
 import { currentSession, endSession, setState, startSession, tickSession, touch } from '../src/session/session';
+import { typingAtFor, typingItem } from '../src/session/typing';
 
 const REFRESH_ALARM = 'canvas-refresh';
 const REFRESH_MINUTES = 15;
@@ -28,15 +30,82 @@ let sessionLoop: ReturnType<typeof setTimeout> | null = null;
 function runSessionLoop() {
   if (sessionLoop) return;
   const step = async () => {
-    const more = await tickSession(db, await loadGateState(), new Date()).catch((error: unknown) => {
+    const now = new Date();
+    const more = await tickSession(db, await loadGateState(), now, typingAtFor).catch((error: unknown) => {
       console.error('loomer: session tick failed', error);
       return true;
     });
+    if (more) await runProactive(now);
     sessionLoop = more ? setTimeout(step, SESSION_LOOP_MS) : null;
     if (!more) await browser.alarms.clear(SESSION_ALARM);
   };
   sessionLoop = setTimeout(step, 0);
   void browser.alarms.create(SESSION_ALARM, { periodInMinutes: 0.5 });
+}
+
+/** Last keystroke in the active session's linked Doc, or null. */
+async function linkedTypingAt(): Promise<number | null> {
+  const s = await currentSession(db);
+  const link = s ? await db.docLinks.get(s.assignmentId) : undefined;
+  return typingAtFor(link?.docId);
+}
+
+let hintRunning = false;
+
+/** One proactive step; at most one hint evaluation in flight. Badge only when the panel is closed. */
+async function runProactive(now: Date) {
+  if (hintRunning) return;
+  hintRunning = true;
+  try {
+    const created = await proactiveStep(
+      {
+        db,
+        ai: () => aiSettingsItem.getValue(),
+        proactive: () => proactiveItem.getValue(),
+        typingAt: linkedTypingAt,
+      },
+      now,
+    );
+    if (created !== null) {
+      const panelOpen = (await browser.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] })).length > 0;
+      if (!panelOpen) {
+        await browser.action.setBadgeBackgroundColor({ color: '#4f4dfd' });
+        await browser.action.setBadgeText({ text: '1' });
+      }
+    }
+  } catch (error) {
+    console.error('loomer: proactive step failed', error);
+  } finally {
+    hintRunning = false;
+  }
+}
+
+/** Registers the typing signal once Docs access exists. Safe to call repeatedly. */
+async function registerTypingSignal() {
+  if (!(await browser.permissions.contains({ origins: DOCS_ORIGINS }))) return;
+  const existing = await browser.scripting.getRegisteredContentScripts({ ids: ['docs-activity'] });
+  if (existing.length > 0) return;
+  await browser.scripting.registerContentScripts([
+    {
+      id: 'docs-activity',
+      matches: ['https://docs.google.com/*'],
+      js: ['content-scripts/docs-activity.js'],
+      allFrames: true,
+      matchOriginAsFallback: true,
+      runAt: 'document_start',
+      persistAcrossSessions: true,
+    },
+  ]);
+}
+
+/** A keystroke ping from the content script; trusted only for the linked Doc of the active session. */
+async function onTyping(tabUrl: string | undefined) {
+  const docId = tabUrl ? parseDocId(tabUrl) : null;
+  const s = await currentSession(db);
+  if (!docId || !s || s.state !== 'active') return;
+  if ((await db.docLinks.get(s.assignmentId))?.docId !== docId) return;
+  await typingItem.setValue({ docId, at: Date.now() });
+  runSessionLoop();
 }
 
 function stopSessionLoop() {
@@ -205,6 +274,7 @@ async function handle(message: Message): Promise<Reply> {
         return { ok: false, error: 'Chrome access to Google Docs was not granted.' };
       }
       await db.docLinks.put({ assignmentId: message.assignmentId, docId, url: `https://docs.google.com/document/d/${docId}/edit`, linkedAt: new Date().toISOString() });
+      await registerTypingSignal().catch((error: unknown) => console.error('loomer: typing signal unavailable', error));
       const s = await currentSession(db);
       if (s?.assignmentId === message.assignmentId && s.state === 'active') runSessionLoop();
       return { ok: true };
@@ -221,7 +291,20 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     }
     case 'hint:dismiss':
-      return { ok: false, error: 'Proactive hints arrive in M4.' };
+      await dismissHint(db, message.id);
+      await browser.action.setBadgeText({ text: '' });
+      return { ok: true };
+    case 'hint:seen':
+      await browser.action.setBadgeText({ text: '' });
+      return { ok: true };
+    case 'proactive:set':
+      await proactiveItem.setValue({ enabled: message.enabled, delaySec: message.delaySec });
+      return { ok: true };
+    case 'resume:dismiss': {
+      const packet = await db.resumePackets.get(message.assignmentId);
+      if (packet) await db.resumePackets.put({ ...packet, dismissed: true });
+      return { ok: true };
+    }
   }
 }
 
@@ -233,6 +316,7 @@ export default defineBackground(() => {
     void schedule();
     void refresh();
     browser.contextMenus.create({ id: CAPTURE_MENU, title: 'Add page to Loomer', contexts: ['page'] });
+    void registerTypingSignal().catch(() => {});
   });
   // Catch up after the browser was closed. A session never resumes on its own:
   // restored tabs must not restart Doc reads or capture without the student.
@@ -251,6 +335,14 @@ export default defineBackground(() => {
   });
   browser.commands.onCommand.addListener((command, tab) => {
     if (command === 'add-page') void captureFromTab(tab);
+  });
+
+  // Typing pings from the docs-activity content script carry no content; see onTyping.
+  browser.runtime.onMessage.addListener((raw, sender) => {
+    if (sender.id === browser.runtime.id && sender.tab && typeof raw === 'object' && raw !== null && 'type' in raw && raw.type === 'docs:activity') {
+      void onTyping(sender.tab.url);
+    }
+    return false;
   });
 
   browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {

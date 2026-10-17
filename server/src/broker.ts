@@ -7,6 +7,9 @@ import {
   HELP_ROUTE,
   helpRequestSchema,
   helpResponseSchema,
+  HINT_ROUTE,
+  hintRequestSchema,
+  hintResponseSchema,
   REQUIREMENTS_ROUTE,
   requirementsRequestSchema,
   requirementsResponseSchema,
@@ -114,6 +117,26 @@ summary: one sentence naming what you reviewed; if scope is partial, say only pa
     ].join('\n\n'),
 });
 
+const hintTask = defineTask({
+  route: HINT_ROUTE,
+  name: 'hint',
+  request: hintRequestSchema,
+  response: hintResponseSchema,
+  system: `You watch a student's draft and may offer one short, quiet hint after they pause. ${BOUNDARY}
+Only raise an issue that is clearly visible in what the student has already written, preferably in <recent> text. Never mention sections they have not reached yet (for example a missing conclusion while they draft the introduction). Never infer anything from text you cannot see.
+If nothing is clearly useful, return useful=false with empty hint and quote. That is the right answer most of the time.
+If useful: hint is one or two sentences under 45 words, phrased as a nudge or question, never replacement text. quote is a short passage copied character for character from the draft. issueKey is the closest type from the schema. Never use an issueKey listed as dismissed.`,
+  user: (req) =>
+    [
+      `Assignment: ${req.title}`,
+      `<instructions>\n${req.instructions}\n</instructions>`,
+      `Rubric:\n${rubricText(req.rubric)}`,
+      `<draft scope="${req.workScope}">\n${req.studentWork}\n</draft>`,
+      `<recent>\n${req.recentChange || '(no new lines identified)'}\n</recent>`,
+      `Dismissed issue types: ${req.dismissedIssues.join(', ') || 'none'}`,
+    ].join('\n\n'),
+});
+
 const openRouterReply = z.union([
   z.object({
     model: z.string().optional(),
@@ -151,6 +174,7 @@ export function brokerRoutes(env: { apiKey: string | undefined; model: string; e
   register(requirementsTask);
   register(helpTask);
   register(reviewTask);
+  register(hintTask);
   return app;
 }
 
