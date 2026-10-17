@@ -16,4 +16,4 @@ Canvas may record API reads as page views in its access reports. Google may reco
 6. Capture: on a normal article tab, open the panel from the toolbar icon, then run the three capture buttons in order.
 7. Copy report JSON and paste it back.
 
-Delete this folder after G0. It is not product code.
+Kept as validation evidence for the support matrix in the root README. It is not product code and is never shipped.
