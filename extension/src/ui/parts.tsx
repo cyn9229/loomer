@@ -109,15 +109,23 @@ export function WorkRow({
   item,
   onOpen,
   start,
+  onHide,
+  inClassGroup,
 }: {
   item: WorkItem;
   now: Date;
   onOpen?: (id: string) => void;
   /** Start or Continue control, rendered beside the row's open button. */
   start?: { label: 'Start' | 'Continue'; onClick: () => void; disabled: boolean };
+  /** Hides the item from lists and ranking. Not destructive; Restore brings it back. */
+  onHide?: () => void;
+  /** Leave the class out of the subline when the row already sits under its class. */
+  inClassGroup?: boolean;
 }) {
   const flags = itemFlags(item);
-  const sub = [item.courseName, item.due ? shortDate(item.due.at) : 'No due date'].filter(Boolean).join(' · ');
+  const sub = [inClassGroup ? null : item.courseName, item.due ? shortDate(item.due.at) : 'No due date', item.effort.label]
+    .filter(Boolean)
+    .join(' · ');
   const content = (
     <>
       <span className="row-body">
@@ -125,10 +133,11 @@ export function WorkRow({
         <span className="row-sub">{sub}</span>
         {flags.length > 0 && <span className="row-pills">{flags}</span>}
       </span>
-      <span className="row-end">
-        <Pill>{item.effort.label}</Pill>
-        {onOpen && !start && <Icon name="chevronRight" size="sm" />}
-      </span>
+      {onOpen && !start && (
+        <span className="row-end">
+          <Icon name="chevronRight" size="sm" />
+        </span>
+      )}
     </>
   );
   if (!onOpen) return <div className="row">{content}</div>;
@@ -153,6 +162,11 @@ export function WorkRow({
       >
         {start.label}
       </button>
+      {onHide && (
+        <button type="button" className="icon-btn sm" onClick={onHide} aria-label={`Hide ${item.title}`} title="Hide">
+          <Icon name="eyeOff" size="sm" />
+        </button>
+      )}
     </div>
   );
 }

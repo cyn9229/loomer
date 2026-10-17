@@ -1,7 +1,9 @@
 // Home tab views, one per HomeModel status, plus the assignment detail (pick 6A).
 // Picks: 1A for checking, 2B for the next action. Views render only what the
 // model says; they never invent progress, time estimates, or checks.
+import { useState, type ReactNode } from 'react';
 import type { HomeModel, NextAction, WorkItem } from '../model/home';
+import { groupByClass } from './group';
 import { deadlineLabel, requirementsLabel, shortDate } from './format';
 import { Icon } from './Icon';
 import {
@@ -246,16 +248,11 @@ export function EmptyView({ model, now, actions }: ViewProps<'empty'>) {
   );
 }
 
-const bucketGroups: { bucket: WorkItem['bucket']; title: string; folded: boolean }[] = [
-  { bucket: 'soon', title: 'Coming up', folded: false },
-  { bucket: 'later', title: 'Later', folded: false },
-  { bucket: 'no-date', title: 'No due date', folded: true },
-  { bucket: 'past', title: 'Deadline passed', folded: true },
-];
-
 /**
- * Known work grouped by bucket. Undated and past items stay reachable but folded,
- * and hidden items sit in their own folded group where they can be restored.
+ * Known work, grouped by class with a class filter. Inside a class: Due soon,
+ * Later, then folded "No due date (N)" and "Past due (N)", which stay one tap
+ * away because a missing date does not mean unimportant. Hidden items sit in a
+ * folded group at the end with Restore.
  */
 function WorkList({
   id,
@@ -270,50 +267,97 @@ function WorkList({
   items: WorkItem[];
   now: Date;
   onOpen: (id: string) => void;
-  /** When given, each row gets Start or Continue. */
+  /** When given, rows get Start or Continue and Hide. */
   actions?: HomeActions;
 }) {
+  const [filter, setFilter] = useState<string | null>(null);
   if (items.length === 0) return null;
-  const visible = items.filter((i) => !i.hidden);
-  const hidden = items.filter((i) => i.hidden);
+  const classes = groupByClass(items);
+  const shown = filter ? classes.filter((c) => c.courseKey === filter) : classes;
+  const hidden = items.filter((i) => i.hidden && (!filter || i.courseKey === filter));
+  const visibleCount = classes.reduce((n, c) => n + c.count, 0);
+
   const row = (item: WorkItem) => (
-    <WorkRow key={item.assignmentId} item={item} now={now} onOpen={onOpen} start={actions ? startControl(item, actions) : undefined} />
+    <WorkRow
+      key={item.assignmentId}
+      item={item}
+      now={now}
+      onOpen={onOpen}
+      start={actions ? startControl(item, actions) : undefined}
+      onHide={actions ? () => actions.setHidden(item.assignmentId, true) : undefined}
+      inClassGroup
+    />
   );
+
   return (
     <section className="card" id={id} tabIndex={id ? -1 : undefined} aria-label={title}>
       <p className="card-label">
         <span className="card-title">{title}</span>
         <span className="aside">
-          {visible.length} {visible.length === 1 ? 'item' : 'items'}
+          {visibleCount} {visibleCount === 1 ? 'item' : 'items'}
         </span>
       </p>
-      {bucketGroups.map(({ bucket, title: groupTitle, folded }) => {
-        const group = visible.filter((i) => i.bucket === bucket);
-        if (group.length === 0) return null;
-        return (
-          <details className="group" key={bucket} open={!folded}>
-            <summary>
-              {groupTitle}
-              <span className="aside">{group.length}</span>
-              <Icon name="chevronDown" size="sm" />
-            </summary>
-            {group.map(row)}
-          </details>
-        );
-      })}
+      {classes.length > 1 && (
+        <div className="filter-chips" role="group" aria-label="Filter by class">
+          <button type="button" className="filter-chip" aria-pressed={filter === null} onClick={() => setFilter(null)}>
+            All classes
+          </button>
+          {classes.map((c) => (
+            <button
+              key={c.courseKey}
+              type="button"
+              className="filter-chip"
+              aria-pressed={filter === c.courseKey}
+              onClick={() => setFilter(c.courseKey)}
+            >
+              {c.label} <span>{c.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {shown.map((c) => (
+        <div className="class-group" key={c.courseKey}>
+          {(classes.length > 1 || filter) && (
+            <p className="class-title">
+              {c.label}
+              <span>{c.count}</span>
+            </p>
+          )}
+          {c.soon.length > 0 && <Sub label="Due soon">{c.soon.map(row)}</Sub>}
+          {c.later.length > 0 && <Sub label="Later">{c.later.map(row)}</Sub>}
+          {c.noDate.length > 0 && <Folded label="No due date" count={c.noDate.length}>{c.noDate.map(row)}</Folded>}
+          {c.past.length > 0 && <Folded label="Past due" count={c.past.length}>{c.past.map(row)}</Folded>}
+        </div>
+      ))}
       {hidden.length > 0 && (
-        <details className="group">
-          <summary>
-            Hidden by you
-            <span className="aside">{hidden.length}</span>
-            <Icon name="chevronDown" size="sm" />
-          </summary>
+        <Folded label="Hidden" count={hidden.length}>
           {hidden.map((item) => (
             <HiddenRow key={item.assignmentId} item={item} actions={actions} />
           ))}
-        </details>
+        </Folded>
       )}
     </section>
+  );
+}
+
+function Sub({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="sub-group">
+      <p className="sub-label">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function Folded({ label, count, children }: { label: string; count: number; children: ReactNode }) {
+  return (
+    <details className="group">
+      <summary>
+        <Icon name="chevronDown" size="sm" />
+        {label} ({count})
+      </summary>
+      {children}
+    </details>
   );
 }
 
