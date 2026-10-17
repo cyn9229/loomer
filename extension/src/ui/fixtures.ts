@@ -4,7 +4,7 @@
 // relative to `now` so the fixtures never expire. Opened in the side panel with
 // ?fixture=<name>; the panel labels them "Fixture preview" so they are never
 // mistaken for live data.
-import type { CheckInfo, Evidence, HomeModel, WorkItem } from '../model/home';
+import type { CheckInfo, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
 import { dateTime } from './format';
 
 const HOUR = 3_600_000;
@@ -157,6 +157,30 @@ export function buildFixtures(now: Date) {
     },
   ];
 
+  const readyNext = {
+    item: essay,
+    action: 'Outline the comparison between your two sources',
+    reason: 'Connect the EPA findings to the city’s tree cover data. The rubric asks for a comparison, and the deadline is this week.',
+    evidence: essayEvidence,
+    aiGenerated: true,
+  };
+
+  const essayResume = (recommendationChanged: boolean): ResumeBriefing => ({
+    assignment: essay,
+    at: new Date(now.getTime() - 3 * HOUR).toISOString(),
+    facts: ['Edited your draft 3 times (+240 words)', 'Saved 2 sources', 'Asked for 1 hint'],
+    sources: [
+      { title: 'EPA: Heat Island Effect', url: 'https://www.epa.gov/heatislands' },
+      { title: '2025 Tree Canopy Report', url: 'https://cityofexample.gov/forestry/canopy-2025' },
+    ],
+    docUrl: 'https://docs.google.com/document/d/1aBcDraft/edit',
+    requirements: [
+      { text: 'Compare how both sources explain heat islands.', quote: 'compares how both sources explain heat islands' },
+      { text: 'Argue which explanation is stronger.', quote: 'argue which explanation is stronger' },
+    ],
+    recommendationChanged,
+  });
+
   return {
     'not-connected': { status: 'not-connected' },
 
@@ -289,6 +313,36 @@ export function buildFixtures(now: Date) {
       ...noResume,
       rest: [reading],
       lastCheck,
+    },
+
+    resume: {
+      status: 'ready',
+      next: readyNext,
+      rest: [vocab, reflection, lab],
+      lastCheck,
+      resume: essayResume(false),
+    },
+
+    'resume-changed': {
+      status: 'ready',
+      next: {
+        item: vocab,
+        action: 'Finish the Ch. 6 vocabulary check',
+        reason: 'It is due soon and short. The essay is still due this week.',
+        evidence: [
+          {
+            kind: 'school-fact',
+            text: `Due ${dateTime(vocab.due?.at ?? checkedAt)}.`,
+            sourceLabel: 'Canvas assignment',
+            sourceUrl: vocab.url ?? undefined,
+            observedAt: checkedAt,
+          },
+        ],
+        aiGenerated: true,
+      },
+      rest: [essay, reflection, lab],
+      lastCheck,
+      resume: essayResume(true),
     },
   } satisfies Record<string, HomeModel>;
 }

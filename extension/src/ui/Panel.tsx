@@ -18,6 +18,8 @@ import {
 import { Icon, type IconName } from './Icon';
 import { LogoMark, Wordmark } from './Logo';
 import { Card, CheckBar } from './parts';
+import { ResumeCard } from './resume';
+import { useLingering } from './useLingering';
 import { ActivityCard, DocCard, HintCard, SessionCard, SourcesCard, type ActiveSession } from './session';
 
 type Tab = 'home' | 'chat' | 'sources';
@@ -51,6 +53,8 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
 
   const active: ActiveSession | null = session && session.status !== 'none' ? session : null;
   const hint = active?.hint ?? null;
+  // Keep a vanished hint briefly so it fades out instead of disappearing.
+  const shownHint = useLingering(hint, 200);
 
   const refresh = onRefresh
     ? () => {
@@ -156,11 +160,13 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
         ) : tab === 'sources' ? (
           active ? (
             <>
-              {hint && (
+              {shownHint.value && (
                 <HintCard
-                  hint={hint}
-                  hidden={hiddenHintId === hint.id}
-                  onHide={() => setHiddenHintId(hint.id)}
+                  key={shownHint.value.id}
+                  hint={shownHint.value}
+                  leaving={shownHint.leaving}
+                  hidden={hiddenHintId === shownHint.value.id}
+                  onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
                   onShow={() => setHiddenHintId(null)}
                   onMoreHelp={() => {
                     setChatDraft('Can you help me more with this hint?');
@@ -197,6 +203,12 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel }: Pane
                 </span>
                 <Icon name="chevronRight" size="sm" />
               </button>
+            )}
+            {home.status !== 'not-connected' && home.resume && (
+              <>
+                <p className="hello">Welcome back</p>
+                <ResumeCard resume={home.resume} now={now} api={api} actions={actions} />
+              </>
             )}
             <HomeView model={home} now={now} actions={actions} />
             {home.status !== 'not-connected' && (

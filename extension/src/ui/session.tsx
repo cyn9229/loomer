@@ -1,7 +1,7 @@
 // Work-session screen (pick 3B) on the Sources tab: the proactive hint (3A card,
 // collapsible to one row), the session, the linked draft, saved pages, and
 // factual activity. Every change goes through PanelApi messages.
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { DOCS_ORIGINS } from '../core/messages';
 import type { DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
 import { useAction, type PanelApi } from './api';
@@ -13,6 +13,8 @@ export type ActiveSession = Extract<SessionModel, { status: 'active' | 'paused' 
 
 type HintProps = {
   hint: NonNullable<ProactiveHint>;
+  /** The hint went away on its own (or was dismissed); fade out. */
+  leaving: boolean;
   hidden: boolean;
   onHide: () => void;
   onShow: () => void;
@@ -22,13 +24,21 @@ type HintProps = {
 
 /**
  * A new hint shows as the full card. Hide collapses it to one row; the row's x
- * is the real dismiss (hint:dismiss), which the worker keeps under the pause rules.
+ * is the real dismiss (hint:dismiss): that kind of hint is not raised again for
+ * this assignment. Rendering a hint tells the worker it was seen (hint:seen),
+ * which clears the toolbar badge. Never takes focus.
  */
-export function HintCard({ hint, hidden, onHide, onShow, onMoreHelp, api }: HintProps) {
+export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, api }: HintProps) {
   const dismiss = useAction();
+
+  useEffect(() => {
+    // Once per hint. A failed "seen" only leaves the badge up, so it is not shown as an error.
+    void api.send({ type: 'hint:seen' }).catch(() => undefined);
+  }, [hint.id, api]);
+
   if (hidden) {
     return (
-      <div className="hint-row">
+      <div className={leaving ? 'hint-row leaving' : 'hint-row'} aria-hidden={leaving || undefined}>
         <button type="button" className="hint-row-open" onClick={onShow}>
           <Icon name="sparkle" size="sm" />
           <b>1 hint ready</b>
@@ -37,8 +47,10 @@ export function HintCard({ hint, hidden, onHide, onShow, onMoreHelp, api }: Hint
         <button
           type="button"
           className="icon-btn sm"
-          aria-label="Dismiss hint"
-          disabled={dismiss.busy}
+          aria-label="Don’t show this kind of hint again"
+          title="Don’t show this kind of hint again"
+          disabled={dismiss.busy || leaving}
+          aria-busy={dismiss.busy}
           onClick={() => dismiss.run(() => api.send({ type: 'hint:dismiss', id: hint.id }))}
         >
           <Icon name="x" size="sm" />
@@ -48,7 +60,7 @@ export function HintCard({ hint, hidden, onHide, onShow, onMoreHelp, api }: Hint
     );
   }
   return (
-    <Card tinted label="Hint">
+    <section className={leaving ? 'card tinted leaving' : 'card tinted'} aria-label="Hint" aria-hidden={leaving || undefined}>
       <div className="asg">
         <span className="tile white">
           <Icon name="sparkle" />
@@ -65,7 +77,7 @@ export function HintCard({ hint, hidden, onHide, onShow, onMoreHelp, api }: Hint
           Hide
         </button>
       </div>
-    </Card>
+    </section>
   );
 }
 

@@ -1,5 +1,5 @@
 // Fixture preview of the options page: ?fixture=new or ?fixture=connected.
-import type { AiSettings, Settings } from '../../src/core/settings';
+import type { AiSettings, ProactiveSettings, Settings } from '../../src/core/settings';
 import { OptionsPage } from '../../src/ui/options';
 import { useNow } from '../../src/ui/useNow';
 
@@ -15,6 +15,7 @@ const connected: Settings = {
 };
 
 const aiOff: AiSettings = { enabled: false, brokerOrigin: 'http://127.0.0.1:8787' };
+const proactiveOn: ProactiveSettings = { enabled: true, delaySec: 90 };
 
 export function PreviewOptions({ initial }: { initial: string }) {
   const now = useNow();
@@ -27,6 +28,7 @@ export function PreviewOptions({ initial }: { initial: string }) {
       <OptionsPage
         settings={isNew ? fresh : connected}
         ai={aiOff}
+        proactive={proactiveOn}
         lastCheck={isNew ? null : { at: new Date(now.getTime() - 720_000).toISOString(), outcome: 'ok', courses: 4, partial: false, replay: false }}
         now={now}
       />

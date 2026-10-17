@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react';
 import type { RunOutcome } from '../core/db';
 import type { Exclusion } from '../core/gate';
 import { sendMessage } from '../core/messages';
-import type { AiSettings, Settings } from '../core/settings';
+import type { AiSettings, ProactiveSettings, Settings } from '../core/settings';
 import { isLoopback, parseSourceUrl } from '../core/url';
 import type { CheckInfo } from '../model/home';
 import { checkProblem, observedAt } from './format';
@@ -18,11 +18,12 @@ type View = 'start' | 'privacy';
 export type OptionsProps = {
   settings: Settings | null;
   ai: AiSettings | null;
+  proactive: ProactiveSettings | null;
   lastCheck: CheckInfo | null;
   now: Date;
 };
 
-export function OptionsPage({ settings, ai, lastCheck, now }: OptionsProps) {
+export function OptionsPage({ settings, ai, proactive, lastCheck, now }: OptionsProps) {
   const connected = Boolean(settings?.canvasOrigin);
   const [view, setView] = useState<View | null>(null);
   const current: View = view ?? (connected ? 'privacy' : 'start');
@@ -44,7 +45,7 @@ export function OptionsPage({ settings, ai, lastCheck, now }: OptionsProps) {
           {current === 'start' ? (
             <GetStarted settings={settings} onDone={() => setView('privacy')} />
           ) : (
-            <Privacy settings={settings} ai={ai} lastCheck={lastCheck} now={now} />
+            <Privacy settings={settings} ai={ai} proactive={proactive} lastCheck={lastCheck} now={now} />
           )}
         </div>
       </main>
@@ -176,7 +177,19 @@ function ConnectForm({ onConnected }: { onConnected?: () => void }) {
   );
 }
 
-function Privacy({ settings, ai, lastCheck, now }: { settings: Settings | null; ai: AiSettings | null; lastCheck: CheckInfo | null; now: Date }) {
+function Privacy({
+  settings,
+  ai,
+  proactive,
+  lastCheck,
+  now,
+}: {
+  settings: Settings | null;
+  ai: AiSettings | null;
+  proactive: ProactiveSettings | null;
+  lastCheck: CheckInfo | null;
+  now: Date;
+}) {
   const [changing, setChanging] = useState(false);
   const origin = settings?.canvasOrigin ? new URL(settings.canvasOrigin) : null;
   return (
@@ -248,6 +261,7 @@ function Privacy({ settings, ai, lastCheck, now }: { settings: Settings | null; 
           </div>
         </section>
         {ai && <AiHelpCard ai={ai} />}
+        {proactive && <ProactiveCard proactive={proactive} />}
         <section className="ocard" aria-label="Never read">
           <div className="ocard-head">
             <span className="tile lg">
@@ -369,6 +383,85 @@ function AiHelpCard({ ai }: { ai: AiSettings }) {
           service on this computer. Providers are asked not to collect or retain the data. Loomer does not send your
           drafts for this step. A teacher’s no-AI rule always turns AI off for that assignment.
         </p>
+      </div>
+      {error && (
+        <p className="status-line error" role="status">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const DELAYS = [60, 90, 120] as const;
+
+/** Proactive hints: on/off and the pause before a hint may appear. */
+function ProactiveCard({ proactive }: { proactive: ProactiveSettings }) {
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const save = (next: ProactiveSettings, label: string) => {
+    setError(null);
+    setSaving(label);
+    sendMessage({ type: 'proactive:set', enabled: next.enabled, delaySec: next.delaySec })
+      .then((reply) => !reply.ok && setError(reply.error))
+      .catch((e: unknown) => setError(String(e)))
+      .finally(() => setSaving(null));
+  };
+
+  return (
+    <section className="ocard" aria-label="Proactive hints">
+      <div className="ocard-head">
+        <span className="tile lg">
+          <Icon name="sparkle" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">Proactive hints</h2>
+          <p className="ocard-desc">
+            Hints appear only after you pause, and only about what you have written. A review you ask for runs right away.
+          </p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title" id="proactive-switch-label">
+            Show a hint when I pause
+          </span>
+          <span className="setting-sub" aria-live="polite">
+            {saving === 'toggle' ? 'Saving…' : proactive.enabled ? 'On' : 'Off'}
+          </span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          className="switch"
+          aria-checked={proactive.enabled}
+          aria-labelledby="proactive-switch-label"
+          disabled={saving !== null}
+          onClick={() => save({ ...proactive, enabled: !proactive.enabled }, 'toggle')}
+        />
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title" id="proactive-delay-label">
+            Pause before a hint
+          </span>
+          <span className="setting-sub">{saving === 'delay' ? 'Saving…' : `${proactive.delaySec} seconds without edits`}</span>
+        </span>
+        <div className="seg" role="radiogroup" aria-labelledby="proactive-delay-label">
+          {DELAYS.map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={proactive.delaySec === d}
+              disabled={!proactive.enabled || saving !== null}
+              onClick={() => save({ ...proactive, delaySec: d }, 'delay')}
+            >
+              {d} s
+            </button>
+          ))}
+        </div>
       </div>
       {error && (
         <p className="status-line error" role="status">
