@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Loomer Classroom probe</title>
+  <style>
+    :root { color-scheme: dark; --bg: #000; --fg: #fff; --dim: #a8a8b3; --line: #2a2a31; --accent: #9a87ff; --pass: #6ee7a8; --fail: #ff8a8a; }
+    body { margin: 0; padding: 12px; background: var(--bg); color: var(--fg); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    h2 { font-size: 13px; margin: 18px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+    p { margin: 0 0 8px; color: var(--dim); }
+    label { display: block; margin: 6px 0 2px; }
+    input:not([type]) { width: 100%; box-sizing: border-box; background: #000; color: var(--fg); border: 1px solid var(--line); padding: 6px; font: inherit; }
+    button { background: none; color: var(--accent); border: 1px solid var(--accent); padding: 5px 8px; margin: 6px 6px 0 0; font: inherit; cursor: pointer; }
+    button:disabled { color: var(--dim); border-color: var(--line); cursor: default; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--fg); }
+    .row { padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .PASS { color: var(--pass); } .FAIL { color: var(--fail); } .INFO, .SKIP { color: var(--dim); }
+    pre { white-space: pre-wrap; word-break: break-all; margin: 4px 0 0; color: var(--dim); font-size: 11px; }
+    pre.preview { color: var(--fg); border-left: 2px solid var(--accent); padding-left: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Loomer Classroom probe</h1>
+  <p>Read-only. GET requests only. The report has status codes, counts, lengths, timings, and marker names. No content.</p>
+
+  <h2>Setup</h2>
+  <label for="authuser">Google account index of your school account (0 if only one account)</label>
+  <input id="authuser" placeholder="0">
+  <label for="course">Class URL, optional (any page of one class)</label>
+  <input id="course" placeholder="https://classroom.google.com/u/0/c/...">
+  <label for="assignment">Assignment URL, optional (copy the link from To-do, do not open it)</label>
+  <input id="assignment" placeholder="https://classroom.google.com/u/0/c/.../a/.../details">
+
+  <h2>Local checks (never saved, never in the report)</h2>
+  <label for="title">Exact title of one assignment on your To-do list</label>
+  <input id="title">
+  <label for="phrase">A short phrase from that assignment's instructions</label>
+  <input id="phrase">
+  <label><input id="preview" type="checkbox"> Show local preview of extracted text (not copied)</label>
+
+  <h2>Run</h2>
+  <button id="run">Run Classroom probe</button>
+  <button id="copy">Copy report JSON</button>
+  <button id="clear">Clear</button>
+  <div id="results"></div>
+
+  <script type="module" src="probe.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Loomer Classroom probe",
+  "version": "0.0.1",
+  "description": "Throwaway read-only Google Classroom feasibility probe for Loomer. Reports status codes, counts, lengths, timings, and marker names.",
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": [
+    "https://*.google.com/*",
+    "https://classroom.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "probe.html"
+  },
+  "action": {
+    "default_title": "Loomer Classroom probe"
+  }
+}
