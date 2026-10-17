@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LoomerDb } from '../core/db';
+import { LoomerDb, type Analysis } from '../core/db';
 import { checkCollect, exclusionMatches, type GateState } from '../core/gate';
 import { addExclusion, deleteAssignmentData, pageRuleFor, removeExclusion } from './privacy';
 
@@ -54,7 +54,8 @@ describe('addExclusion', () => {
 describe('deleteAssignmentData', () => {
   it("removes Loomer's data for one assignment, leaves others, and hides it", async () => {
     for (const id of ['a', 'b']) {
-      await db.analyses.put({ assignmentId: id, detailHash: 'h', status: 'failed', createdAt: '', error: 'x' });
+      const failed: Analysis = { assignmentId: id, detailHash: 'h', status: 'failed', createdAt: '', error: 'x' };
+      await db.analyses.put(failed);
       await db.chat.add({ assignmentId: id, role: 'student', text: 'hi', kind: 'question', references: [], createdAt: '' });
       await db.docLinks.put({ assignmentId: id, docId: `${id}doc`, url: 'u', linkedAt: '' });
       await db.docReads.put({ docId: `${id}doc`, readState: 'ok', lastAttemptAt: null, nextReadAt: '', backoffMs: 0, current: { observedAt: '', hash: 'h', text: 'draft' }, previous: null });
