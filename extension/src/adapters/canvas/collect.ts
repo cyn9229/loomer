@@ -3,6 +3,7 @@
 import type { Assignment, AssignmentDetail, CollectionRun, LoomerDb, PlannableKind, RunOutcome } from '../../core/db';
 import type { GateState } from '../../core/gate';
 import { contentHash } from '../../core/hash';
+import { mapLimit } from '../../core/concurrency';
 import { extractHtml } from '../../core/html';
 import { isLoopback } from '../../core/url';
 import { canvasGet, canvasGetAll, type CanvasContext, type CanvasFailure } from './client';
@@ -23,7 +24,8 @@ const PLANNER_BACK_DAYS = 14;
 const PLANNER_AHEAD_DAYS = 60;
 const DETAIL_HORIZON_DAYS = 14;
 const DETAIL_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-const DETAIL_CONCURRENCY = 3;
+/** Parallel Canvas reads per collection. Bounded to stay polite to the school's server. */
+const CANVAS_CONCURRENCY = 4;
 const KINDS = new Set<string>(['assignment', 'quiz', 'discussion_topic']);
 
 export type CollectOptions = { db: LoomerDb; origin: string; gate: GateState; now?: Date; fetch?: typeof fetch };
@@ -79,14 +81,17 @@ export async function collectCanvas({ db, origin, gate, now = new Date(), fetch 
   // Planner items need a date, so undated work comes from each course's list.
   const undatedChecked = new Set<string>();
   let partial = planner.truncated;
-  for (const course of courses.items) {
-    const undated = await canvasGetAll(ctx, `/api/v1/courses/${course.id}/assignments?bucket=undated&per_page=100`, assignmentSchema);
-    if (!undated.ok) {
+  const undatedLists = await mapLimit(courses.items, CANVAS_CONCURRENCY, async (course) => ({
+    course,
+    result: await canvasGetAll(ctx, `/api/v1/courses/${course.id}/assignments?bucket=undated&per_page=100`, assignmentSchema),
+  }));
+  for (const { course, result } of undatedLists) {
+    if (!result.ok) {
       partial = true;
       continue;
     }
     undatedChecked.add(course.id);
-    for (const a of undated.items) {
+    for (const a of result.items) {
       const record = fromAssignment(a, courseNames, base);
       if (!seen.has(record.id)) seen.set(record.id, record);
     }
@@ -189,20 +194,16 @@ async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
 
   let fetched = 0;
   let failed = 0;
-  const queue = [...candidates];
-  const worker = async () => {
-    for (let a = queue.shift(); a; a = queue.shift()) {
-      const result = await fetchDetail(ctx, a, now);
-      if (!result.ok) {
-        failed += 1;
-        await db.assignments.update(a.id, { detailError: result.failure.kind });
-        continue;
-      }
-      fetched += 1;
-      await db.assignments.update(a.id, { detail: result.detail, detailError: null });
+  await mapLimit(candidates, CANVAS_CONCURRENCY, async (a) => {
+    const result = await fetchDetail(ctx, a, now);
+    if (!result.ok) {
+      failed += 1;
+      await db.assignments.update(a.id, { detailError: result.failure.kind });
+      return;
     }
-  };
-  await Promise.all(Array.from({ length: DETAIL_CONCURRENCY }, worker));
+    fetched += 1;
+    await db.assignments.update(a.id, { detail: result.detail, detailError: null });
+  });
   return { fetched, failed };
 }
 
@@ -235,19 +236,19 @@ async function fetchDetail(ctx: CanvasContext, a: Assignment, now: Date) {
 /** Reads each course syllabus (a course-level AI policy source) when missing or old. Returns failures. */
 async function collectSyllabi(db: LoomerDb, ctx: CanvasContext, sourceKey: string, courses: { id: string; name: string }[], now: Date) {
   let failed = 0;
-  for (const course of courses) {
+  await mapLimit(courses, CANVAS_CONCURRENCY, async (course) => {
     const id = `${sourceKey}#course:${course.id}`;
     const prior = await db.courses.get(id);
     const fresh = prior?.syllabus && now.getTime() - Date.parse(prior.syllabus.observedAt) <= DETAIL_MAX_AGE_MS;
     if (fresh) {
       await db.courses.update(id, { name: course.name });
-      continue;
+      return;
     }
     const result = await canvasGet(ctx, `/api/v1/courses/${course.id}?include[]=syllabus_body`, courseSyllabusSchema);
     if (!result.ok) {
       failed += 1;
       await db.courses.put({ id, sourceKey, canvasId: course.id, name: course.name, syllabus: prior?.syllabus ?? null, syllabusError: result.failure.kind });
-      continue;
+      return;
     }
     const { text } = extractHtml(result.data.syllabus_body ?? '', ctx.origin);
     await db.courses.put({
@@ -258,7 +259,7 @@ async function collectSyllabi(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
       syllabus: { observedAt: now.toISOString(), hash: await contentHash(text), text },
       syllabusError: null,
     });
-  }
+  });
   return failed;
 }
 

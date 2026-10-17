@@ -11,7 +11,7 @@ const DAY_MS = 86_400_000;
 /** Days of lead time per effort label. A starting rule, not a duration estimate. */
 const LEAD_DAYS: Record<EffortLabel, number> = { Short: 0.5, Moderate: 2, Substantial: 4, Unknown: 2 };
 /** How long Home waits for running AI analysis before ranking without it. */
-const ANALYSIS_WAIT_MS = 60_000;
+const ANALYSIS_WAIT_MS = 20_000;
 
 export type RecommendInput = {
   connected: boolean;

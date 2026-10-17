@@ -10,13 +10,14 @@ import {
   type RequirementsResponse,
 } from '../../../shared/ai-contract';
 import type { Analysis, Assignment, LoomerDb, Quoted } from '../core/db';
+import { mapLimit } from '../core/concurrency';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, effectiveDue, inDecisionSet, policyAnswer } from './facts';
 
 /** Provider failures are usually transient (timeouts, rate limits). */
 const RETRY_FAILED_AFTER_MS = 10 * 60 * 1000;
-const CONCURRENCY = 2;
+const CONCURRENCY = 4;
 
 export type AnalyzeOptions = { db: LoomerDb; ai: () => Promise<AiSettings>; now?: Date; fetch?: typeof fetch };
 
@@ -47,10 +48,7 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
     if (decision.allowed) queue.push(a);
   }
 
-  const worker = async () => {
-    for (let a = queue.shift(); a; a = queue.shift()) await analyzeOne(db, a, settings, ai, now, fetchImpl);
-  };
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  await mapLimit(queue, CONCURRENCY, (a) => analyzeOne(db, a, settings, ai, now, fetchImpl));
 }
 
 async function analyzeOne(db: LoomerDb, a: Assignment, settings: AiSettings, ai: () => Promise<AiSettings>, now: Date, fetchImpl: typeof fetch) {

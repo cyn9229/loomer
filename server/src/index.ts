@@ -3,7 +3,8 @@
 // only and is never deployed as part of the extension.
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { brokerRoutes } from './broker.ts';
+import { z } from 'zod';
+import { brokerRoutes, type ReasoningEffort } from './broker.ts';
 import { replayRoutes } from './replay/routes.ts';
 
 const port = Number(process.env.PORT ?? 8787);
@@ -18,6 +19,7 @@ const app = new Hono()
     brokerRoutes({
       apiKey: process.env.OPENROUTER_API_KEY || undefined,
       model: process.env.OPENROUTER_MODEL || 'openai/gpt-6-luna',
+      effort: z.enum(['none', 'low', 'medium', 'high']).catch('low').parse(process.env.OPENROUTER_REASONING_EFFORT) satisfies ReasoningEffort,
       extensionId: process.env.LOOMER_EXTENSION_ID || undefined,
     }),
   );

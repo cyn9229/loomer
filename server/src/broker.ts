@@ -31,6 +31,9 @@ type Task<Req extends z.ZodType, Res extends z.ZodType> = {
   user: (req: z.output<Req>) => string;
 };
 
+/** Reasoning effort sent to OpenRouter. G0/M3 timing: the model's default (medium) took 14 to 90 s. */
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high';
+
 const defineTask = <Req extends z.ZodType, Res extends z.ZodType>(task: Task<Req, Res>) => task;
 
 const rubricText = (rubric: { description: string; points: number | null }[]) =>
@@ -111,12 +114,16 @@ summary: one sentence naming what you reviewed; if scope is partial, say only pa
     ].join('\n\n'),
 });
 
-const openRouterReply = z.object({
-  model: z.string().optional(),
-  choices: z.array(z.object({ message: z.object({ content: z.string().nullish() }) })).min(1),
-});
+const openRouterReply = z.union([
+  z.object({
+    model: z.string().optional(),
+    choices: z.array(z.object({ message: z.object({ content: z.string().nullish() }), finish_reason: z.string().nullish() })).min(1),
+  }),
+  // OpenRouter can report a provider failure inside a 200 response.
+  z.object({ error: z.object({ code: z.union([z.number(), z.string()]).optional(), message: z.string().optional() }) }),
+]);
 
-export function brokerRoutes(env: { apiKey: string | undefined; model: string; extensionId: string | undefined }) {
+export function brokerRoutes(env: { apiKey: string | undefined; model: string; effort: ReasoningEffort; extensionId: string | undefined }) {
   const recent: number[] = [];
   const app = new Hono();
 
@@ -136,7 +143,7 @@ export function brokerRoutes(env: { apiKey: string | undefined; model: string; e
       const body = task.request.safeParse(await c.req.json().catch(() => null));
       if (!body.success) return c.json({ ok: false, error: 'invalid request' } satisfies BrokerReply<never>, 400);
 
-      const result = await callOpenRouter(env.apiKey, env.model, task, body.data);
+      const result = await callOpenRouter({ ...env, apiKey: env.apiKey }, task, body.data);
       console.log(`${task.route} ${result.ok ? 'ok' : result.error} ${Date.now() - now}ms`);
       return c.json(result, result.ok ? 200 : 502);
     });
@@ -148,8 +155,7 @@ export function brokerRoutes(env: { apiKey: string | undefined; model: string; e
 }
 
 async function callOpenRouter<Req extends z.ZodType, Res extends z.ZodType>(
-  apiKey: string,
-  model: string,
+  { apiKey, model, effort }: { apiKey: string; model: string; effort: ReasoningEffort },
   task: Task<Req, Res>,
   req: z.output<Req>,
 ): Promise<BrokerReply<z.output<Res>>> {
@@ -167,6 +173,9 @@ async function callOpenRouter<Req extends z.ZodType, Res extends z.ZodType>(
         ],
         response_format: { type: 'json_schema', json_schema: { name: task.name, strict: true, schema } },
         provider: { data_collection: 'deny', zdr: true, require_parameters: true },
+        reasoning: { effort, exclude: true },
+        // Repeat checks of unchanged text should not flip labels between runs.
+        seed: 7,
       }),
       signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
@@ -183,11 +192,16 @@ async function callOpenRouter<Req extends z.ZodType, Res extends z.ZodType>(
   }
   const reply = openRouterReply.safeParse(body);
   if (!reply.success) return { ok: false, error: 'provider returned an unexpected envelope' };
+  if ('error' in reply.data) {
+    // Code and a short message only; provider messages do not echo prompts, but stay bounded anyway.
+    return { ok: false, error: `provider error ${reply.data.error.code ?? ''} ${(reply.data.error.message ?? '').slice(0, 80)}`.trim() };
+  }
+  const choice = reply.data.choices[0]!;
   let json: unknown;
   try {
-    json = JSON.parse(reply.data.choices[0]!.message.content ?? '');
+    json = JSON.parse(choice.message.content ?? '');
   } catch {
-    return { ok: false, error: 'provider returned non-JSON' };
+    return { ok: false, error: choice.finish_reason === 'length' ? 'provider ran out of tokens' : 'provider returned non-JSON' };
   }
   const parsed = task.response.safeParse(json);
   if (!parsed.success) return { ok: false, error: 'provider returned an invalid shape' };
