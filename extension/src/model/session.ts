@@ -65,6 +65,19 @@ export type HelpState = {
 /** One proactive hint (M4). Null until the pause rules make one eligible. */
 export type ProactiveHint = { id: number; text: string; reference: ChatReference | null; createdAt: string } | null;
 
+/**
+ * Research discovery (opt-in): the foreground tab's title and address share
+ * distinctive words with the assignment. Never a claim the page is relevant;
+ * the UI says "Researching for this assignment? Add this page."
+ */
+export type DiscoverySuggestion = {
+  tabId: number;
+  title: string;
+  url: string;
+  /** Assignment words found in the tab's title or address, for transparency. */
+  matched: string[];
+} | null;
+
 export type SessionModel =
   | { status: 'none' }
   | {
@@ -77,4 +90,5 @@ export type SessionModel =
       activity: ActivityItem[];
       help: HelpState;
       hint: ProactiveHint;
+      suggestion: DiscoverySuggestion;
     };

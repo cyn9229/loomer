@@ -5,8 +5,9 @@ import { parseDocId } from '../src/adapters/docs/reader';
 import { analyzeRequirements } from '../src/analysis/analyze';
 import { capturePage, type CaptureOutcome } from '../src/capture/capture';
 import { db } from '../src/core/db';
+import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiSettingsItem, loadGateState, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiSettingsItem, discoveryItem, loadGateState, proactiveItem, settingsItem } from '../src/core/settings';
 import { parseSourceUrl } from '../src/core/url';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
@@ -36,6 +37,7 @@ function runSessionLoop() {
       return true;
     });
     if (more) await runProactive(now);
+    await runDiscovery();
     sessionLoop = more ? setTimeout(step, SESSION_LOOP_MS) : null;
     if (!more) await browser.alarms.clear(SESSION_ALARM);
   };
@@ -77,6 +79,27 @@ async function runProactive(now: Date) {
     console.error('loomer: proactive step failed', error);
   } finally {
     hintRunning = false;
+  }
+}
+
+/** Hosts discovery never suggests: Google Docs, the school origin (or replay), the AI service. */
+async function ownHosts(): Promise<string[]> {
+  const [{ canvasOrigin }, ai] = await Promise.all([settingsItem.getValue(), aiSettingsItem.getValue()]);
+  return ['docs.google.com', canvasOrigin, ai.brokerOrigin].flatMap((o) => (o ? [o.includes('://') ? new URL(o).hostname : o] : []));
+}
+
+/** Re-evaluates the foreground tab for research discovery. Cheap no-op when discovery is off. */
+async function runDiscovery() {
+  const prev = await discoveryStateItem.getValue();
+  const enabled = (await discoveryItem.getValue()).enabled && (await browser.permissions.contains({ permissions: ['tabs'] }));
+  if (!enabled && prev === null) return;
+  const [tab] = enabled ? await browser.tabs.query({ active: true, lastFocusedWindow: true }) : [];
+  const next = await evaluateForeground({ db, enabled, gate: await loadGateState(), ownHosts: await ownHosts(), tab, prev, now: Date.now() });
+  if (JSON.stringify(next) === JSON.stringify(prev)) return;
+  await discoveryStateItem.setValue(next);
+  if (next?.suggestion && !prev?.suggestion && (await browser.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] })).length === 0) {
+    await browser.action.setBadgeBackgroundColor({ color: '#4f4dfd' });
+    await browser.action.setBadgeText({ text: '+' });
   }
 }
 
@@ -261,12 +284,43 @@ async function handle(message: Message): Promise<Reply> {
       await setState(db, s, message.type === 'session:pause' ? 'paused' : 'active', new Date());
       if (message.type === 'session:resume') runSessionLoop();
       else stopSessionLoop();
+      await runDiscovery();
       return { ok: true };
     }
     case 'session:end':
       await endSession(db, new Date());
       stopSessionLoop();
+      await runDiscovery();
       return { ok: true };
+    case 'discovery:set': {
+      if (message.enabled && !(await browser.permissions.contains({ permissions: ['tabs'] }))) {
+        return { ok: false, error: 'Chrome did not grant tab access.' };
+      }
+      await discoveryItem.setValue({ enabled: message.enabled });
+      // Turning it off also gives the tabs permission back.
+      if (!message.enabled) await browser.permissions.remove({ permissions: ['tabs'] }).catch(() => false);
+      await runDiscovery();
+      return { ok: true };
+    }
+    case 'suggestion:add': {
+      const state = await discoveryStateItem.getValue();
+      if (state?.suggestion?.tabId !== message.tabId) return { ok: false, error: 'That suggestion is no longer current.' };
+      const tab = await browser.tabs.get(message.tabId);
+      await captureFromTab(tab);
+      // The site permission was for this one snapshot; give it back unless Loomer needs it anyway.
+      if (tab.url) {
+        const origin = new URL(tab.url).origin;
+        if (!(await ownHosts()).includes(new URL(origin).hostname)) await browser.permissions.remove({ origins: [`${origin}/*`] }).catch(() => false);
+      }
+      await discoveryStateItem.setValue({ ...state, candidate: null, suggestion: null });
+      return { ok: true };
+    }
+    case 'suggestion:dismiss': {
+      const state = await discoveryStateItem.getValue();
+      if (state) await discoveryStateItem.setValue({ ...state, dismissed: true, candidate: null, suggestion: null });
+      await browser.action.setBadgeText({ text: '' });
+      return { ok: true };
+    }
     case 'doc:link': {
       const docId = parseDocId(message.docUrl);
       if (!docId) return { ok: false, error: 'That is not a Google Docs document link.' };
@@ -329,6 +383,13 @@ export default defineBackground(() => {
     if (alarm.name === REFRESH_ALARM) void refresh();
     if (alarm.name === SESSION_ALARM) runSessionLoop();
   });
+
+  // Discovery watches only the foreground tab, and only while a session is active.
+  browser.tabs.onActivated.addListener(() => void runDiscovery());
+  browser.tabs.onUpdated.addListener((_id, change, tab) => {
+    if (tab.active && (change.url || change.title || change.status === 'complete')) void runDiscovery();
+  });
+  browser.windows.onFocusChanged.addListener(() => void runDiscovery());
 
   browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === CAPTURE_MENU) void captureFromTab(tab);

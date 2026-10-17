@@ -48,6 +48,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
       pending: chat.at(-1)?.role === 'student' && now.getTime() - Date.parse(chat.at(-1)!.createdAt) < PENDING_MS,
     },
     // Never show AI guidance once help is no longer allowed (AI off, new restriction).
+    suggestion: null,
     hint: hint && decision.allowed ? { id: hint.id, text: hint.text, reference: { quote: hint.quote, from: 'your draft' }, createdAt: hint.createdAt } : null,
   };
 }

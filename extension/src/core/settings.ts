@@ -51,3 +51,6 @@ export type ProactiveSettings = {
 export const proactiveItem = storage.defineItem<ProactiveSettings>('local:proactive', {
   fallback: { enabled: true, delaySec: 90 },
 });
+
+/** Research discovery: off by default; needs Chrome's optional tabs permission. */
+export const discoveryItem = storage.defineItem<{ enabled: boolean }>('local:discovery', { fallback: { enabled: false } });

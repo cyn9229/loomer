@@ -31,6 +31,12 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hint:seen') }),
   z.object({ type: z.literal('proactive:set'), enabled: z.boolean(), delaySec: z.number().int().min(30).max(600) }),
   z.object({ type: z.literal('resume:dismiss'), assignmentId: z.string() }),
+  /** Turning discovery on is sent after the page's permissions.request({ permissions: ['tabs'] }) succeeded. */
+  z.object({ type: z.literal('discovery:set'), enabled: z.boolean() }),
+  /** Sent after the page's permissions.request for that tab's origin succeeded. */
+  z.object({ type: z.literal('suggestion:add'), tabId: z.number() }),
+  /** Stops suggestions for the rest of this session. */
+  z.object({ type: z.literal('suggestion:dismiss') }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);

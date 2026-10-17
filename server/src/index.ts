@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { brokerRoutes, type ReasoningEffort } from './broker.ts';
 import { replayRoutes } from './replay/routes.ts';
+import { sourceRoutes } from './replay/sources.ts';
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -14,6 +15,7 @@ const demoDocUrl = process.env.DEMO_DOC_URL ?? 'https://docs.google.com/document
 const app = new Hono()
   .get('/health', (c) => c.json({ ok: true }))
   .route('/', replayRoutes(demoDocUrl))
+  .route('/', sourceRoutes)
   .route(
     '/',
     brokerRoutes({
