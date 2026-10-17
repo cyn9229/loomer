@@ -10,7 +10,8 @@ export type Exclusion =
   | { kind: 'host'; host: string; includeSubdomains: boolean }
   | { kind: 'page'; origin: string; path: string };
 
-export type Grant = { purpose: Purpose; origin: string; version: number };
+/** pathPrefix narrows a grant to one document, e.g. `/document/d/<id>/`. */
+export type Grant = { purpose: Purpose; origin: string; version: number; pathPrefix?: string };
 
 export type GateState = {
   paused: boolean;
@@ -56,7 +57,12 @@ const CANVAS_METADATA_ROUTES: readonly RegExp[] = [
 
 const ROUTES_BY_PURPOSE: Partial<Record<Purpose, readonly RegExp[]>> = {
   'school-metadata': CANVAS_METADATA_ROUTES,
+  // Only the plain-text export of a granted Doc, never the editor or Drive.
+  'work-doc': [/^\/document\/d\/[\w-]+\/export$/],
 };
+
+/** Page routes never captured as research on any host: sign-in, account, inbox, grades, payment. */
+const RESEARCH_EXCLUDED_PATHS = /(^|\/)(login|log-in|signin|sign-in|logout|oauth|account|accounts|settings|password|checkout|cart|payment|billing|inbox|messages|conversations|grades|gradebook)(\/|$)/i;
 
 export function checkCollect(state: GateState, purpose: Purpose, input: string | URL): GateDecision {
   const url = parseSourceUrl(input);
@@ -73,7 +79,13 @@ export function checkCollect(state: GateState, purpose: Purpose, input: string |
   );
   if (userExcluded) return { allowed: false, reason: 'user-exclusion' };
 
-  const grant = state.grants.find((g) => g.purpose === purpose && g.origin === url.origin);
+  if (purpose === 'research-capture' && RESEARCH_EXCLUDED_PATHS.test(url.pathname)) {
+    return { allowed: false, reason: 'built-in-exclusion' };
+  }
+
+  const grant = state.grants.find(
+    (g) => g.purpose === purpose && g.origin === url.origin && (!g.pathPrefix || url.pathname.startsWith(g.pathPrefix)),
+  );
   if (!grant) return { allowed: false, reason: 'no-grant' };
 
   const routes = ROUTES_BY_PURPOSE[purpose];

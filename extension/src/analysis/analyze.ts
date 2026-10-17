@@ -2,6 +2,7 @@
 // tied to the requirement text it was made from; a result whose source changed,
 // or whose permission was withdrawn while in flight, is discarded.
 import {
+  brokerEnvelopeSchema,
   REQUIREMENTS_ROUTE,
   requirementsResponseSchema,
   type BrokerReply,
@@ -61,14 +62,15 @@ async function analyzeOne(db: LoomerDb, a: Assignment, settings: AiSettings, ai:
     rubric: detail.rubric.slice(0, 30).map((r) => ({ description: r.description.slice(0, 1_000), points: r.points })),
   };
 
-  let reply: BrokerReply<RequirementsResponse>;
+  let reply: BrokerReply<unknown>;
   try {
     const res = await fetchImpl(`${settings.brokerOrigin}${REQUIREMENTS_ROUTE}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-loomer-client': 'extension' },
       body: JSON.stringify(request),
     });
-    reply = (await res.json()) as BrokerReply<RequirementsResponse>;
+    const envelope = brokerEnvelopeSchema.safeParse(await res.json().catch(() => null));
+    reply = envelope.success ? envelope.data : { ok: false, error: `broker status ${res.status}` };
   } catch (error) {
     reply = { ok: false, error: `broker unreachable: ${error instanceof Error ? error.message : 'unknown'}` };
   }

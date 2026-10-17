@@ -1,0 +1,85 @@
+// Work-session lifecycle. One session at a time. Only an active session reads
+// the linked Doc or accepts captured pages; pause and end stop both at once.
+import { readDocPaced, studentText, wordCount } from '../adapters/docs/reader';
+import type { LoomerDb, SessionEvent, WorkSession } from '../core/db';
+import type { GateState } from '../core/gate';
+
+/** No edit, capture, or panel action for this long suspends the session. */
+export const IDLE_SUSPEND_MS = 15 * 60 * 1000;
+
+export async function currentSession(db: LoomerDb): Promise<WorkSession | undefined> {
+  return (await db.sessions.where('state').anyOf('active', 'paused').toArray()).at(-1);
+}
+
+async function log(db: LoomerDb, s: WorkSession, at: string, kind: SessionEvent['kind'], extra: Partial<SessionEvent> = {}) {
+  await db.sessionEvents.add({ sessionId: s.id, assignmentId: s.assignmentId, at, kind, ...extra });
+}
+
+/** Starts a session for the assignment, ending any other one. Returns it. */
+export async function startSession(db: LoomerDb, assignmentId: string, now: Date): Promise<WorkSession> {
+  const at = now.toISOString();
+  const assignment = await db.assignments.get(assignmentId);
+  if (!assignment) throw new Error('Unknown assignment');
+  const existing = await currentSession(db);
+  if (existing?.assignmentId === assignmentId) {
+    if (existing.state === 'paused') await setState(db, existing, 'active', now);
+    return (await db.sessions.get(existing.id))!;
+  }
+  if (existing) await endSession(db, now);
+  const id = await db.sessions.add({
+    sourceKey: assignment.sourceKey,
+    assignmentId,
+    state: 'active',
+    startedAt: at,
+    endedAt: null,
+    lastActivityAt: at,
+  });
+  const session = (await db.sessions.get(id))!;
+  await log(db, session, at, 'started');
+  return session;
+}
+
+export async function setState(db: LoomerDb, s: WorkSession, state: 'active' | 'paused', now: Date) {
+  if (s.state === state) return;
+  const at = now.toISOString();
+  await db.sessions.update(s.id, { state, lastActivityAt: at });
+  await log(db, s, at, state === 'active' ? 'resumed' : 'paused');
+}
+
+export async function endSession(db: LoomerDb, now: Date) {
+  const s = await currentSession(db);
+  if (!s) return;
+  const at = now.toISOString();
+  await db.sessions.update(s.id, { state: 'ended', endedAt: at });
+  await log(db, s, at, 'ended');
+}
+
+export async function touch(db: LoomerDb, s: WorkSession, now: Date) {
+  await db.sessions.update(s.id, { lastActivityAt: now.toISOString() });
+}
+
+/**
+ * One session step: suspend after idle time, otherwise read the linked Doc if
+ * pacing allows and record a factual edit event when the student's text changed.
+ * Returns true while the session still needs ticking.
+ */
+export async function tickSession(db: LoomerDb, gate: GateState, now: Date, fetchImpl?: typeof fetch): Promise<boolean> {
+  const s = await currentSession(db);
+  if (!s || s.state !== 'active') return false;
+  if (now.getTime() - Date.parse(s.lastActivityAt) > IDLE_SUSPEND_MS) {
+    await setState(db, s, 'paused', now);
+    return false;
+  }
+  const link = await db.docLinks.get(s.assignmentId);
+  if (!link) return true;
+
+  const result = await readDocPaced(db, gate, link.docId, now, fetchImpl);
+  if (!result?.changed || !result.read.current || !result.read.previous) return true;
+
+  const instructions = (await db.assignments.get(s.assignmentId))?.detail?.text ?? '';
+  const words = (t: string) => wordCount(studentText(t, instructions));
+  const wordsDelta = words(result.read.current.text) - words(result.read.previous.text);
+  await log(db, s, now.toISOString(), 'doc-changed', { wordsDelta });
+  await touch(db, s, now);
+  return true;
+}

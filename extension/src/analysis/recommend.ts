@@ -38,16 +38,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
 
   const open: Candidate[] = input.assignments
     .filter((a) => a.sourceKey === sourceKey && isOpen(a))
-    .map((a) => {
-      const due = effectiveDue(a, now);
-      const policy = assignmentPolicy(a, courseById.get(courseKey(a)));
-      const stored = analysisById.get(a.id);
-      const blocked = policy.state === 'blocked' || policyAnswer(a, contextByKey) === 'teacher-forbids-ai';
-      // Only a current, successful analysis counts; never AI content for a blocked assignment.
-      const analysis = stored?.status === 'ok' && stored.detailHash === a.detail?.hash && !blocked ? stored : null;
-      const hidden = contextByKey.get(a.id)?.hidden === true;
-      return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, hidden, now) };
-    });
+    .map((a) => candidateFor(a, { course: courseById.get(courseKey(a)), analysis: analysisById.get(a.id), context: contextByKey }, now));
 
   // Hiding an item takes it out of ranking too; the student decides what they work on.
   const decision = open.filter((c) => !c.item.hidden && inDecisionSet(c.a, c.due, now));
@@ -90,6 +81,23 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
   if (limitations.length > 0) return { status: 'cannot-compare', limitations, rest: rest(), lastCheck };
 
   return { status: 'ready', next: nextAction(top, ranked[1]), rest: rest(top), lastCheck };
+}
+
+type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext> };
+
+function candidateFor(a: Assignment, { course, analysis: stored, context }: CandidateInputs, now: Date): Candidate {
+  const due = effectiveDue(a, now);
+  const policy = assignmentPolicy(a, course);
+  const blocked = policy.state === 'blocked' || policyAnswer(a, context) === 'teacher-forbids-ai';
+  // Only a current, successful analysis counts; never AI content for a blocked assignment.
+  const analysis = stored?.status === 'ok' && stored.detailHash === a.detail?.hash && !blocked ? stored : null;
+  const hidden = context.get(a.id)?.hidden === true;
+  return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, hidden, now) };
+}
+
+/** The WorkItem for one assignment, built with the same rules Home uses. */
+export function workItemFor(a: Assignment, inputs: CandidateInputs, now: Date): WorkItem {
+  return candidateFor(a, inputs, now).item;
 }
 
 function latestStart(c: Candidate): number {
