@@ -6,9 +6,19 @@ import { hostMatches, parseSourceUrl } from './url';
 
 export type Purpose = 'school-metadata' | 'linked-instructions' | 'work-doc' | 'research-capture';
 
+/**
+ * A student exclusion. `page` matches one exact path, or everything under a path
+ * that ends in "/" (used for one Google Doc: `/document/d/<id>/`), so blocking a
+ * page on a shared host never blocks the whole host.
+ */
 export type Exclusion =
   | { kind: 'host'; host: string; includeSubdomains: boolean }
   | { kind: 'page'; origin: string; path: string };
+
+export function exclusionMatches(rule: Exclusion, url: URL): boolean {
+  if (rule.kind === 'host') return hostMatches(url.hostname, rule.host, rule.includeSubdomains);
+  return url.origin === rule.origin && (url.pathname === rule.path || (rule.path.endsWith('/') && url.pathname.startsWith(rule.path)));
+}
 
 /** pathPrefix narrows a grant to one document, e.g. `/document/d/<id>/`. */
 export type Grant = { purpose: Purpose; origin: string; version: number; pathPrefix?: string };
@@ -72,12 +82,7 @@ export function checkCollect(state: GateState, purpose: Purpose, input: string |
   if (BUILT_IN_EXCLUDED_HOSTS.some((rule) => hostMatches(url.hostname, rule.host, rule.includeSubdomains))) {
     return { allowed: false, reason: 'built-in-exclusion' };
   }
-  const userExcluded = state.exclusions.some((rule) =>
-    rule.kind === 'host'
-      ? hostMatches(url.hostname, rule.host, rule.includeSubdomains)
-      : url.origin === rule.origin && url.pathname === rule.path,
-  );
-  if (userExcluded) return { allowed: false, reason: 'user-exclusion' };
+  if (state.exclusions.some((rule) => exclusionMatches(rule, url))) return { allowed: false, reason: 'user-exclusion' };
 
   if (purpose === 'research-capture' && RESEARCH_EXCLUDED_PATHS.test(url.pathname)) {
     return { allowed: false, reason: 'built-in-exclusion' };

@@ -11,7 +11,7 @@ const MAX_EXCERPT_CHARS = 20_000;
 
 export type CaptureOutcome =
   | { ok: true; title: string }
-  | { ok: false; reason: 'no-session' | 'excluded' | 'sign-in-page' | 'unreadable' | 'duplicate' };
+  | { ok: false; reason: 'paused' | 'no-session' | 'excluded' | 'sign-in-page' | 'unreadable' | 'duplicate' };
 
 /** What the injected function returns. Runs in the page; must be self-contained. */
 type PageSnapshot = { href: string; title: string; hasPassword: boolean; text: string };
@@ -38,6 +38,7 @@ export async function capturePage(
   now: Date,
   execute: (tabId: number, fn: typeof snapshotPage, maxChars: number) => Promise<PageSnapshot | undefined>,
 ): Promise<CaptureOutcome> {
+  if (gate.paused) return { ok: false, reason: 'paused' };
   const session = await currentSession(db);
   if (!session || session.state !== 'active') return { ok: false, reason: 'no-session' };
   if (!tab.id || !tab.url) return { ok: false, reason: 'unreadable' };

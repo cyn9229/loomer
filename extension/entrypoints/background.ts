@@ -9,6 +9,7 @@ import { discoveryStateItem, evaluateForeground } from '../src/discovery/discove
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
 import { aiSettingsItem, discoveryItem, loadGateState, proactiveItem, settingsItem } from '../src/core/settings';
 import { parseSourceUrl } from '../src/core/url';
+import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
 import { currentSession, endSession, setState, startSession, tickSession, touch } from '../src/session/session';
@@ -103,6 +104,25 @@ async function runDiscovery() {
   }
 }
 
+/**
+ * Clear all: stop observation, let a running check finish so it cannot write
+ * afterwards, empty every table and Loomer's settings, remove the typing script,
+ * and give back the site and tab access Loomer was granted. Returns to setup.
+ */
+async function clearAll() {
+  stopSessionLoop();
+  await running?.catch(() => {});
+  await db.transaction('rw', db.tables, () => Promise.all(db.tables.map((t) => t.clear())));
+  await browser.storage.local.clear();
+  await browser.storage.session.clear();
+  await browser.scripting.unregisterContentScripts({ ids: ['docs-activity'] }).catch(() => {});
+  const granted = await browser.permissions.getAll();
+  // Install-time permissions cannot be removed; each optional one is returned separately.
+  for (const origin of granted.origins ?? []) await browser.permissions.remove({ origins: [origin] }).catch(() => false);
+  if (granted.permissions?.includes('tabs')) await browser.permissions.remove({ permissions: ['tabs'] }).catch(() => false);
+  await browser.action.setBadgeText({ text: '' });
+}
+
 /** Registers the typing signal once Docs access exists. Safe to call repeatedly. */
 async function registerTypingSignal() {
   if (!(await browser.permissions.contains({ origins: DOCS_ORIGINS }))) return;
@@ -152,6 +172,7 @@ async function openDoc(assignmentId: string) {
 
 const CAPTURE_FEEDBACK: Record<'ok' | Extract<CaptureOutcome, { ok: false }>['reason'], string> = {
   ok: 'Added to Loomer',
+  paused: 'Loomer is paused. Resume it in settings to add pages',
   'no-session': 'Start a work session in Loomer to add pages',
   excluded: 'Loomer does not read this kind of page',
   'sign-in-page': 'Loomer does not read sign-in pages',
@@ -272,6 +293,7 @@ async function handle(message: Message): Promise<Reply> {
       await db.studentContext.put({ ...(await db.studentContext.get(message.assignmentId)), key: message.assignmentId, hidden: message.hidden });
       return { ok: true };
     case 'session:start': {
+      if ((await settingsItem.getValue()).paused) return { ok: false, error: 'Loomer is paused. Resume it in settings first.' };
       await startSession(db, message.assignmentId, new Date());
       await openDoc(message.assignmentId);
       runSessionLoop();
@@ -315,6 +337,45 @@ async function handle(message: Message): Promise<Reply> {
       await discoveryStateItem.setValue({ ...state, candidate: null, suggestion: null });
       return { ok: true };
     }
+    case 'privacy:pause': {
+      const settings = await settingsItem.getValue();
+      await settingsItem.setValue({ ...settings, paused: message.paused });
+      if (message.paused) {
+        const s = await currentSession(db);
+        if (s?.state === 'active') await setState(db, s, 'paused', new Date());
+        stopSessionLoop();
+        await discoveryStateItem.setValue(null);
+        await browser.action.setBadgeText({ text: '' });
+      } else {
+        // Canvas checks resume; a work session never resumes without the student.
+        void refresh();
+      }
+      return { ok: true };
+    }
+    case 'exclusion:add':
+    case 'exclusion:remove': {
+      const settings = await settingsItem.getValue();
+      const exclusions =
+        message.type === 'exclusion:add'
+          ? await addExclusion(db, settings.exclusions, message.rule, message.deleteSaved)
+          : removeExclusion(settings.exclusions, message.rule);
+      // Removing a block restarts nothing and grants nothing.
+      await settingsItem.setValue({ ...settings, exclusions });
+      if (message.type === 'exclusion:add') await runDiscovery();
+      return { ok: true };
+    }
+    case 'data:delete-assignment': {
+      const s = await currentSession(db);
+      if (s?.assignmentId === message.assignmentId) {
+        await endSession(db, new Date());
+        stopSessionLoop();
+      }
+      await deleteAssignmentData(db, message.assignmentId);
+      return { ok: true };
+    }
+    case 'data:clear-all':
+      await clearAll();
+      return { ok: true };
     case 'suggestion:dismiss': {
       const state = await discoveryStateItem.getValue();
       if (state) await discoveryStateItem.setValue({ ...state, dismissed: true, candidate: null, suggestion: null });

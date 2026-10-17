@@ -2,6 +2,11 @@
 // every message with this schema and ignores senders outside the extension.
 import { z } from 'zod';
 
+const exclusionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('host'), host: z.string().min(1).max(253), includeSubdomains: z.boolean() }),
+  z.object({ kind: z.literal('page'), origin: z.string().url(), path: z.string().startsWith('/') }),
+]);
+
 export const messageSchema = z.discriminatedUnion('type', [
   /** Sent after the page's own permissions.request succeeded for this origin. */
   z.object({ type: z.literal('canvas:connect'), origin: z.string() }),
@@ -37,6 +42,15 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('suggestion:add'), tabId: z.number() }),
   /** Stops suggestions for the rest of this session. */
   z.object({ type: z.literal('suggestion:dismiss') }),
+  /** Pause all observation: Canvas checks, Doc reads, capture, discovery. Never auto-resumes a session. */
+  z.object({ type: z.literal('privacy:pause'), paused: z.boolean() }),
+  /** Block a host or page. deleteSaved also removes saved pages it covers. */
+  z.object({ type: z.literal('exclusion:add'), rule: exclusionSchema, deleteSaved: z.boolean() }),
+  z.object({ type: z.literal('exclusion:remove'), rule: exclusionSchema }),
+  /** Remove Loomer's data for one assignment (analysis, chat, hints, pages, Doc link, sessions). */
+  z.object({ type: z.literal('data:delete-assignment'), assignmentId: z.string() }),
+  /** Remove everything Loomer stored and the access it was granted, then return to setup. */
+  z.object({ type: z.literal('data:clear-all') }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);
