@@ -103,6 +103,9 @@ async function handle(message: Message): Promise<Reply> {
       });
       void analyze();
       return { ok: true };
+    case 'item:hide':
+      await db.studentContext.put({ ...(await db.studentContext.get(message.assignmentId)), key: message.assignmentId, hidden: message.hidden });
+      return { ok: true };
     case 'session:start':
     case 'session:pause':
     case 'session:resume':

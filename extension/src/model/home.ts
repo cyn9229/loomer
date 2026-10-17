@@ -29,9 +29,17 @@ export type Evidence = {
 
 export type RequirementsState = 'checked' | 'checking' | 'unreadable' | 'not-checked';
 
+/**
+ * Where an item belongs in "Other work". `no-date` and `past` are listed but
+ * never ranked; a missing date does not mean unimportant, so keep them reachable.
+ */
+export type WorkBucket = 'soon' | 'later' | 'no-date' | 'past';
+
 export type WorkItem = {
   assignmentId: string;
   title: string;
+  /** Stable course key for grouping and filtering by class. */
+  courseKey: string;
   courseName: string | null;
   /** Canvas page for the assignment. */
   url: string | null;
@@ -43,6 +51,9 @@ export type WorkItem = {
   requirements: RequirementsState;
   /** Labeled local replay data. The UI must mark it visibly. */
   replay: boolean;
+  bucket: WorkBucket;
+  /** The student hid it (item:hide). Show only in a "Hidden" group with Restore. */
+  hidden: boolean;
 };
 
 export type NextAction = {

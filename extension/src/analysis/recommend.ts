@@ -4,7 +4,7 @@ import type { Analysis, Assignment, CollectionRun, Course, StudentContext } from
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import type { CheckInfo, EffortLabel, Evidence, HomeModel, NextAction, WorkItem } from '../model/home';
-import { assignmentPolicy, courseKey, effectiveDue, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
+import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
 import type { PolicyResult } from './policy';
 
 const DAY_MS = 86_400_000;
@@ -45,10 +45,12 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
       const blocked = policy.state === 'blocked' || policyAnswer(a, contextByKey) === 'teacher-forbids-ai';
       // Only a current, successful analysis counts; never AI content for a blocked assignment.
       const analysis = stored?.status === 'ok' && stored.detailHash === a.detail?.hash && !blocked ? stored : null;
-      return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked) };
+      const hidden = contextByKey.get(a.id)?.hidden === true;
+      return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, hidden, now) };
     });
 
-  const decision = open.filter((c) => inDecisionSet(c.a, c.due, now));
+  // Hiding an item takes it out of ranking too; the student decides what they work on.
+  const decision = open.filter((c) => !c.item.hidden && inDecisionSet(c.a, c.due, now));
   const rest = (exclude?: Candidate) => open.filter((c) => c !== exclude).map((c) => c.item).sort(byDue);
 
   if (!lastRun) {
@@ -141,10 +143,19 @@ function nextAction(top: Candidate, runnerUp: Candidate | undefined): NextAction
     : { item, action: `Open the instructions for ${a.title}`, reason, evidence, aiGenerated: false };
 }
 
-function toWorkItem(a: Assignment, due: EffectiveDue, policy: PolicyResult, analysis: Candidate['analysis'], blocked: boolean): WorkItem {
+function toWorkItem(
+  a: Assignment,
+  due: EffectiveDue,
+  policy: PolicyResult,
+  analysis: Candidate['analysis'],
+  blocked: boolean,
+  hidden: boolean,
+  now: Date,
+): WorkItem {
   return {
     assignmentId: a.id,
     title: a.title,
+    courseKey: courseKey(a),
     courseName: a.courseName,
     url: a.url,
     due: due.at && due.source ? { at: due.at, source: due.source } : null,
@@ -157,7 +168,16 @@ function toWorkItem(a: Assignment, due: EffectiveDue, policy: PolicyResult, anal
     },
     requirements: a.detail ? 'checked' : a.detailError ? 'unreadable' : 'not-checked',
     replay: a.replay,
+    bucket: bucketFor(due, now),
+    hidden,
   };
+}
+
+function bucketFor(due: EffectiveDue, now: Date): WorkItem['bucket'] {
+  if (!due.at) return 'no-date';
+  const t = Date.parse(due.at);
+  if (t < now.getTime()) return 'past';
+  return t <= now.getTime() + HORIZON_DAYS * DAY_MS ? 'soon' : 'later';
 }
 
 function checkInfo(run: CollectionRun): CheckInfo {

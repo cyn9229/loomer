@@ -26,6 +26,8 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('help:ask'), assignmentId: z.string(), text: z.string().min(1).max(2_000) }),
   z.object({ type: z.literal('help:review'), assignmentId: z.string() }),
   z.object({ type: z.literal('hint:dismiss'), id: z.number() }),
+  /** Hide or restore an item in "Other work". Never affects Canvas. */
+  z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);
 
 /** Origins a page must request (in the click handler) before sending doc:link. */
