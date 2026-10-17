@@ -173,6 +173,7 @@ export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Dat
             <div className="row-body">
               <span className="evidence-kind">{evidenceKindLabel[e.kind]}</span>
               <div className="evidence-text">{e.text}</div>
+              {e.quote && e.kind === 'ai-interpretation' && <span className="quote-label">From the assignment</span>}
               {e.quote && <span className="quote">“{e.quote}”</span>}
               <span className="source">
                 {e.sourceUrl ? (

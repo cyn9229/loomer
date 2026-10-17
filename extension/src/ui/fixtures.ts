@@ -116,8 +116,11 @@ export function buildFixtures(now: Date) {
     },
     {
       kind: 'ai-interpretation',
-      text: 'This is the largest open requirement due this week. The vocabulary check is short and fits Monday morning.',
-      sourceLabel: 'Based on the two assignments above',
+      text: 'Substantial: it asks you to compare two sources and build an argument.',
+      quote: 'Write a 600 word essay that compares how both sources explain heat islands and argue which explanation is stronger.',
+      sourceLabel: 'Assignment instructions',
+      sourceUrl: essay.url ?? undefined,
+      observedAt: checkedAt,
     },
     {
       kind: 'limitation',
@@ -189,7 +192,7 @@ export function buildFixtures(now: Date) {
       status: 'ready',
       next: {
         item: reflection,
-        action: 'Open the reflection prompt',
+        action: `Open the instructions for ${reflection.title}`,
         reason: 'You chose this one. AI help is off for it, so Loomer only keeps its deadline and links.',
         evidence: [
           {

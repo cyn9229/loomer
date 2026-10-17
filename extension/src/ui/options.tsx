@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react';
 import type { RunOutcome } from '../core/db';
 import type { Exclusion } from '../core/gate';
 import { sendMessage } from '../core/messages';
-import type { Settings } from '../core/settings';
+import type { AiSettings, Settings } from '../core/settings';
 import { isLoopback, parseSourceUrl } from '../core/url';
 import type { CheckInfo } from '../model/home';
 import { checkProblem, observedAt } from './format';
@@ -17,11 +17,12 @@ type View = 'start' | 'privacy';
 
 export type OptionsProps = {
   settings: Settings | null;
+  ai: AiSettings | null;
   lastCheck: CheckInfo | null;
   now: Date;
 };
 
-export function OptionsPage({ settings, lastCheck, now }: OptionsProps) {
+export function OptionsPage({ settings, ai, lastCheck, now }: OptionsProps) {
   const connected = Boolean(settings?.canvasOrigin);
   const [view, setView] = useState<View | null>(null);
   const current: View = view ?? (connected ? 'privacy' : 'start');
@@ -43,7 +44,7 @@ export function OptionsPage({ settings, lastCheck, now }: OptionsProps) {
           {current === 'start' ? (
             <GetStarted settings={settings} onDone={() => setView('privacy')} />
           ) : (
-            <Privacy settings={settings} lastCheck={lastCheck} now={now} />
+            <Privacy settings={settings} ai={ai} lastCheck={lastCheck} now={now} />
           )}
         </div>
       </main>
@@ -175,7 +176,7 @@ function ConnectForm({ onConnected }: { onConnected?: () => void }) {
   );
 }
 
-function Privacy({ settings, lastCheck, now }: { settings: Settings | null; lastCheck: CheckInfo | null; now: Date }) {
+function Privacy({ settings, ai, lastCheck, now }: { settings: Settings | null; ai: AiSettings | null; lastCheck: CheckInfo | null; now: Date }) {
   const [changing, setChanging] = useState(false);
   const origin = settings?.canvasOrigin ? new URL(settings.canvasOrigin) : null;
   return (
@@ -246,6 +247,7 @@ function Privacy({ settings, lastCheck, now }: { settings: Settings | null; last
             )}
           </div>
         </section>
+        {ai && <AiHelpCard ai={ai} />}
         <section className="ocard" aria-label="Never read">
           <div className="ocard-head">
             <span className="tile lg">
@@ -293,6 +295,85 @@ function Privacy({ settings, lastCheck, now }: { settings: Settings | null; last
         </section>
       </div>
     </>
+  );
+}
+
+/**
+ * Cloud AI consent. Off by default. Turning it on asks Chrome for access to the
+ * local broker first, inside the click, then tells the worker.
+ */
+function AiHelpCard({ ai }: { ai: AiSettings }) {
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const toggle = () => {
+    setError(null);
+    if (ai.enabled) {
+      setWorking(true);
+      void sendMessage({ type: 'ai:set', enabled: false })
+        .then((reply) => !reply.ok && setError(reply.error))
+        .finally(() => setWorking(false));
+      return;
+    }
+    setWorking(true);
+    browser.permissions
+      .request({ origins: [`${ai.brokerOrigin}/*`] })
+      .then(async (granted) => {
+        if (!granted) {
+          setError('Chrome access to the local AI service was not granted. AI help stays off.');
+          return;
+        }
+        const reply = await sendMessage({ type: 'ai:set', enabled: true });
+        if (!reply.ok) setError(reply.error);
+      })
+      .catch((e: unknown) => setError(String(e)))
+      .finally(() => setWorking(false));
+  };
+
+  return (
+    <section className="ocard" aria-label="AI help">
+      <div className="ocard-head">
+        <span className="tile lg">
+          <Icon name="sparkle" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">AI help</h2>
+          <p className="ocard-desc">Off by default. You choose.</p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title" id="ai-switch-label">
+            Read assignment requirements with AI
+          </span>
+          <span className="setting-sub">{ai.enabled ? 'On' : 'Off'}</span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          className="switch"
+          aria-checked={ai.enabled}
+          aria-labelledby="ai-switch-label"
+          disabled={working}
+          onClick={toggle}
+        />
+      </div>
+      <div className="callout accent" style={{ marginTop: 12 }}>
+        <span className="tile">
+          <Icon name="info" size="sm" />
+        </span>
+        <p className="callout-body">
+          When on, an assignment’s instructions and rubric go to OpenRouter (model openai/gpt-6-luna) through a local
+          service on this computer. Providers are asked not to collect or retain the data. Loomer does not send your
+          drafts for this step. A teacher’s no-AI rule always turns AI off for that assignment.
+        </p>
+      </div>
+      {error && (
+        <p className="status-line error" role="status">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 

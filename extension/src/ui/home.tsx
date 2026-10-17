@@ -163,10 +163,14 @@ function NextActionCard({ next, now }: { next: NextAction; now: Date }) {
   const rel = item.due ? deadlineLabel(item.due.at, now) : null;
   return (
     <Card label="Next action">
-      <p className="card-label accent">
-        <Icon name="sparkle" size="sm" />
-        {next.aiGenerated ? 'Recommended next' : 'Your next step'}
-      </p>
+      {next.aiGenerated ? (
+        <p className="card-label accent">
+          <Icon name="sparkle" size="sm" />
+          Recommended next
+        </p>
+      ) : (
+        <p className="card-label">Your next step</p>
+      )}
       <div className="asg">
         <AssignmentTile small />
         <h2 className="asg-title lg">{next.action}</h2>
