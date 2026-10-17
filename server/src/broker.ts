@@ -18,6 +18,8 @@ import {
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MAX_PER_MINUTE = 30;
+/** Reasoning models can take a while; the timer covers reading the body too. */
+const PROVIDER_TIMEOUT_MS = 90_000;
 
 /** One AI task: its route, schemas, and prompts. Request text is always untrusted data. */
 type Task<Req extends z.ZodType, Res extends z.ZodType> = {
@@ -166,14 +168,20 @@ async function callOpenRouter<Req extends z.ZodType, Res extends z.ZodType>(
         response_format: { type: 'json_schema', json_schema: { name: task.name, strict: true, schema } },
         provider: { data_collection: 'deny', zdr: true, require_parameters: true },
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
   } catch (error) {
-    return { ok: false, error: `provider unreachable: ${error instanceof Error ? error.name : 'unknown'}` };
+    return { ok: false, error: describeFailure(error, 'provider unreachable') };
   }
   if (!res.ok) return { ok: false, error: `provider status ${res.status}` };
 
-  const reply = openRouterReply.safeParse(await res.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch (error) {
+    return { ok: false, error: describeFailure(error, 'provider sent an unreadable body') };
+  }
+  const reply = openRouterReply.safeParse(body);
   if (!reply.success) return { ok: false, error: 'provider returned an unexpected envelope' };
   let json: unknown;
   try {
@@ -184,4 +192,8 @@ async function callOpenRouter<Req extends z.ZodType, Res extends z.ZodType>(
   const parsed = task.response.safeParse(json);
   if (!parsed.success) return { ok: false, error: 'provider returned an invalid shape' };
   return { ok: true, model: reply.data.model ?? model, result: parsed.data };
+}
+
+function describeFailure(error: unknown, fallback: string): string {
+  return error instanceof Error && error.name === 'TimeoutError' ? `provider timed out after ${PROVIDER_TIMEOUT_MS / 1000}s` : fallback;
 }

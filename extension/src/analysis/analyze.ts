@@ -14,7 +14,8 @@ import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, effectiveDue, inDecisionSet, policyAnswer } from './facts';
 
-const RETRY_FAILED_AFTER_MS = 60 * 60 * 1000;
+/** Provider failures are usually transient (timeouts, rate limits). */
+const RETRY_FAILED_AFTER_MS = 10 * 60 * 1000;
 const CONCURRENCY = 2;
 
 export type AnalyzeOptions = { db: LoomerDb; ai: () => Promise<AiSettings>; now?: Date; fetch?: typeof fetch };
