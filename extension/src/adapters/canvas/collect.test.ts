@@ -70,7 +70,8 @@ describe('collectCanvas', () => {
     await collectCanvas({ db, origin, gate, now, fetch: canvas(items) });
     const first = await db.assignments.toArray();
     items[0]!.due_at = '2026-10-22T23:59:00Z';
-    await collectCanvas({ db, origin, gate, now: new Date('2026-10-17T13:00:00Z'), fetch: canvas(items) });
+    const run = await collectCanvas({ db, origin, gate, now: new Date('2026-10-17T13:00:00Z'), fetch: canvas(items) });
+    expect(run.deadlineChanges).toEqual([{ assignmentId: `${origin}|user:42#assignment:9`, title: 'Essay', from: '2026-10-20T23:59:00Z', to: '2026-10-22T23:59:00Z' }]);
     const second = await db.assignments.toArray();
     expect(second).toHaveLength(1);
     expect(second[0]).toMatchObject({ dueAt: '2026-10-22T23:59:00Z', firstSeenAt: first[0]!.firstSeenAt });

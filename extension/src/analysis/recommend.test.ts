@@ -68,6 +68,7 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   sources: [],
   docUrls: new Map(),
   activeSession: false,
+  choice: null,
   ...over,
 });
 

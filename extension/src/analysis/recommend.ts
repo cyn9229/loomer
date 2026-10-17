@@ -2,8 +2,8 @@
 // only supplies effort labels and first-step wording; the order is computed here.
 import type { Analysis, Assignment, CollectionRun, Course, ResumePacket, Source, StudentContext } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
-import type { AiSettings } from '../core/settings';
-import type { CheckInfo, EffortLabel, Evidence, HomeModel, NextAction, ResumeBriefing, WorkItem } from '../model/home';
+import type { AiSettings, Choice } from '../core/settings';
+import type { CheckInfo, EffortLabel, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
 import type { PolicyResult } from './policy';
 
@@ -28,18 +28,20 @@ export type RecommendInput = {
   docUrls: Map<string, string>;
   /** An active session hides the briefing; the session banner covers it. */
   activeSession: boolean;
+  /** The student's remembered choice, if any. */
+  choice: Choice;
 };
 
 type Candidate = { a: Assignment; item: WorkItem; due: EffectiveDue; policy: PolicyResult; analysis: Extract<Analysis, { status: 'ok' }> | null };
 
-type CoreModel = DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume'> | { status: 'not-connected' };
+type CoreModel = DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview'> | { status: 'not-connected' };
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 export function buildHomeModel(input: RecommendInput): HomeModel {
   const core = buildCore(input);
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
-  return { ...core, resume: resumeBriefing(input, next) };
+  return { ...core, resume: resumeBriefing(input, next), olderReview: olderReview(input) };
 }
 
 function buildCore(input: RecommendInput): CoreModel {
@@ -56,8 +58,21 @@ function buildCore(input: RecommendInput): CoreModel {
     .filter((a) => a.sourceKey === sourceKey && isOpen(a))
     .map((a) => candidateFor(a, { course: courseById.get(courseKey(a)), analysis: analysisById.get(a.id), context: contextByKey }, now));
 
-  // Hiding an item takes it out of ranking too; the student decides what they work on.
-  const decision = open.filter((c) => !c.item.hidden && inDecisionSet(c.a, c.due, now));
+  // Hidden and done-offline items leave ranking; kept-active items join it even outside the window.
+  const decision = open.filter(
+    (c) => !c.item.hidden && c.item.correction !== 'done-offline' && (inDecisionSet(c.a, c.due, now) || c.item.correction === 'kept-active'),
+  );
+  const rankDue = (c: Candidate) => (c.due.at ? Date.parse(c.due.at) : now.getTime() + HORIZON_DAYS * DAY_MS);
+  const latestStart = (c: Candidate) => rankDue(c) - LEAD_DAYS[c.analysis?.effort ?? 'Unknown'] * DAY_MS;
+  // The student's choice stands until its due date or requirement text changes.
+  const chosen = open.find(
+    (c) =>
+      c.a.id === input.choice?.assignmentId &&
+      !c.item.hidden &&
+      c.item.correction !== 'done-offline' &&
+      input.choice.dueAt === c.a.dueAt &&
+      input.choice.detailHash === (c.a.detail?.hash ?? null),
+  );
   const rest = (exclude?: Candidate) => open.filter((c) => c !== exclude).map((c) => c.item).sort(byDue);
 
   if (!lastRun) {
@@ -83,20 +98,25 @@ function buildCore(input: RecommendInput): CoreModel {
     };
   }
 
-  if (decision.length === 0) return { status: 'empty', rest: rest(), lastCheck };
-
-  const ranked = [...decision].sort((x, y) => latestStart(x) - latestStart(y) || Date.parse(x.due.at!) - Date.parse(y.due.at!));
-  const top = ranked[0]!;
+  const ranked = [...decision].sort((x, y) => latestStart(x) - latestStart(y) || rankDue(x) - rankDue(y));
+  const top = ranked[0];
 
   // Anything that could come first but was not checked blocks a confident pick.
-  const topDue = Date.parse(top.due.at!);
-  const limitations: Evidence[] = decision
-    .filter((c) => c !== top && Date.parse(c.due.at!) <= topDue + LEAD_DAYS.Substantial * DAY_MS)
-    .flatMap((c) => limitationFor(c));
-  if (top.item.requirements !== 'checked') limitations.unshift(...limitationFor(top));
-  if (limitations.length > 0) return { status: 'cannot-compare', limitations, rest: rest(), lastCheck };
+  const limitations: Evidence[] = top
+    ? [
+        ...(top.item.requirements !== 'checked' ? limitationFor(top) : []),
+        ...decision.filter((c) => c !== top && rankDue(c) <= rankDue(top) + LEAD_DAYS.Substantial * DAY_MS).flatMap((c) => limitationFor(c)),
+      ]
+    : [];
+  const loomerTop = top && limitations.length === 0 ? top : undefined;
 
-  return { status: 'ready', next: nextAction(top, ranked[1]), rest: rest(top), lastCheck };
+  if (chosen) {
+    const loomerPick = loomerTop && loomerTop !== chosen ? { item: loomerTop.item, reason: pickReason(loomerTop, ranked[1]) } : null;
+    return { status: 'ready', next: nextAction(chosen, undefined, { chosenByStudent: true, loomerPick }), rest: rest(chosen), lastCheck };
+  }
+  if (!top) return { status: 'empty', rest: rest(), lastCheck };
+  if (!loomerTop) return { status: 'cannot-compare', limitations, rest: rest(), lastCheck };
+  return { status: 'ready', next: nextAction(top, ranked[1], { chosenByStudent: false, loomerPick: null }), rest: rest(top), lastCheck };
 }
 
 type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext> };
@@ -107,8 +127,8 @@ function candidateFor(a: Assignment, { course, analysis: stored, context }: Cand
   const blocked = policy.state === 'blocked' || policyAnswer(a, context) === 'teacher-forbids-ai';
   // Only a current, successful analysis counts; never AI content for a blocked assignment.
   const analysis = stored?.status === 'ok' && stored.detailHash === a.detail?.hash && !blocked ? stored : null;
-  const hidden = context.get(a.id)?.hidden === true;
-  return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, hidden, now) };
+  const ctx = context.get(a.id);
+  return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, ctx, now) };
 }
 
 /** The WorkItem for one assignment, built with the same rules Home uses. */
@@ -147,8 +167,27 @@ function resumeBriefing(input: RecommendInput, nextAssignmentId: string | null):
   };
 }
 
-function latestStart(c: Candidate): number {
-  return Date.parse(c.due.at!) - LEAD_DAYS[c.analysis?.effort ?? 'Unknown'] * DAY_MS;
+/**
+ * Unresolved past-due work for one quiet review. Past due alone is not "missing":
+ * the reason says only what is known. An item comes back after review only if
+ * Canvas newly marks it missing.
+ */
+function olderReview(input: RecommendInput): OlderReview {
+  const contextByKey = new Map(input.context.map((c) => [c.key, c]));
+  const items = input.assignments
+    .filter((a) => a.sourceKey === input.lastRun?.sourceKey && isOpen(a))
+    .flatMap((a) => {
+      const ctx = contextByKey.get(a.id);
+      if (ctx?.hidden || ctx?.correction) return [];
+      const c = candidateFor(a, { course: input.courses.find((x) => x.id === courseKey(a)), analysis: undefined, context: contextByKey }, input.now);
+      if (c.item.bucket !== 'past') return [];
+      const missingNow = a.submission?.missing === true;
+      if (!ctx?.olderReview) return [{ item: c.item, reason: missingNow ? 'Canvas marks this missing.' : `The deadline passed on ${formatDue(c.due.at!)}.` }];
+      if (missingNow && !ctx.olderReview.missing) return [{ item: c.item, reason: 'Canvas now marks this missing.' }];
+      return [];
+    })
+    .slice(0, 8);
+  return items.length ? { items } : null;
 }
 
 function limitationFor(c: Candidate): Evidence[] {
@@ -168,17 +207,29 @@ function limitationFor(c: Candidate): Evidence[] {
   return out;
 }
 
-function nextAction(top: Candidate, runnerUp: Candidate | undefined): NextAction {
+/** Why Loomer ranks this first, in one source-backed sentence. */
+function pickReason(top: Candidate, runnerUp: Candidate | undefined): string {
+  if (!top.due.at) return 'You kept this active.';
+  const dueText = formatDue(top.due.at);
+  const effort = top.analysis?.effort ?? 'Unknown';
+  return runnerUp?.due.at && Date.parse(runnerUp.due.at) < Date.parse(top.due.at)
+    ? `${runnerUp.a.title} is due sooner, but this needs more lead time (${effort.toLowerCase()} effort, ${dueText}).`
+    : `Due ${dueText}, the soonest of your checked work.`;
+}
+
+function nextAction(
+  top: Candidate,
+  runnerUp: Candidate | undefined,
+  choice: Pick<NextAction, 'chosenByStudent' | 'loomerPick'>,
+): NextAction {
   const { a, item, analysis, due } = top;
-  const dueText = formatDue(due.at!);
-  const effort = analysis?.effort ?? 'Unknown';
-  const reason =
-    runnerUp && Date.parse(runnerUp.due.at!) < Date.parse(due.at!)
-      ? `${runnerUp.a.title} is due sooner, but this needs more lead time (${effort.toLowerCase()} effort, ${dueText}).`
-      : `Due ${dueText}, the soonest of your checked work.`;
+  const dueText = due.at ? formatDue(due.at) : 'no due date';
+  const reason = choice.chosenByStudent ? `You chose this. ${due.at ? `Due ${dueText}.` : 'No due date found.'}` : pickReason(top, runnerUp);
 
   const evidence: Evidence[] = [
-    due.source === 'instructions'
+    !due.at
+      ? { kind: 'limitation', text: 'No due date was found in Canvas or the instructions.', sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined }
+      : due.source === 'instructions'
       ? { kind: 'school-fact', text: `Due ${dueText}, from the instructions.`, quote: due.instructionDates[0]?.quote, sourceLabel: 'Assignment instructions', sourceUrl: a.url ?? undefined }
       : { kind: 'school-fact', text: `Due ${dueText}.`, sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined, observedAt: a.lastSeenAt },
   ];
@@ -189,13 +240,13 @@ function nextAction(top: Candidate, runnerUp: Candidate | undefined): NextAction
   } else {
     evidence.push({ kind: 'limitation', text: 'Effort is unknown. AI analysis is off or unavailable for this assignment.', sourceLabel: 'Loomer' });
   }
-  if (runnerUp) {
-    evidence.push({ kind: 'school-fact', text: `Next: ${runnerUp.a.title}, due ${formatDue(runnerUp.due.at!)}.`, sourceLabel: 'Canvas assignment', sourceUrl: runnerUp.a.url ?? undefined });
+  if (runnerUp?.due.at) {
+    evidence.push({ kind: 'school-fact', text: `Next: ${runnerUp.a.title}, due ${formatDue(runnerUp.due.at)}.`, sourceLabel: 'Canvas assignment', sourceUrl: runnerUp.a.url ?? undefined });
   }
 
   return analysis
-    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true }
-    : { item, action: `Open the instructions for ${a.title}`, reason, evidence, aiGenerated: false };
+    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, ...choice }
+    : { item, action: `Open the instructions for ${a.title}`, reason, evidence, aiGenerated: false, ...choice };
 }
 
 function toWorkItem(
@@ -204,7 +255,7 @@ function toWorkItem(
   policy: PolicyResult,
   analysis: Candidate['analysis'],
   blocked: boolean,
-  hidden: boolean,
+  ctx: StudentContext | undefined,
   now: Date,
 ): WorkItem {
   return {
@@ -224,7 +275,8 @@ function toWorkItem(
     requirements: a.detail ? 'checked' : a.detailError ? 'unreadable' : 'not-checked',
     replay: a.replay,
     bucket: bucketFor(due, now),
-    hidden,
+    hidden: ctx?.hidden === true,
+    correction: ctx?.correction ?? null,
   };
 }
 

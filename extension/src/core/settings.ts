@@ -54,3 +54,13 @@ export const proactiveItem = storage.defineItem<ProactiveSettings>('local:proact
 
 /** Research discovery: off by default; needs Chrome's optional tabs permission. */
 export const discoveryItem = storage.defineItem<{ enabled: boolean }>('local:discovery', { fallback: { enabled: false } });
+
+/** Desktop notifications: off by default; only verified deadline changes and one research reminder per session. */
+export const notifyItem = storage.defineItem<{ enabled: boolean }>('local:notify', { fallback: { enabled: false } });
+
+/**
+ * What the student chose to work on, with the evidence it was chosen against.
+ * Home honors it until that assignment's due date or requirement text changes.
+ */
+export type Choice = { assignmentId: string; dueAt: string | null; detailHash: string | null; at: string } | null;
+export const choiceItem = storage.defineItem<Choice>('local:choice', { fallback: null });

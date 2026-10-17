@@ -51,6 +51,29 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('data:delete-assignment'), assignmentId: z.string() }),
   /** Remove everything Loomer stored and the access it was granted, then return to setup. */
   z.object({ type: z.literal('data:clear-all') }),
+  /** Check the linked draft against the requirements (AI on the student's work; needs work-help permission). */
+  z.object({ type: z.literal('requirements:check'), assignmentId: z.string() }),
+  /** Student corrections. done-offline leaves the queue; kept-active keeps it ranked; null clears. */
+  z.object({
+    type: z.literal('context:set'),
+    assignmentId: z.string(),
+    correction: z.enum(['done-offline', 'kept-active']).nullable(),
+    note: z.string().max(500).optional(),
+  }),
+  /** The student chose what to work on; kept until relevant evidence changes. */
+  z.object({ type: z.literal('choice:set'), assignmentId: z.string() }),
+  /** Ask Loomer to reconsider: drop the remembered choice. */
+  z.object({ type: z.literal('choice:clear') }),
+  /** The older-work review was seen; these items will not be raised again without new evidence. */
+  z.object({ type: z.literal('older:reviewed'), assignmentIds: z.array(z.string()) }),
+  /** Desktop notifications: sent after the page's permissions.request({ permissions: ['notifications'] }) when enabling. */
+  z.object({ type: z.literal('notify:set'), enabled: z.boolean() }),
+  /** Crop (in image pixels) and save the pending screenshot, or discard it. Nothing is saved before this. */
+  z.object({
+    type: z.literal('screenshot:save'),
+    crop: z.object({ x: z.number().min(0), y: z.number().min(0), width: z.number().positive(), height: z.number().positive() }),
+  }),
+  z.object({ type: z.literal('screenshot:cancel') }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);

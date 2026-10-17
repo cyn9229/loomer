@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { buildHomeModel } from '../analysis/recommend';
 import { db } from '../core/db';
-import { aiSettingsItem, settingsItem } from '../core/settings';
+import { aiSettingsItem, choiceItem, settingsItem } from '../core/settings';
 import type { HomeModel } from './home';
 import { useStorageItem } from './useStorageItem';
 
@@ -14,6 +14,7 @@ const TICK_MS = 30_000;
 export function useHomeModel(): HomeModel | undefined {
   const settings = useStorageItem(settingsItem);
   const ai = useStorageItem(aiSettingsItem);
+  const choice = useStorageItem(choiceItem);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
@@ -22,7 +23,7 @@ export function useHomeModel(): HomeModel | undefined {
 
   // Dexie reads only: a non-Dexie await here would stop live updates from the worker.
   return useLiveQuery(async () => {
-    if (!settings || !ai) return undefined;
+    if (!settings || !ai || choice === undefined) return undefined;
     const [lastRun, assignments, courses, analyses, context, packets, sources, links, active] = await Promise.all([
       db.runs.orderBy('startedAt').last(),
       db.assignments.toArray(),
@@ -47,6 +48,7 @@ export function useHomeModel(): HomeModel | undefined {
       sources,
       docUrls: new Map(links.map((l) => [l.assignmentId, l.url])),
       activeSession: active > 0,
+      choice,
     });
-  }, [settings, ai, tick]);
+  }, [settings, ai, choice, tick]);
 }

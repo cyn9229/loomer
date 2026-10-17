@@ -10,6 +10,9 @@ import {
   HINT_ROUTE,
   hintRequestSchema,
   hintResponseSchema,
+  REQUIREMENTS_CHECK_ROUTE,
+  requirementsCheckRequestSchema,
+  requirementsCheckResponseSchema,
   REQUIREMENTS_ROUTE,
   requirementsRequestSchema,
   requirementsResponseSchema,
@@ -117,6 +120,26 @@ summary: one sentence naming what you reviewed; if scope is partial, say only pa
     ].join('\n\n'),
 });
 
+const requirementsCheckTask = defineTask({
+  route: REQUIREMENTS_CHECK_ROUTE,
+  name: 'requirements_check',
+  request: requirementsCheckRequestSchema,
+  response: requirementsCheckResponseSchema,
+  system: `You compare a student's draft with a numbered list of assignment requirements. ${BOUNDARY}
+For each requirement, return one item with its index and a state:
+- observed: the draft contains content addressing it. This says nothing about quality or correctness. quote: a short passage copied character for character from the draft.
+- needs-review: the draft attempts it but a specific, evidenced issue exists. quote: the passage concerned. note: the issue in one sentence, as an observation or question, never replacement text.
+- unknown: the draft does not show enough to say, including sections not written yet. quote and note empty. Never treat unknown as "not started".
+Judge only the text inside <draft>. If scope is partial, prefer unknown for anything you cannot see.`,
+  user: (req) =>
+    [
+      `Assignment: ${req.title}`,
+      `<instructions>\n${req.instructions}\n</instructions>`,
+      `Requirements:\n${req.requirements.map((r) => `${r.index}. ${r.text}`).join('\n')}`,
+      `<draft scope="${req.workScope}">\n${req.studentWork}\n</draft>`,
+    ].join('\n\n'),
+});
+
 const hintTask = defineTask({
   route: HINT_ROUTE,
   name: 'hint',
@@ -175,6 +198,7 @@ export function brokerRoutes(env: { apiKey: string | undefined; model: string; e
   register(helpTask);
   register(reviewTask);
   register(hintTask);
+  register(requirementsCheckTask);
   return app;
 }
 

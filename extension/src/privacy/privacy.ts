@@ -46,8 +46,9 @@ export function pageRuleFor(url: string): Exclusion {
 export async function deleteAssignmentData(db: LoomerDb, assignmentId: string) {
   const link = await db.docLinks.get(assignmentId);
   const sessions = await db.sessions.where('assignmentId').equals(assignmentId).toArray();
-  await db.transaction('rw', [db.analyses, db.chat, db.hints, db.sources, db.resumePackets, db.docLinks, db.docReads, db.sessions, db.sessionEvents, db.studentContext], async () => {
+  await db.transaction('rw', [db.analyses, db.chat, db.hints, db.sources, db.resumePackets, db.docLinks, db.docReads, db.sessions, db.sessionEvents, db.studentContext, db.requirementChecks], async () => {
     await db.analyses.delete(assignmentId);
+    await db.requirementChecks.delete(assignmentId);
     await db.chat.where('assignmentId').equals(assignmentId).delete();
     await db.hints.where('assignmentId').equals(assignmentId).delete();
     await db.sources.where('assignmentId').equals(assignmentId).delete();

@@ -65,7 +65,11 @@ export type CollectionRun = {
     detailFailures: number;
   };
   error: string | null;
+  /** Existing assignments whose Canvas due date changed in this check. */
+  deadlineChanges?: DeadlineChange[];
 };
+
+export type DeadlineChange = { assignmentId: string; title: string; from: string; to: string };
 
 export type Course = {
   /** `${sourceKey}#course:${canvasId}`. */
@@ -108,6 +112,12 @@ export type StudentContext = {
   hidden?: boolean;
   /** Hint issue types the student dismissed for this assignment; not raised again. */
   dismissedHintIssues?: string[];
+  /** "I did this offline" (leaves the queue) or "Keep this active" (stays ranked). */
+  correction?: 'done-offline' | 'kept-active';
+  /** The student's own explanation, shown in context only. */
+  note?: string;
+  /** The older-work review was shown for this item; `missing` is what Canvas said then. */
+  olderReview?: { at: string; missing: boolean };
 };
 
 /** A Doc the student linked to an assignment: the only Doc Loomer may read for it. */
@@ -163,6 +173,10 @@ export type Source = {
   capturedAt: string;
   excerpt: string;
   hash: string;
+  /** Absent for page text. A screenshot stores its cropped image instead of text. */
+  kind?: 'page' | 'screenshot';
+  /** Cropped JPEG data URL for screenshots. */
+  image?: string;
 };
 
 export type ChatRecord = {
@@ -208,6 +222,20 @@ export type HintRecord = {
   state: 'shown' | 'dismissed' | 'withdrawn';
 };
 
+/** Result of checking the draft against the requirement list, tied to one draft version. */
+export type RequirementCheck =
+  | { assignmentId: string; status: 'pending'; startedAt: string }
+  | {
+      assignmentId: string;
+      status: 'ok';
+      docHash: string;
+      scope: 'full' | 'partial';
+      createdAt: string;
+      /** Indexes refer to the requirement list built by requirementList(). */
+      items: { index: number; state: 'observed' | 'needs-review' | 'unknown'; quote: string; note: string }[];
+    }
+  | { assignmentId: string; status: 'failed'; createdAt: string; error: string };
+
 export class LoomerDb extends Dexie {
   assignments!: EntityTable<Assignment, 'id'>;
   runs!: EntityTable<CollectionRun, 'id'>;
@@ -222,6 +250,7 @@ export class LoomerDb extends Dexie {
   chat!: EntityTable<ChatRecord, 'id'>;
   resumePackets!: EntityTable<ResumePacket, 'assignmentId'>;
   hints!: EntityTable<HintRecord, 'id'>;
+  requirementChecks!: EntityTable<RequirementCheck, 'assignmentId'>;
 
   constructor(name = 'loomer') {
     super(name);
@@ -246,6 +275,7 @@ export class LoomerDb extends Dexie {
       resumePackets: 'assignmentId, at',
       hints: '++id, sessionId, assignmentId, state',
     });
+    this.version(5).stores({ requirementChecks: 'assignmentId' });
   }
 }
 

@@ -1,6 +1,6 @@
 // Canvas collection: overview (planner + undated assignments), then requirement
 // details for work in the decision window. Writes only to the local store.
-import type { Assignment, AssignmentDetail, CollectionRun, LoomerDb, PlannableKind, RunOutcome } from '../../core/db';
+import type { Assignment, AssignmentDetail, CollectionRun, DeadlineChange, LoomerDb, PlannableKind, RunOutcome } from '../../core/db';
 import type { GateState } from '../../core/gate';
 import { contentHash } from '../../core/hash';
 import { mapLimit } from '../../core/concurrency';
@@ -42,8 +42,9 @@ export async function collectCanvas({ db, origin, gate, now = new Date(), fetch 
     detailsFetched: 0,
     detailFailures: 0,
   };
+  let deadlineChanges: DeadlineChange[] = [];
   const finish = async (outcome: RunOutcome, sourceKey: string | null, error: string | null = null) => {
-    const run: Omit<CollectionRun, 'id'> = { sourceKey, origin, startedAt, finishedAt: new Date().toISOString(), outcome, coverage, error };
+    const run: Omit<CollectionRun, 'id'> = { sourceKey, origin, startedAt, finishedAt: new Date().toISOString(), outcome, coverage, error, deadlineChanges };
     const id = await db.runs.add(run);
     return { ...run, id };
   };
@@ -98,7 +99,7 @@ export async function collectCanvas({ db, origin, gate, now = new Date(), fetch 
   }
   coverage.undatedCoursesChecked = undatedChecked.size;
 
-  await upsertOverview(db, sourceKey, seen, startedAt, (a) =>
+  deadlineChanges = await upsertOverview(db, sourceKey, seen, startedAt, (a) =>
     a.dueAt ? Date.parse(a.dueAt) >= windowStart.getTime() && Date.parse(a.dueAt) <= windowEnd.getTime() : undatedChecked.has(a.courseId),
   );
 
@@ -157,18 +158,22 @@ async function upsertOverview(
   seen: Map<string, OverviewRecord>,
   checkedAt: string,
   wasCovered: (a: Assignment) => boolean,
-) {
+): Promise<DeadlineChange[]> {
+  const changes: DeadlineChange[] = [];
   await db.transaction('rw', db.assignments, async () => {
     const existing = new Map((await db.assignments.where('sourceKey').equals(sourceKey).toArray()).map((a) => [a.id, a]));
     for (const record of seen.values()) {
       const prior = existing.get(record.id);
+      const moved = Boolean(prior?.dueAt && record.dueAt && prior.dueAt !== record.dueAt);
+      if (moved) changes.push({ assignmentId: record.id, title: record.title, from: prior!.dueAt!, to: record.dueAt! });
       await db.assignments.put({
         ...record,
         // Planner submission flags are the better source; keep them if the undated list lacked them.
         submission: record.submission ?? prior?.submission ?? null,
         firstSeenAt: prior?.firstSeenAt ?? checkedAt,
         presence: 'seen-in-last-check',
-        detail: prior?.detail ?? null,
+        // A moved deadline may come with new instructions: re-read them in this check.
+        detail: prior?.detail && moved ? { ...prior.detail, observedAt: new Date(0).toISOString() } : (prior?.detail ?? null),
         detailError: prior?.detailError ?? null,
       });
     }
@@ -178,6 +183,7 @@ async function upsertOverview(
       }
     }
   });
+  return changes;
 }
 
 /** Fetches requirement details for open work due within the horizon, or undated. */

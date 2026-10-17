@@ -1,13 +1,17 @@
 // Service worker. Chrome may stop it at any time, so it keeps no state in memory
 // that cannot be rebuilt from storage. Scheduling uses alarms, which survive restarts.
+import { storage } from 'wxt/utils/storage';
 import { collectCanvas } from '../src/adapters/canvas/collect';
 import { parseDocId } from '../src/adapters/docs/reader';
 import { analyzeRequirements } from '../src/analysis/analyze';
 import { capturePage, type CaptureOutcome } from '../src/capture/capture';
+import { draftScreenshot, saveScreenshot, screenshotDraftItem, type Crop, type ScreenshotRefusal } from '../src/capture/screenshot';
+import { notifyDeadlineChanges } from '../src/notify/notify';
+import { checkRequirements } from '../src/session/requirements';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiSettingsItem, discoveryItem, loadGateState, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiSettingsItem, choiceItem, discoveryItem, loadGateState, notifyItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
@@ -21,6 +25,9 @@ const REFRESH_MINUTES = 15;
 const SESSION_ALARM = 'session-tick';
 const SESSION_LOOP_MS = 5_000;
 const CAPTURE_MENU = 'loomer-add-page';
+const SCREENSHOT_MENU = 'loomer-screenshot';
+/** Session that already got its one research reminder notification. */
+const remindedItem = storage.defineItem<number | null>('session:reminded', { fallback: null });
 
 let sessionLoop: ReturnType<typeof setTimeout> | null = null;
 
@@ -101,7 +108,67 @@ async function runDiscovery() {
   if (next?.suggestion && !prev?.suggestion && (await browser.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] })).length === 0) {
     await browser.action.setBadgeBackgroundColor({ color: '#4f4dfd' });
     await browser.action.setBadgeText({ text: '+' });
+    // At most one desktop reminder per session, and only if the student turned notifications on.
+    if ((await remindedItem.getValue()) !== next.sessionId) {
+      await remindedItem.setValue(next.sessionId);
+      await notify(`research-${next.sessionId}`, 'Researching for this assignment?', `Add "${next.suggestion.title}" to Loomer from the side panel.`);
+    }
   }
+}
+
+/** Shows a desktop notification only when the student enabled them and Chrome granted the permission. */
+async function notify(id: string, title: string, message: string) {
+  if (!(await notifyItem.getValue()).enabled) return;
+  if (!(await browser.permissions.contains({ permissions: ['notifications'] }))) return;
+  await browser.notifications.create(id, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title, message, priority: 0 });
+}
+
+const SCREENSHOT_FEEDBACK: Record<ScreenshotRefusal, string> = {
+  paused: 'Loomer is paused. Resume it in settings first',
+  'no-session': 'Start a work session in Loomer to capture screenshots',
+  excluded: 'Loomer does not capture this kind of page',
+  'sign-in-page': 'Loomer does not capture sign-in pages',
+  unreadable: 'Loomer could not capture this tab',
+};
+
+/** Right-click screenshot: capture the visible tab into a draft for preview and crop in the panel. */
+async function screenshotFromTab(tab: { id?: number; windowId?: number; url?: string; title?: string } | undefined) {
+  if (!tab?.id) return;
+  const result = await draftScreenshot(db, await loadGateState(), tab, new Date(), {
+    hasPasswordField: async (tabId) => {
+      const [r] = await browser.scripting.executeScript({ target: { tabId }, func: () => document.querySelector('input[type="password"]') !== null });
+      return r?.result === true;
+    },
+    captureVisible: (windowId) => browser.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 85 }),
+    imageSize: async (dataUrl) => {
+      const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+      const size = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      return size;
+    },
+  });
+  if (!result.ok) {
+    await browser.action.setBadgeText({ tabId: tab.id, text: '!' });
+    await browser.action.setTitle({ tabId: tab.id, title: SCREENSHOT_FEEDBACK[result.reason] });
+    setTimeout(() => {
+      void browser.action.setBadgeText({ tabId: tab.id, text: '' });
+      void browser.action.setTitle({ tabId: tab.id, title: 'Open loomer' });
+    }, 4_000);
+  }
+}
+
+/** Crops a JPEG data URL in the worker (no DOM) and returns a smaller JPEG data URL. */
+async function cropImage(dataUrl: string, crop: Crop): Promise<string> {
+  const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob(), crop.x, crop.y, crop.width, crop.height);
+  // Keep stored screenshots small: at most 1600 px wide.
+  const scale = Math.min(1, 1600 / bitmap.width);
+  const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 })).arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return `data:image/jpeg;base64,${btoa(binary)}`;
 }
 
 /**
@@ -109,6 +176,11 @@ async function runDiscovery() {
  * afterwards, empty every table and Loomer's settings, remove the typing script,
  * and give back the site and tab access Loomer was granted. Returns to setup.
  */
+async function rememberChoice(assignmentId: string) {
+  const a = await db.assignments.get(assignmentId);
+  if (a) await choiceItem.setValue({ assignmentId, dueAt: a.dueAt, detailHash: a.detail?.hash ?? null, at: new Date().toISOString() });
+}
+
 async function clearAll() {
   stopSessionLoop();
   await running?.catch(() => {});
@@ -236,7 +308,8 @@ async function runRefresh() {
     return;
   }
   try {
-    await collectCanvas({ db, origin: canvasOrigin, gate: await loadGateState() });
+    const run = await collectCanvas({ db, origin: canvasOrigin, gate: await loadGateState() });
+    if (run.deadlineChanges?.length) await notifyDeadlineChanges(run.deadlineChanges, notify);
   } catch (error) {
     // A bug must surface as a failed check, never as a silent "still checking".
     await recordRun(canvasOrigin, 'failed', error instanceof Error ? error.message : String(error));
@@ -295,6 +368,8 @@ async function handle(message: Message): Promise<Reply> {
     case 'session:start': {
       if ((await settingsItem.getValue()).paused) return { ok: false, error: 'Loomer is paused. Resume it in settings first.' };
       await startSession(db, message.assignmentId, new Date());
+      // Starting work on something is a choice; Home keeps it until the evidence changes.
+      await rememberChoice(message.assignmentId);
       await openDoc(message.assignmentId);
       runSessionLoop();
       return { ok: true };
@@ -376,6 +451,46 @@ async function handle(message: Message): Promise<Reply> {
     case 'data:clear-all':
       await clearAll();
       return { ok: true };
+    case 'requirements:check':
+      await checkRequirements({ db, ai: () => aiSettingsItem.getValue() }, message.assignmentId);
+      return { ok: true };
+    case 'context:set': {
+      const ctx = await db.studentContext.get(message.assignmentId);
+      await db.studentContext.put({
+        ...ctx,
+        key: message.assignmentId,
+        correction: message.correction ?? undefined,
+        note: message.note ?? ctx?.note,
+      });
+      return { ok: true };
+    }
+    case 'choice:set':
+      await rememberChoice(message.assignmentId);
+      return { ok: true };
+    case 'choice:clear':
+      await choiceItem.setValue(null);
+      return { ok: true };
+    case 'older:reviewed': {
+      const at = new Date().toISOString();
+      for (const id of message.assignmentIds) {
+        const [ctx, a] = await Promise.all([db.studentContext.get(id), db.assignments.get(id)]);
+        await db.studentContext.put({ ...ctx, key: id, olderReview: { at, missing: a?.submission?.missing === true } });
+      }
+      return { ok: true };
+    }
+    case 'notify:set':
+      if (message.enabled && !(await browser.permissions.contains({ permissions: ['notifications'] }))) {
+        return { ok: false, error: 'Chrome did not grant notifications.' };
+      }
+      await notifyItem.setValue({ enabled: message.enabled });
+      if (!message.enabled) await browser.permissions.remove({ permissions: ['notifications'] }).catch(() => false);
+      return { ok: true };
+    case 'screenshot:save':
+      return saveScreenshot(db, await loadGateState(), message.crop, new Date(), cropImage).then((r) => (r.ok ? { ok: true } : { ok: false, error: r.error ?? 'Not saved.' }));
+    case 'screenshot:cancel':
+      // The raw capture is discarded; nothing was stored.
+      await screenshotDraftItem.setValue(null);
+      return { ok: true };
     case 'suggestion:dismiss': {
       const state = await discoveryStateItem.getValue();
       if (state) await discoveryStateItem.setValue({ ...state, dismissed: true, candidate: null, suggestion: null });
@@ -431,6 +546,7 @@ export default defineBackground(() => {
     void schedule();
     void refresh();
     browser.contextMenus.create({ id: CAPTURE_MENU, title: 'Add page to Loomer', contexts: ['page'] });
+    browser.contextMenus.create({ id: SCREENSHOT_MENU, title: 'Capture screenshot for Loomer', contexts: ['page', 'image'] });
     void registerTypingSignal().catch(() => {});
   });
   // Catch up after the browser was closed. A session never resumes on its own:
@@ -454,6 +570,16 @@ export default defineBackground(() => {
 
   browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === CAPTURE_MENU) void captureFromTab(tab);
+    if (info.menuItemId === SCREENSHOT_MENU && tab?.id) {
+      // Open the panel first, inside the click's user gesture, so the preview is ready to show.
+      void browser.sidePanel.open({ tabId: tab.id }).catch(() => {});
+      void screenshotFromTab(tab);
+    }
+  });
+  // A notification click brings Chrome forward; opening the panel needs a user gesture Chrome may not grant here.
+  browser.notifications?.onClicked.addListener(async () => {
+    const win = await browser.windows.getLastFocused();
+    if (win.id !== undefined) await browser.windows.update(win.id, { focused: true });
   });
   browser.commands.onCommand.addListener((command, tab) => {
     if (command === 'add-page') void captureFromTab(tab);

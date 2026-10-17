@@ -35,6 +35,9 @@ export type RequirementsState = 'checked' | 'checking' | 'unreadable' | 'not-che
  */
 export type WorkBucket = 'soon' | 'later' | 'no-date' | 'past';
 
+/** What the student told Loomer about this item. Shown in context, never as a progress status. */
+export type StudentCorrection = 'done-offline' | 'kept-active' | null;
+
 export type WorkItem = {
   assignmentId: string;
   title: string;
@@ -54,6 +57,8 @@ export type WorkItem = {
   bucket: WorkBucket;
   /** The student hid it (item:hide). Show only in a "Hidden" group with Restore. */
   hidden: boolean;
+  /** "I did this offline" leaves the queue; "Keep this active" keeps it ranked. */
+  correction: StudentCorrection;
 };
 
 export type NextAction = {
@@ -66,7 +71,18 @@ export type NextAction = {
   evidence: Evidence[];
   /** False when the action is a fixed non-AI line (AI off, blocked, or unavailable). */
   aiGenerated: boolean;
+  /** The student picked this (choice:set or starting a session); Loomer keeps it until evidence changes. */
+  chosenByStudent: boolean;
+  /** When the student's choice differs from Loomer's own pick, Loomer's pick and why. */
+  loomerPick: { item: WorkItem; reason: string } | null;
 };
+
+/**
+ * One quiet review of unresolved past-due work. Shown until the student acts on
+ * each item (keep active, done offline, hide) or marks the review done; it comes
+ * back only on new evidence, with the reason.
+ */
+export type OlderReview = { items: { item: WorkItem; reason: string }[] } | null;
 
 export type CheckInfo = {
   at: string;
@@ -107,9 +123,17 @@ export type HomeModel =
       rest: WorkItem[];
       lastCheck: CheckInfo | null;
       resume: ResumeBriefing | null;
+      olderReview: OlderReview;
     }
   /** Unreadable or unchecked work could change the order, so no confident top pick. */
-  | { status: 'cannot-compare'; limitations: Evidence[]; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null }
-  | { status: 'ready'; next: NextAction; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null }
+  | {
+      status: 'cannot-compare';
+      limitations: Evidence[];
+      rest: WorkItem[];
+      lastCheck: CheckInfo | null;
+      resume: ResumeBriefing | null;
+      olderReview: OlderReview;
+    }
+  | { status: 'ready'; next: NextAction; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null; olderReview: OlderReview }
   /** Connected and checked, nothing open in the decision window. */
-  | { status: 'empty'; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null };
+  | { status: 'empty'; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null; olderReview: OlderReview };

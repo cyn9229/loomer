@@ -15,8 +15,8 @@ export default defineConfig({
     permissions: ['storage', 'alarms', 'contextMenus', 'activeTab', 'scripting', ...(e2e ? ['tabs'] : [])],
     // Loopback http is only for the labeled local Canvas replay and demo sources.
     optional_host_permissions: ['https://*/*', 'http://127.0.0.1/*', 'http://localhost/*'],
-    // Only for opt-in research discovery: lets Loomer see the foreground tab's title and address.
-    optional_permissions: ['tabs'],
+    // tabs: opt-in research discovery. notifications: opt-in deadline-change alerts.
+    optional_permissions: ['tabs', 'notifications'],
     ...(e2e ? { host_permissions: ['http://127.0.0.1/*', 'http://localhost/*'] } : {}),
     action: { default_title: 'Open loomer' },
     commands: {

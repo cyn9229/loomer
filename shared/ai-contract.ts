@@ -140,3 +140,31 @@ export const hintResponseSchema = z.strictObject({
 
 export type HintRequest = z.infer<typeof hintRequestSchema>;
 export type HintResponse = z.infer<typeof hintResponseSchema>;
+
+export const REQUIREMENTS_CHECK_ROUTE = '/ai/requirements-check';
+
+/** Check the student's draft against a numbered list of requirements. Needs the work-help AI check. */
+export const requirementsCheckRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  instructions: z.string().max(12_000),
+  studentWork: z.string().max(15_000),
+  workScope,
+  requirements: z.array(z.strictObject({ index: z.number().int().min(0), text: z.string().max(1_000) })).max(20),
+});
+
+export const requirementsCheckResponseSchema = z.strictObject({
+  items: z.array(
+    z.strictObject({
+      index: z.number().int().min(0),
+      /** observed: relevant content found; needs-review: a specific possible issue; unknown: not enough to say. */
+      state: z.enum(['observed', 'needs-review', 'unknown']),
+      /** Exact passage from the draft for observed or needs-review; empty for unknown. */
+      quote: z.string(),
+      /** One short sentence; for needs-review, the specific issue. Never replacement text. */
+      note: z.string(),
+    }),
+  ),
+});
+
+export type RequirementsCheckRequest = z.infer<typeof requirementsCheckRequestSchema>;
+export type RequirementsCheckResponse = z.infer<typeof requirementsCheckResponseSchema>;

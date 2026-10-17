@@ -150,6 +150,7 @@ describe('resume briefing', () => {
       sources: [],
       docUrls: new Map([[assignment.id, 'https://docs.google.com/document/d/x/edit']]),
       activeSession: false,
+      choice: null,
     });
     expect(home.status !== 'not-connected' && home.resume).toMatchObject({ facts: ['Edited your draft 1 time (+40 words)'], recommendationChanged: false });
   });

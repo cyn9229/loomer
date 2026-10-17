@@ -30,7 +30,17 @@ export type DocState =
       studentWords: number | null;
     };
 
-export type SourceItem = { id: string; title: string; url: string; capturedAt: string; excerptChars: number };
+export type SourceItem = {
+  id: string;
+  title: string;
+  url: string;
+  capturedAt: string;
+  excerptChars: number;
+  /** A deliberate screenshot (partial visual evidence) rather than page text. */
+  kind: 'page' | 'screenshot';
+  /** Cropped image as a data URL, for screenshots only. */
+  image: string | null;
+};
 
 /** Factual activity only, e.g. "Edited your draft (+120 words)". Never time spent or progress. */
 export type ActivityItem = { at: string; text: string };

@@ -4,7 +4,7 @@ import type { ChatRecord, DocLink, DocRead, LoomerDb, SessionEvent, Source } fro
 import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
-import type { ActivityItem, DocState, HelpAvailability, SessionModel } from '../model/session';
+import type { ActivityItem, DocState, HelpAvailability, SessionModel, SourceItem } from '../model/session';
 import { currentSession } from './session';
 import { workHelpDecision, type HelpDecision } from './help';
 
@@ -38,9 +38,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     assignment: workItemFor(a, { course, analysis, context: contextMap }, now),
     startedAt: session.startedAt,
     doc: docState(link, read, a.detail?.links ?? [], a.detail?.text ?? ''),
-    sources: sources
-      .sort((x, y) => y.capturedAt.localeCompare(x.capturedAt))
-      .map((s: Source) => ({ id: s.id, title: s.title, url: s.url, capturedAt: s.capturedAt, excerptChars: s.excerpt.length })),
+    sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     activity: activity(events),
     help: {
       ...availability(decision),
@@ -50,6 +48,18 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     // Never show AI guidance once help is no longer allowed (AI off, new restriction).
     suggestion: null,
     hint: hint && decision.allowed ? { id: hint.id, text: hint.text, reference: { quote: hint.quote, from: 'your draft' }, createdAt: hint.createdAt } : null,
+  };
+}
+
+export function toSourceItem(s: Source): SourceItem {
+  return {
+    id: s.id,
+    title: s.title,
+    url: s.url,
+    capturedAt: s.capturedAt,
+    excerptChars: s.excerpt.length,
+    kind: s.kind ?? 'page',
+    image: s.image ?? null,
   };
 }
 
@@ -99,7 +109,7 @@ function activity(events: SessionEvent[]): ActivityItem[] {
     .map((e) => ({ at: e.at, text: line(e) }));
 }
 
-function availability(decision: HelpDecision): { availability: HelpAvailability; policyQuote?: string; policySource?: string } {
+export function availability(decision: HelpDecision): { availability: HelpAvailability; policyQuote?: string; policySource?: string } {
   const quote = { policyQuote: decision.policy?.finding?.quote, policySource: decision.policy?.finding?.sourceLabel };
   if (decision.allowed) return { availability: 'available' };
   switch (decision.reason) {
