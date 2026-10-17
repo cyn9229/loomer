@@ -1,30 +1,36 @@
-// React hook that turns the local store into a HomeModel. Logic owns this file.
-// M2 in progress: today it only reports not-connected or checking; recommendation
-// states arrive with src/analysis/recommend.ts.
+// React hook that turns the local store into a HomeModel. All decisions live in
+// buildHomeModel; this hook only gathers inputs and re-runs on store changes.
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect, useState } from 'react';
+import { buildHomeModel } from '../analysis/recommend';
 import { db } from '../core/db';
-import { settingsItem } from '../core/settings';
+import { aiSettingsItem, settingsItem } from '../core/settings';
 import type { HomeModel } from './home';
 
+/** Re-evaluates every 30 s so time-based states (waiting for analysis, due dates) move on. */
+const TICK_MS = 30_000;
+
 export function useHomeModel(): HomeModel | undefined {
-  return useLiveQuery(async (): Promise<HomeModel> => {
-    const { canvasOrigin } = await settingsItem.getValue();
-    if (!canvasOrigin) return { status: 'not-connected' };
-    const run = await db.runs.orderBy('startedAt').last();
-    return {
-      status: 'checking',
-      progress: { checked: 0, total: 0 },
-      pending: [],
-      rest: [],
-      lastCheck: run
-        ? {
-            at: run.finishedAt,
-            outcome: run.outcome,
-            courses: run.coverage.courses,
-            partial: run.outcome === 'partial' || run.coverage.plannerTruncated,
-            replay: run.origin ? new URL(run.origin).protocol === 'http:' : false,
-          }
-        : null,
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
+    const unwatch = [settingsItem.watch(() => setTick((t) => t + 1)), aiSettingsItem.watch(() => setTick((t) => t + 1))];
+    return () => {
+      clearInterval(id);
+      unwatch.forEach((u) => u());
     };
-  });
+  }, []);
+
+  return useLiveQuery(async () => {
+    const [settings, ai, lastRun, assignments, courses, analyses, context] = await Promise.all([
+      settingsItem.getValue(),
+      aiSettingsItem.getValue(),
+      db.runs.orderBy('startedAt').last(),
+      db.assignments.toArray(),
+      db.courses.toArray(),
+      db.analyses.toArray(),
+      db.studentContext.toArray(),
+    ]);
+    return buildHomeModel({ connected: Boolean(settings.canvasOrigin), assignments, courses, analyses, context, ai, lastRun, now: new Date() });
+  }, [tick]);
 }

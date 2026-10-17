@@ -1,9 +1,10 @@
 // Service worker. Chrome may stop it at any time, so it keeps no state in memory
 // that cannot be rebuilt from storage. Scheduling uses alarms, which survive restarts.
 import { collectCanvas } from '../src/adapters/canvas/collect';
+import { analyzeRequirements } from '../src/analysis/analyze';
 import { db } from '../src/core/db';
 import { messageSchema, type Message, type Reply } from '../src/core/messages';
-import { loadGateState, settingsItem } from '../src/core/settings';
+import { aiSettingsItem, loadGateState, settingsItem } from '../src/core/settings';
 import { parseSourceUrl } from '../src/core/url';
 
 const REFRESH_ALARM = 'canvas-refresh';
@@ -13,10 +14,17 @@ let running: Promise<void> | null = null;
 
 /** One collection at a time; concurrent triggers share the running one. */
 function refresh(): Promise<void> {
-  running ??= runRefresh().finally(() => {
-    running = null;
-  });
+  running ??= runRefresh()
+    .then(analyze)
+    .finally(() => {
+      running = null;
+    });
   return running;
+}
+
+/** AI requirement analysis for the decision set. Reads consent fresh on every check. */
+function analyze() {
+  return analyzeRequirements({ db, ai: () => aiSettingsItem.getValue() });
 }
 
 async function runRefresh() {
@@ -54,6 +62,23 @@ async function handle(message: Message): Promise<Reply> {
     }
     case 'canvas:refresh':
       await refresh();
+      return { ok: true };
+    case 'ai:set': {
+      const ai = await aiSettingsItem.getValue();
+      if (message.enabled && !(await browser.permissions.contains({ origins: [`${ai.brokerOrigin}/*`] }))) {
+        return { ok: false, error: 'Chrome access to the local AI service was not granted.' };
+      }
+      await aiSettingsItem.setValue({ ...ai, enabled: message.enabled });
+      if (message.enabled) void analyze();
+      return { ok: true };
+    }
+    case 'policy:answer':
+      await db.studentContext.put({
+        ...(await db.studentContext.get(message.key)),
+        key: message.key,
+        policyAnswer: { value: message.value, answeredAt: new Date().toISOString() },
+      });
+      void analyze();
       return { ok: true };
   }
 }

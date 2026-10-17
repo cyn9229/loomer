@@ -1,8 +1,10 @@
 // Local evidence store (IndexedDB via Dexie). Holds what sources reported and
-// when. Student-provided context will live in its own table so a refresh can
-// never overwrite it.
+// when. Student-provided context lives in its own table (studentContext) so a
+// refresh can never overwrite it.
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
+import type { EffortLabel } from '../model/home';
+import type { PolicyAnswer } from './gate';
 
 export type PlannableKind = 'assignment' | 'quiz' | 'discussion_topic';
 
@@ -65,15 +67,62 @@ export type CollectionRun = {
   error: string | null;
 };
 
+export type Course = {
+  /** `${sourceKey}#course:${canvasId}`. */
+  id: string;
+  sourceKey: string;
+  canvasId: string;
+  name: string;
+  /** Course-level policy source. Null until read. */
+  syllabus: { observedAt: string; hash: string; text: string } | null;
+  syllabusError: CanvasFailureKind | null;
+};
+
+export type Quoted = { text: string; quote: string };
+
+/**
+ * One AI interpretation of an assignment's requirements. Valid only while the
+ * assignment's detail.hash still equals detailHash; otherwise it is stale.
+ */
+export type Analysis =
+  | {
+      assignmentId: string;
+      detailHash: string;
+      status: 'ok';
+      createdAt: string;
+      model: string;
+      effort: EffortLabel;
+      effortReason: Quoted;
+      deliverables: Quoted[];
+      milestones: Quoted[];
+      firstStep: string;
+    }
+  | { assignmentId: string; detailHash: string; status: 'failed'; createdAt: string; error: string };
+
+/** What the student told Loomer. Refreshes never write here. */
+export type StudentContext = {
+  /** Assignment id, or a course id for course-wide answers. */
+  key: string;
+  policyAnswer?: { value: PolicyAnswer; answeredAt: string };
+};
+
 export class LoomerDb extends Dexie {
   assignments!: EntityTable<Assignment, 'id'>;
   runs!: EntityTable<CollectionRun, 'id'>;
+  courses!: EntityTable<Course, 'id'>;
+  analyses!: EntityTable<Analysis, 'assignmentId'>;
+  studentContext!: EntityTable<StudentContext, 'key'>;
 
   constructor(name = 'loomer') {
     super(name);
     this.version(1).stores({
       assignments: 'id, sourceKey, dueAt',
       runs: '++id, sourceKey, startedAt',
+    });
+    this.version(2).stores({
+      courses: 'id, sourceKey',
+      analyses: 'assignmentId',
+      studentContext: 'key',
     });
   }
 }

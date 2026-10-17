@@ -1,6 +1,7 @@
 // The single authority on whether Loomer may read a URL for a purpose.
 // Adapters and UI call checkCollect before every request and never re-implement
 // these rules. Checks run in a fixed order and the first denial wins.
+import type { PolicyState } from '../model/home';
 import { hostMatches, parseSourceUrl } from './url';
 
 export type Purpose = 'school-metadata' | 'linked-instructions' | 'work-doc' | 'research-capture';
@@ -49,6 +50,8 @@ const CANVAS_METADATA_ROUTES: readonly RegExp[] = [
   /^\/api\/v1\/courses\/\d+$/,
   /^\/api\/v1\/courses\/\d+\/assignments$/,
   /^\/api\/v1\/courses\/\d+\/assignments\/\d+$/,
+  /^\/api\/v1\/courses\/\d+\/quizzes\/\d+$/,
+  /^\/api\/v1\/courses\/\d+\/discussion_topics\/\d+$/,
 ];
 
 const ROUTES_BY_PURPOSE: Partial<Record<Purpose, readonly RegExp[]>> = {
@@ -78,4 +81,41 @@ export function checkCollect(state: GateState, purpose: Purpose, input: string |
     return { allowed: false, reason: 'route-not-supported' };
   }
   return { allowed: true, url, grantVersion: grant.version };
+}
+
+/** What the AI call is for. Instructions-only analysis is organizing; work help touches the student's work. */
+export type AiPurpose = 'requirements-analysis' | 'work-help';
+
+export type PolicyAnswer = 'teacher-allows-help' | 'teacher-forbids-ai' | 'not-sure';
+
+export type AiDenyReason = 'ai-off' | 'policy-blocked' | 'policy-limited' | 'policy-unresolved' | 'needs-policy-answer';
+
+/**
+ * Whether content may go to cloud AI for a purpose. Runs before every dispatch and
+ * again before a result is stored. A student answer can resolve ambiguity or
+ * absence, but never overrides a detected restriction or unreadable instructions.
+ */
+export function checkAiDispatch(input: {
+  aiEnabled: boolean;
+  policy: { state: PolicyState; unresolvedBecause: 'unreadable' | 'ambiguous' | null };
+  answer: PolicyAnswer | undefined;
+  purpose: AiPurpose;
+}): { allowed: true } | { allowed: false; reason: AiDenyReason } {
+  const { aiEnabled, policy, answer, purpose } = input;
+  if (!aiEnabled) return { allowed: false, reason: 'ai-off' };
+  if (policy.state === 'blocked' || answer === 'teacher-forbids-ai') return { allowed: false, reason: 'policy-blocked' };
+  switch (policy.state) {
+    case 'permitted':
+      return { allowed: true };
+    case 'limited':
+      return purpose === 'requirements-analysis' ? { allowed: true } : { allowed: false, reason: 'policy-limited' };
+    case 'unresolved':
+      return policy.unresolvedBecause === 'ambiguous' && answer === 'teacher-allows-help'
+        ? { allowed: true }
+        : { allowed: false, reason: 'policy-unresolved' };
+    case 'none-found':
+      return purpose === 'requirements-analysis' || answer === 'teacher-allows-help'
+        ? { allowed: true }
+        : { allowed: false, reason: 'needs-policy-answer' };
+  }
 }

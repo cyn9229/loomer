@@ -8,6 +8,8 @@ export const selfSchema = z.object({ id });
 
 export const courseSchema = z.object({ id, name: z.string() });
 
+export const courseSyllabusSchema = courseSchema.extend({ syllabus_body: z.string().nullish() });
+
 export const plannerItemSchema = z.object({
   plannable_id: id,
   plannable_type: z.string(),
@@ -52,3 +54,20 @@ export const assignmentSchema = z.object({
 
 export type PlannerItem = z.infer<typeof plannerItemSchema>;
 export type CanvasAssignment = z.infer<typeof assignmentSchema>;
+
+/** Classic quiz: the description holds the teacher's instructions. */
+export const quizSchema = z.object({
+  id,
+  title: z.string(),
+  description: z.string().nullish(),
+  due_at: z.string().nullish(),
+  updated_at: z.string().nullish(),
+});
+
+/** Discussion topic: `message` is the teacher's prompt. Replies are a different route and never read. */
+export const discussionSchema = z.object({
+  id,
+  title: z.string(),
+  message: z.string().nullish(),
+  updated_at: z.string().nullish(),
+});

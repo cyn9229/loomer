@@ -24,3 +24,14 @@ export async function loadGateState(): Promise<GateState> {
     grants: s.canvasOrigin ? [{ purpose: 'school-metadata', origin: s.canvasOrigin, version: s.grantVersion }] : [],
   };
 }
+
+export type AiSettings = {
+  /** Explicit opt-in. Off by default; turning it off stops all cloud AI. */
+  enabled: boolean;
+  /** The local broker that holds the provider key. */
+  brokerOrigin: string;
+};
+
+export const aiSettingsItem = storage.defineItem<AiSettings>('local:ai', {
+  fallback: { enabled: false, brokerOrigin: 'http://127.0.0.1:8787' },
+});

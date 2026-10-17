@@ -17,6 +17,7 @@ function canvas(assignments: FakeAssignment[]) {
     const p = url.pathname;
     if (p === '/api/v1/users/self') return json({ id: 42, name: 'Student', primary_email: 'x@y.z' });
     if (p === '/api/v1/courses') return json([{ id: 1, name: 'English' }]);
+    if (p === '/api/v1/courses/1') return json({ id: 1, name: 'English', syllabus_body: '<p>Cite your sources.</p>' });
     if (p === '/api/v1/planner/items') {
       return json(
         assignments

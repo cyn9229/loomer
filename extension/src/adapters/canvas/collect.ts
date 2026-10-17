@@ -6,7 +6,17 @@ import { contentHash } from '../../core/hash';
 import { extractHtml } from '../../core/html';
 import { isLoopback } from '../../core/url';
 import { canvasGet, canvasGetAll, type CanvasContext, type CanvasFailure } from './client';
-import { assignmentSchema, courseSchema, plannerItemSchema, selfSchema, type CanvasAssignment, type PlannerItem } from './schemas';
+import {
+  assignmentSchema,
+  courseSchema,
+  courseSyllabusSchema,
+  discussionSchema,
+  plannerItemSchema,
+  quizSchema,
+  selfSchema,
+  type CanvasAssignment,
+  type PlannerItem,
+} from './schemas';
 
 const DAY_MS = 86_400_000;
 const PLANNER_BACK_DAYS = 14;
@@ -87,10 +97,11 @@ export async function collectCanvas({ db, origin, gate, now = new Date(), fetch 
     a.dueAt ? Date.parse(a.dueAt) >= windowStart.getTime() && Date.parse(a.dueAt) <= windowEnd.getTime() : undatedChecked.has(a.courseId),
   );
 
+  const syllabusFailures = await collectSyllabi(db, ctx, sourceKey, courses.items, now);
   const failures = await collectDetails(db, ctx, sourceKey, now);
   coverage.detailsFetched = failures.fetched;
   coverage.detailFailures = failures.failed;
-  return finish(partial || failures.failed > 0 ? 'partial' : 'ok', sourceKey);
+  return finish(partial || failures.failed > 0 || syllabusFailures > 0 ? 'partial' : 'ok', sourceKey);
 }
 
 type OverviewRecord = Omit<Assignment, 'firstSeenAt' | 'detail' | 'detailError' | 'presence'>;
@@ -164,12 +175,11 @@ async function upsertOverview(
   });
 }
 
-/** Fetches requirement details for open assignments due within the horizon, or undated. */
+/** Fetches requirement details for open work due within the horizon, or undated. */
 async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: string, now: Date) {
   const horizon = now.getTime() + DETAIL_HORIZON_DAYS * DAY_MS;
   const candidates = (await db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter(
     (a) =>
-      a.kind === 'assignment' &&
       a.presence === 'seen-in-last-check' &&
       !a.submission?.submitted &&
       !a.submission?.excused &&
@@ -182,34 +192,93 @@ async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
   const queue = [...candidates];
   const worker = async () => {
     for (let a = queue.shift(); a; a = queue.shift()) {
-      const result = await canvasGet(ctx, `/api/v1/courses/${a.courseId}/assignments/${a.canvasId}`, assignmentSchema);
+      const result = await fetchDetail(ctx, a, now);
       if (!result.ok) {
         failed += 1;
         await db.assignments.update(a.id, { detailError: result.failure.kind });
         continue;
       }
       fetched += 1;
-      await db.assignments.update(a.id, { detail: await toDetail(result.data, ctx.origin, now), detailError: null });
+      await db.assignments.update(a.id, { detail: result.detail, detailError: null });
     }
   };
   await Promise.all(Array.from({ length: DETAIL_CONCURRENCY }, worker));
   return { fetched, failed };
 }
 
-async function toDetail(a: CanvasAssignment, origin: string, now: Date): Promise<AssignmentDetail> {
-  const { text, links } = extractHtml(a.description ?? '', origin);
-  const rubric = (a.rubric ?? []).map((r) => ({
-    description: [r.description, r.long_description].filter(Boolean).join(': '),
-    points: r.points ?? null,
-  }));
+/** One detail read per kind. Each kind's instructions live in a different field. */
+async function fetchDetail(ctx: CanvasContext, a: Assignment, now: Date) {
+  const base = `/api/v1/courses/${a.courseId}`;
+  switch (a.kind) {
+    case 'assignment': {
+      const r = await canvasGet(ctx, `${base}/assignments/${a.canvasId}`, assignmentSchema);
+      if (!r.ok) return r;
+      const rubric = (r.data.rubric ?? []).map((c) => ({
+        description: [c.description, c.long_description].filter(Boolean).join(': '),
+        points: c.points ?? null,
+      }));
+      return { ok: true as const, detail: await toDetail(r.data.description, rubric, r.data.submission_types, r.data.updated_at, ctx.origin, now) };
+    }
+    case 'quiz': {
+      const r = await canvasGet(ctx, `${base}/quizzes/${a.canvasId}`, quizSchema);
+      if (!r.ok) return r;
+      return { ok: true as const, detail: await toDetail(r.data.description, [], ['online_quiz'], r.data.updated_at, ctx.origin, now) };
+    }
+    case 'discussion_topic': {
+      const r = await canvasGet(ctx, `${base}/discussion_topics/${a.canvasId}`, discussionSchema);
+      if (!r.ok) return r;
+      return { ok: true as const, detail: await toDetail(r.data.message, [], ['discussion_topic'], r.data.updated_at, ctx.origin, now) };
+    }
+  }
+}
+
+/** Reads each course syllabus (a course-level AI policy source) when missing or old. Returns failures. */
+async function collectSyllabi(db: LoomerDb, ctx: CanvasContext, sourceKey: string, courses: { id: string; name: string }[], now: Date) {
+  let failed = 0;
+  for (const course of courses) {
+    const id = `${sourceKey}#course:${course.id}`;
+    const prior = await db.courses.get(id);
+    const fresh = prior?.syllabus && now.getTime() - Date.parse(prior.syllabus.observedAt) <= DETAIL_MAX_AGE_MS;
+    if (fresh) {
+      await db.courses.update(id, { name: course.name });
+      continue;
+    }
+    const result = await canvasGet(ctx, `/api/v1/courses/${course.id}?include[]=syllabus_body`, courseSyllabusSchema);
+    if (!result.ok) {
+      failed += 1;
+      await db.courses.put({ id, sourceKey, canvasId: course.id, name: course.name, syllabus: prior?.syllabus ?? null, syllabusError: result.failure.kind });
+      continue;
+    }
+    const { text } = extractHtml(result.data.syllabus_body ?? '', ctx.origin);
+    await db.courses.put({
+      id,
+      sourceKey,
+      canvasId: course.id,
+      name: course.name,
+      syllabus: { observedAt: now.toISOString(), hash: await contentHash(text), text },
+      syllabusError: null,
+    });
+  }
+  return failed;
+}
+
+async function toDetail(
+  html: string | null | undefined,
+  rubric: AssignmentDetail['rubric'],
+  submissionTypes: string[],
+  canvasUpdatedAt: string | null | undefined,
+  origin: string,
+  now: Date,
+): Promise<AssignmentDetail> {
+  const { text, links } = extractHtml(html ?? '', origin);
   return {
     observedAt: now.toISOString(),
     hash: await contentHash({ text, links, rubric }),
     text,
     links,
     rubric,
-    submissionTypes: a.submission_types,
-    canvasUpdatedAt: a.updated_at ?? null,
+    submissionTypes,
+    canvasUpdatedAt: canvasUpdatedAt ?? null,
   };
 }
 
