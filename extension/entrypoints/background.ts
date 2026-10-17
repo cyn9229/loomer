@@ -11,14 +11,28 @@ const REFRESH_ALARM = 'canvas-refresh';
 const REFRESH_MINUTES = 15;
 
 let running: Promise<void> | null = null;
+let rerun = false;
 
-/** One collection at a time; concurrent triggers share the running one. */
+/**
+ * One collection at a time. A request that arrives during a run (for example
+ * Connect while the install-time check is still going) schedules one more run,
+ * so it is never answered by a check that started with older settings.
+ */
 function refresh(): Promise<void> {
-  running ??= runRefresh()
-    .then(analyze)
-    .finally(() => {
-      running = null;
-    });
+  if (running) {
+    rerun = true;
+    return running;
+  }
+  running = (async () => {
+    do {
+      rerun = false;
+      await runRefresh();
+      // Analysis failures are stored per assignment; this only catches bugs.
+      await analyze().catch((error: unknown) => console.error('loomer: analysis failed', error));
+    } while (rerun);
+  })().finally(() => {
+    running = null;
+  });
   return running;
 }
 
@@ -32,19 +46,28 @@ async function runRefresh() {
   if (!canvasOrigin) return;
   // Chrome's grant is the technical maximum; the student can revoke it outside Loomer.
   if (!(await browser.permissions.contains({ origins: [`${canvasOrigin}/*`] }))) {
-    const at = new Date().toISOString();
-    await db.runs.add({
-      sourceKey: null,
-      origin: canvasOrigin,
-      startedAt: at,
-      finishedAt: at,
-      outcome: 'no-permission',
-      coverage: { courses: 0, plannerItems: 0, plannerTruncated: false, undatedCoursesChecked: 0, detailsFetched: 0, detailFailures: 0 },
-      error: null,
-    });
+    await recordRun(canvasOrigin, 'no-permission', null);
     return;
   }
-  await collectCanvas({ db, origin: canvasOrigin, gate: await loadGateState() });
+  try {
+    await collectCanvas({ db, origin: canvasOrigin, gate: await loadGateState() });
+  } catch (error) {
+    // A bug must surface as a failed check, never as a silent "still checking".
+    await recordRun(canvasOrigin, 'failed', error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function recordRun(origin: string, outcome: 'no-permission' | 'failed', error: string | null) {
+  const at = new Date().toISOString();
+  await db.runs.add({
+    sourceKey: null,
+    origin,
+    startedAt: at,
+    finishedAt: at,
+    outcome,
+    coverage: { courses: 0, plannerItems: 0, plannerTruncated: false, undatedCoursesChecked: 0, detailsFetched: 0, detailFailures: 0 },
+    error,
+  });
 }
 
 async function handle(message: Message): Promise<Reply> {
