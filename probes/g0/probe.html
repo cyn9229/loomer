@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Loomer G0 probe</title>
+  <style>
+    :root { color-scheme: dark; --bg: #000; --fg: #fff; --dim: #a8a8b3; --line: #2a2a31; --accent: #9a87ff; --pass: #6ee7a8; --fail: #ff8a8a; }
+    body { margin: 0; padding: 12px; background: var(--bg); color: var(--fg); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    h2 { font-size: 13px; margin: 18px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+    p { margin: 0 0 8px; color: var(--dim); }
+    label { display: block; margin: 6px 0 2px; }
+    input { width: 100%; box-sizing: border-box; background: #000; color: var(--fg); border: 1px solid var(--line); padding: 6px; font: inherit; }
+    button { background: none; color: var(--accent); border: 1px solid var(--accent); padding: 5px 8px; margin: 6px 6px 0 0; font: inherit; cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--fg); }
+    .row { padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .PASS { color: var(--pass); } .FAIL { color: var(--fail); } .INFO, .SKIP { color: var(--dim); }
+    pre { white-space: pre-wrap; word-break: break-all; margin: 4px 0 0; color: var(--dim); font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>Loomer G0 probe</h1>
+  <p>Read-only. GET requests only. The report has status codes, counts, hashes, and timings. No content.</p>
+
+  <h2>1. Canvas</h2>
+  <label for="origin">School Canvas origin</label>
+  <input id="origin" placeholder="https://yourschool.instructure.com">
+  <button id="grant-canvas">Grant this origin</button>
+  <button id="run-canvas">Run Canvas probe</button>
+
+  <h2>2. Google Doc (your personal demo doc)</h2>
+  <label for="doc">Doc URL</label>
+  <input id="doc" placeholder="https://docs.google.com/document/d/.../edit">
+  <label for="authuser">Google account index, if several are signed in (optional)</label>
+  <input id="authuser" placeholder="0">
+  <button id="grant-docs">Grant Docs access</button>
+  <button id="run-docs">Run Docs probe</button>
+  <p>Edit watch: reads the doc every 5 s. Click "I edited now" the moment you type, so the probe can measure delay.</p>
+  <button id="watch">Start edit watch</button>
+  <button id="mark">I edited now</button>
+
+  <h2>3. Panel closed (service worker on its own)</h2>
+  <p>Schedule a run, then close this panel and wait 90 s. Reopen and load the result.</p>
+  <button id="schedule">Schedule run in 1 min</button>
+  <button id="load-bg">Load background result</button>
+
+  <h2>4. Page capture permissions</h2>
+  <p>Open this panel from the toolbar icon on a normal web page first. Then run these in order.</p>
+  <button id="cap-active">Read active tab via activeTab</button>
+  <button id="cap-tabs">Request tabs permission</button>
+  <button id="cap-origin">Request this tab's origin, then read</button>
+
+  <h2>Results</h2>
+  <button id="copy">Copy report JSON</button>
+  <button id="clear">Clear</button>
+  <div id="results"></div>
+
+  <script type="module" src="probe.js"></script>
+</body>
+</html>
