@@ -6,25 +6,24 @@ import { buildHomeModel } from '../analysis/recommend';
 import { db } from '../core/db';
 import { aiSettingsItem, settingsItem } from '../core/settings';
 import type { HomeModel } from './home';
+import { useStorageItem } from './useStorageItem';
 
 /** Re-evaluates every 30 s so time-based states (waiting for analysis, due dates) move on. */
 const TICK_MS = 30_000;
 
 export function useHomeModel(): HomeModel | undefined {
+  const settings = useStorageItem(settingsItem);
+  const ai = useStorageItem(aiSettingsItem);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
-    const unwatch = [settingsItem.watch(() => setTick((t) => t + 1)), aiSettingsItem.watch(() => setTick((t) => t + 1))];
-    return () => {
-      clearInterval(id);
-      unwatch.forEach((u) => u());
-    };
+    return () => clearInterval(id);
   }, []);
 
+  // Dexie reads only: a non-Dexie await here would stop live updates from the worker.
   return useLiveQuery(async () => {
-    const [settings, ai, lastRun, assignments, courses, analyses, context, packets, sources, links, active] = await Promise.all([
-      settingsItem.getValue(),
-      aiSettingsItem.getValue(),
+    if (!settings || !ai) return undefined;
+    const [lastRun, assignments, courses, analyses, context, packets, sources, links, active] = await Promise.all([
       db.runs.orderBy('startedAt').last(),
       db.assignments.toArray(),
       db.courses.toArray(),
@@ -49,5 +48,5 @@ export function useHomeModel(): HomeModel | undefined {
       docUrls: new Map(links.map((l) => [l.assignmentId, l.url])),
       activeSession: active > 0,
     });
-  }, [tick]);
+  }, [settings, ai, tick]);
 }
