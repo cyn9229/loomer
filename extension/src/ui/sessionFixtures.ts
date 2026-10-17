@@ -21,6 +21,8 @@ export function buildSessionFixtures(now: Date) {
       url: 'https://www.epa.gov/heatislands',
       capturedAt: ago(34),
       excerptChars: 1840,
+      kind: 'page' as const,
+      image: null,
     },
     {
       id: 's-canopy',
@@ -28,6 +30,8 @@ export function buildSessionFixtures(now: Date) {
       url: 'https://cityofexample.gov/forestry/canopy-2025',
       capturedAt: ago(6),
       excerptChars: 2210,
+      kind: 'page' as const,
+      image: null,
     },
   ];
 

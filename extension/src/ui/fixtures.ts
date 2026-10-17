@@ -9,9 +9,8 @@ import { dateTime } from './format';
 
 const HOUR = 3_600_000;
 
-// Spread into each connected fixture. Works whether or not the Home contract has
-// the resume briefing yet (spread properties skip excess-property checks).
-const noResume = { resume: null };
+// Spread into each connected fixture: no resume briefing and no older-work review.
+const noResume = { resume: null, olderReview: null };
 
 /** A local date `days` from now at hh:mm, as ISO. */
 function at(now: Date, days: number, hh: number, mm: number): string {
@@ -35,6 +34,7 @@ function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId'
     courseKey: `course:${over.courseName ?? 'none'}`,
     bucket: bucketFor(due, now),
     hidden: false,
+    correction: null,
     courseName: null,
     url: 'https://lincolnhs.instructure.com/courses/1840/assignments/88213',
     due: null,
@@ -163,6 +163,8 @@ export function buildFixtures(now: Date) {
     reason: 'Connect the EPA findings to the city’s tree cover data. The rubric asks for a comparison, and the deadline is this week.',
     evidence: essayEvidence,
     aiGenerated: true,
+    chosenByStudent: false,
+    loomerPick: null,
   };
 
   const essayResume = (recommendationChanged: boolean): ResumeBriefing => ({
@@ -238,6 +240,8 @@ export function buildFixtures(now: Date) {
         reason: 'Connect the EPA findings to the city’s tree cover data. The rubric asks for a comparison, and the deadline is this week.',
         evidence: essayEvidence,
         aiGenerated: true,
+        chosenByStudent: false,
+        loomerPick: null,
       },
       rest: [vocab, replayItem, reflection, proposal, lab, reading, pastQuiz, hiddenItem],
       lastCheck,
@@ -267,6 +271,8 @@ export function buildFixtures(now: Date) {
           },
         ],
         aiGenerated: false,
+        chosenByStudent: true,
+        loomerPick: { item: essay, reason: 'The largest open requirement due this week.' },
       },
       rest: [essay, vocab, lab],
       lastCheck,
@@ -289,6 +295,8 @@ export function buildFixtures(now: Date) {
           },
         ],
         aiGenerated: true,
+        chosenByStudent: false,
+        loomerPick: null,
       },
       rest: [{ ...essay, replay: true }],
       lastCheck: { ...lastCheck, replay: true, courses: 1 },
@@ -303,6 +311,8 @@ export function buildFixtures(now: Date) {
         reason: 'From the last successful check. Canvas needs you to sign in again before Loomer can update.',
         evidence: essayEvidence.slice(0, 2),
         aiGenerated: true,
+        chosenByStudent: false,
+        loomerPick: null,
       },
       rest: [vocab, reflection],
       lastCheck: { ...lastCheck, outcome: 'auth-expired', at: new Date(now.getTime() - 26 * HOUR).toISOString() },
@@ -321,6 +331,7 @@ export function buildFixtures(now: Date) {
       rest: [vocab, reflection, lab],
       lastCheck,
       resume: essayResume(false),
+      olderReview: null,
     },
 
     'resume-changed': {
@@ -339,10 +350,13 @@ export function buildFixtures(now: Date) {
           },
         ],
         aiGenerated: true,
+        chosenByStudent: false,
+        loomerPick: null,
       },
       rest: [essay, reflection, lab],
       lastCheck,
       resume: essayResume(true),
+      olderReview: null,
     },
   } satisfies Record<string, HomeModel>;
 }

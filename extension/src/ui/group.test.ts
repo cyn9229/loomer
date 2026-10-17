@@ -17,6 +17,7 @@ function item(id: string, courseKey: string, bucket: WorkItem['bucket'], due: st
     replay: false,
     bucket,
     hidden,
+    correction: null,
   };
 }
 
