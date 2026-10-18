@@ -26,7 +26,7 @@ export const requirementsResponseSchema = z.strictObject({
   effortReason: quoted,
   deliverables: z.array(quoted),
   milestones: z.array(quoted),
-  /** One concrete first step that starts with a verb and does not do the work. */
+  /** One concrete first step, at most about 9 words, that starts with a verb and does not do the work. */
   firstStep: z.string(),
 });
 

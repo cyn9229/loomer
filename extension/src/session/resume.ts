@@ -14,6 +14,9 @@ export async function writeResumePacket(db: LoomerDb, s: WorkSession, now: Date)
   const current = link ? (await db.docReads.get(link.docId))?.current : undefined;
   const paragraphs = current ? studentText(current.text, assignment?.detail?.text ?? '').split('\n').filter((p) => p.trim()) : [];
   const sources = await db.sources.where('assignmentId').equals(s.assignmentId).toArray();
+  const sessionSources = sources.filter((src) => src.sessionId === s.id);
+  // Nothing happened, so there is nothing to pick up; Home's next action already covers it.
+  if (edits.length === 0 && sessionSources.length === 0) return;
   await db.resumePackets.put({
     assignmentId: s.assignmentId,
     sessionId: s.id,
@@ -21,7 +24,7 @@ export async function writeResumePacket(db: LoomerDb, s: WorkSession, now: Date)
     docId: link?.docId ?? null,
     edits: edits.length,
     wordsDelta: edits.reduce((sum, e) => sum + (e.wordsDelta ?? 0), 0),
-    sourceIds: sources.filter((src) => src.sessionId === s.id).map((src) => src.id),
+    sourceIds: sessionSources.map((src) => src.id),
     paragraphHashes: await Promise.all(paragraphs.map((p) => contentHash(p.trim()))),
     dismissed: false,
   });

@@ -107,8 +107,14 @@ export function groundInSource(r: RequirementsResponse, req: RequirementsRequest
     effortReason: effortOk ? r.effortReason : { text: 'The instructions do not say enough to judge the effort.', quote: '' },
     deliverables: r.deliverables.filter(supported),
     milestones: r.milestones.filter(supported),
-    firstStep: r.firstStep.trim().slice(0, 160),
+    firstStep: headline(r.firstStep),
   };
+}
+
+/** The first step is shown as a headline: keep at most 12 words, never cut mid-word. */
+function headline(text: string): string {
+  const words = text.trim().replace(/[.\s]+$/, '').split(/\s+/);
+  return words.length <= 12 ? words.join(' ') : `${words.slice(0, 12).join(' ')}…`;
 }
 
 function normalize(text: string): string {

@@ -131,3 +131,33 @@ describe('screenshots', () => {
     expect(await db.sources.count()).toBe(1);
   });
 });
+
+describe('requirementList', () => {
+  it('drops AI-read deliverables that repeat a rubric criterion, keeps new ones', async () => {
+    const { requirementList } = await import('./requirements');
+    const a = {
+      ...assignment,
+      detail: {
+        ...assignment.detail!,
+        rubric: [
+          { description: 'Comparison of evidence', points: 30 },
+          { description: 'Citations and conventions', points: 20 },
+        ],
+      },
+    };
+    const deliverable = (text: string) => ({ text, quote: 'q' });
+    const list = requirementList(a, {
+      assignmentId: a.id,
+      detailHash: a.detail.hash,
+      status: 'ok',
+      createdAt: '',
+      model: 'm',
+      effort: 'Substantial',
+      effortReason: { text: '', quote: '' },
+      deliverables: [deliverable('MLA citations for both sources.'), deliverable('An essay that compares the evidence.'), deliverable('A full draft in the linked document for peer review.')],
+      milestones: [],
+      firstStep: '',
+    });
+    expect(list.map((r) => r.text)).toEqual(['Comparison of evidence', 'Citations and conventions', 'A full draft in the linked document for peer review.']);
+  });
+});

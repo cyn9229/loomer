@@ -17,9 +17,21 @@ const MAX_WORK_CHARS = 15_000;
 /** One requirement with the passage that states it. */
 export type RequirementSource = { text: string; quote: string; label: string };
 
+const GENERIC = new Set(['both', 'each', 'your', 'with', 'that', 'this', 'from', 'about', 'source', 'sources', 'essay', 'their']);
+const keyWords = (t: string) =>
+  new Set(
+    t
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 5 && !GENERIC.has(w))
+      .map((w) => w.replace(/(ions|ion|s)$/, '')),
+  );
+
 /**
  * The requirement list: rubric criteria (school facts) first, then AI-read
- * deliverables that are not already covered by a criterion.
+ * deliverables that do not repeat a criterion. A deliverable sharing a
+ * distinctive word with a criterion (for example "citations") counts as a repeat.
  */
 export function requirementList(a: Assignment, analysis: Analysis | undefined): RequirementSource[] {
   const rubric = (a.detail?.rubric ?? []).map((r) => ({ text: r.description, quote: r.description, label: 'Rubric' }));
@@ -27,8 +39,12 @@ export function requirementList(a: Assignment, analysis: Analysis | undefined): 
     analysis?.status === 'ok' && analysis.detailHash === a.detail?.hash
       ? analysis.deliverables.map((d) => ({ text: d.text, quote: d.quote, label: 'Instructions (as Loomer read them)' }))
       : [];
-  const seen = new Set(rubric.map((r) => r.text.toLowerCase()));
-  return [...rubric, ...deliverables.filter((d) => !seen.has(d.text.toLowerCase()))].slice(0, 20);
+  const rubricWords = rubric.map((r) => keyWords(r.text));
+  const repeats = (text: string) => {
+    const words = keyWords(text);
+    return rubricWords.some((rw) => [...rw].some((w) => words.has(w)));
+  };
+  return [...rubric, ...deliverables.filter((d) => !repeats(d.text))].slice(0, 20);
 }
 
 const normalize = (t: string) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
