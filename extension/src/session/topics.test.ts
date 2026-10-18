@@ -51,17 +51,17 @@ describe('sheet topics', () => {
     await db.assignments.put(worksheet());
     await startSession(db, 'k#assignment:2', t0);
     const fetch = broker([
-      { text: 'Parabolas', quote: 'Part A: Parabolas' },
-      { text: 'Ellipses', quote: 'Part B: Ellipses' },
-      { text: 'Hyperbolas', quote: 'Part C: Hyperbolas' },
+      { text: 'Parabolas', quote: 'Part A: Parabolas', sheet: 0 },
+      { text: 'Ellipses', quote: 'Part B: Ellipses', sheet: 0 },
+      { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', sheet: 0 },
     ]);
     await topicsStep({ db, ai, fetch }, t0);
     await setTopicDone(db, 'k#assignment:2', 'Parabolas', true);
     expect(await loadSheetTopics(db, 'k#assignment:2')).toEqual({
       status: 'ok',
       items: [
-        { text: 'Parabolas', quote: 'Part A: Parabolas', done: true },
-        { text: 'Ellipses', quote: 'Part B: Ellipses', done: false },
+        { text: 'Parabolas', quote: 'Part A: Parabolas', done: true, sheet: null },
+        { text: 'Ellipses', quote: 'Part B: Ellipses', done: false, sheet: null },
       ],
     });
     // Read once: the next step does not ask again.
@@ -85,11 +85,37 @@ describe('embedded teacher sheet', () => {
     // No session, no linked Doc; the policy is unclear, which allows reading instructions but not work help.
     await db.docLinks.clear();
     const embedded = worksheet({
-      detail: { ...worksheet().detail!, text: 'Complete the review sheet.', sheet: { docId: DOC, state: 'ok', text: sheet, textHash: 's1', attemptAt: '' } },
+      detail: {
+        ...worksheet().detail!,
+        text: 'Complete the review sheet.',
+        sheets: [
+          { docId: DOC, state: 'ok', title: 'Unit 2 Review', text: sheet, textHash: 's1', attemptAt: '' },
+          { docId: `${DOC}2`, state: 'ok', title: 'Extra practice', text: 'Part C: Hyperbolas\n9. Find the asymptotes.', textHash: 's2', attemptAt: '' },
+        ],
+      },
     });
     await db.assignments.put(embedded);
-    await embeddedTopicsStep({ db, ai, fetch: broker([{ text: 'Ellipses', quote: 'Part B: Ellipses' }]) }, 'k', t0);
-    expect(await loadSheetTopics(db, embedded.id)).toEqual({ status: 'ok', items: [{ text: 'Ellipses', quote: 'Part B: Ellipses', done: false }] });
+    await embeddedTopicsStep(
+      {
+        db,
+        ai,
+        fetch: broker([
+          { text: 'Ellipses', quote: 'Part B: Ellipses', sheet: 0 },
+          { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', sheet: 1 },
+          // The quote is on the other sheet: dropped.
+          { text: 'Circles', quote: 'Part C: Hyperbolas', sheet: 0 },
+        ]),
+      },
+      'k',
+      t0,
+    );
+    expect(await loadSheetTopics(db, embedded.id)).toEqual({
+      status: 'ok',
+      items: [
+        { text: 'Ellipses', quote: 'Part B: Ellipses', done: false, sheet: 'Unit 2 Review' },
+        { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', done: false, sheet: 'Extra practice' },
+      ],
+    });
     expect(calls).toHaveLength(1);
   });
 });

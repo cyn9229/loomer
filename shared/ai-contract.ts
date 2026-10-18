@@ -206,7 +206,8 @@ export const TOPICS_ROUTE = '/ai/topics';
 export const topicsRequestSchema = z.strictObject({
   title: z.string().max(300),
   workType: z.enum(WORK_TYPES),
-  sheet: z.string().max(15_000),
+  /** One to three sheets, in page order; together at most about 15,000 characters. */
+  sheets: z.array(z.strictObject({ title: z.string().max(80).nullable(), text: z.string().max(15_000) })).min(1).max(3),
 });
 
 export const topicsResponseSchema = z.strictObject({
@@ -217,9 +218,11 @@ export const topicsResponseSchema = z.strictObject({
         text: z.string(),
         /** Exact passage from the sheet that shows the topic: a heading or the start of a problem. */
         quote: z.string(),
+        /** Which sheet it is on: its position in the request, from 0. */
+        sheet: z.number().int().min(0),
       }),
     )
-    .max(12),
+    .max(15),
 });
 
 export type TopicsRequest = z.infer<typeof topicsRequestSchema>;

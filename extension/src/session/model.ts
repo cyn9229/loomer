@@ -1,12 +1,12 @@
 // Builds the SessionModel for the work-session screen from stored state.
 import { parseDocId, studentText, wordCount } from '../adapters/docs/reader';
-import { instructionText, type ChatRecord, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source } from '../core/db';
+import { instructionText, type AssignmentDetail, type ChatRecord, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
 import type { ActivityItem, DocState, HelpAvailability, SessionModel, SourceItem } from '../model/session';
 import { currentSession } from './session';
-import { loadSheetTopics } from './topics';
+import { loadSheetTopics, loadTeacherSheets } from './topics';
 import { workHelpDecision, type HelpDecision } from './help';
 
 /** A student message without a reply for this long is no longer shown as pending. */
@@ -40,7 +40,8 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     startedAt: session.startedAt,
     plannedUntil: session.plannedUntil ?? null,
     topics: await loadSheetTopics(db, a.id),
-    doc: docState(link, read, a.detail?.links ?? [], instructionText(a.detail)),
+    teacherSheets: await loadTeacherSheets(db, a),
+    doc: docState(link, read, a.detail, instructionText(a.detail)),
     sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     activity: activity(events),
     help: {
@@ -66,14 +67,15 @@ export function toSourceItem(s: Source): SourceItem {
   };
 }
 
-function docState(link: DocLink | undefined, read: DocRead | undefined, instructionLinks: string[], instructions: string): DocState {
+function docState(link: DocLink | undefined, read: DocRead | undefined, detail: AssignmentDetail | null, instructions: string): DocState {
   if (!link) {
-    const ids = new Set<string>();
-    const candidates = instructionLinks.flatMap((url) => {
+    // Embedded teacher sheets are read on their own (teacherSheets); only linked Docs are offered here.
+    const ids = new Set<string>(detail?.embeddedDocs ?? []);
+    const candidates = (detail?.links ?? []).flatMap((url) => {
       const docId = parseDocId(url);
       if (!docId || ids.has(docId)) return [];
       ids.add(docId);
-      return [{ docId, url }];
+      return [{ docId, url, label: detail?.linkLabels?.[url] ?? null }];
     });
     return { status: 'not-linked', candidates };
   }

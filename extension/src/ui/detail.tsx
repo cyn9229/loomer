@@ -6,6 +6,7 @@
 // what the assignment asks for as a checklist with open items first. Links,
 // Ask Loomer, and Start working sit at the bottom. Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
+import type { TeacherSheet } from '../model/session';
 import { useState, type ReactNode } from 'react';
 import { DOCS_ORIGINS } from '../core/messages';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
@@ -212,7 +213,9 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
         <h2>What it asks for</h2>
         {detail.check && <span className="aside">Checked {observedAt(detail.check.at, now)}</span>}
       </div>
-      {detail.sheet && <SheetLine sheet={detail.sheet} actions={actions} />}
+      {detail.sheets.map((s) => (
+        <SheetLine key={s.docId} sheet={s} actions={actions} />
+      ))}
       {detail.requirements.length === 0 ? (
         <>
           <p className="hint-line">We haven’t pulled out the requirements yet.</p>
@@ -265,7 +268,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   );
 }
 
-const sheetText: Record<Exclude<NonNullable<Detail['sheet']>['state'], 'ok' | 'needs-permission'>, string> = {
+const sheetText: Record<Exclude<TeacherSheet['state'], 'ok' | 'needs-permission'>, string> = {
   'no-access': 'Google didn’t let Loomer read the sheet (signed out, or download is turned off).',
   unreadable: 'Loomer couldn’t read the sheet in the instructions. It tries again on the next check.',
   'rate-limited': 'Google asked Loomer to slow down. It reads the sheet on the next check.',
@@ -277,7 +280,7 @@ const sheetText: Record<Exclude<NonNullable<Detail['sheet']>['state'], 'ok' | 'n
  * asks Chrome for Google Docs inside the click, then refreshes so the worker
  * reads it right away.
  */
-function SheetLine({ sheet, actions }: { sheet: NonNullable<Detail['sheet']>; actions: HomeActions }) {
+function SheetLine({ sheet, actions }: { sheet: TeacherSheet; actions: HomeActions }) {
   const allow = useAction();
   if (sheet.state === 'ok') return null;
   if (sheet.state === 'needs-permission') {
@@ -330,12 +333,14 @@ function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null;
           {item.replay ? 'Replay page' : 'Canvas'}
         </a>
       )}
-      {detail?.sheet?.state === 'ok' && (
-        <a href={detail.sheet.url} target="_blank" rel="noreferrer" title="Sheet in the instructions">
-          <Icon name="doc" />
-          Sheet
-        </a>
-      )}
+      {detail?.sheets
+        .filter((s) => s.state === 'ok')
+        .map((s) => (
+          <a key={s.docId} href={s.url} target="_blank" rel="noreferrer" title={s.title ?? 'Sheet in the instructions'}>
+            <Icon name="doc" />
+            Sheet
+          </a>
+        ))}
       {detail?.links.doc && (
         <a href={detail.links.doc} target="_blank" rel="noreferrer">
           <Icon name="doc" />

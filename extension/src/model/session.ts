@@ -17,8 +17,11 @@ export type DocReadState =
 export type DocState =
   | {
       status: 'not-linked';
-      /** Google Docs linked from the assignment's instructions, offered for one-click linking. */
-      candidates: { docId: string; url: string }[];
+      /**
+       * Google Docs linked (not embedded) in the instructions, offered for one-tap
+       * linking. `label`: the teacher's link text, when there was one.
+       */
+      candidates: { docId: string; url: string; label: string | null }[];
     }
   | {
       status: 'linked';
@@ -95,8 +98,24 @@ export type DiscoverySuggestion = {
  */
 export type SheetTopics = {
   status: 'reading' | 'ok' | 'failed';
-  items: { text: string; quote: string; done: boolean }[];
+  /** In sheet order. `sheet` is the sheet's name (null if unknown); group by it when there is more than one sheet. */
+  items: { text: string; quote: string; done: boolean; sheet: string | null }[];
 } | null;
+
+/**
+ * A teacher's sheet embedded in the instructions. Loomer reads it on its own
+ * (it counts as instructions), so the student never needs to link it. `title`:
+ * the frame title or the sheet's first line. `state`: as AssignmentDetail's
+ * sheet; needs-permission means offer "Allow Google Docs" (DOCS_ORIGINS, then
+ * canvas:refresh). `topics`: how many topics were found on it, when known.
+ */
+export type TeacherSheet = {
+  docId: string;
+  url: string;
+  title: string | null;
+  state: 'ok' | 'no-access' | 'unreadable' | 'rate-limited' | 'needs-permission';
+  topics: number | null;
+};
 
 /**
  * A suggestion to start, resume, or switch the session, from typing in a linked
@@ -126,8 +145,10 @@ export type SessionModel =
        * Never stop the session automatically.
        */
       plannedUntil: string | null;
-      /** Null unless the work is practice or study with a linked sheet that Loomer has started reading. */
+      /** Null unless the work is practice or study with a sheet that Loomer has started reading. */
       topics: SheetTopics;
+      /** The teacher's sheets embedded in the instructions, already read by Loomer. Empty when there are none. */
+      teacherSheets: TeacherSheet[];
       doc: DocState;
       sources: SourceItem[];
       activity: ActivityItem[];

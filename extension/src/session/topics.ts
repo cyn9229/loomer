@@ -11,7 +11,7 @@ import type { Assignment, LoomerDb, SheetTopicsRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { isQuiz, storedWorkType } from '../analysis/workType';
-import type { SheetTopics } from '../model/session';
+import type { SheetTopics, TeacherSheet } from '../model/session';
 import { workHelpDecision } from './help';
 import { currentSession } from './session';
 
@@ -36,16 +36,22 @@ function due(record: SheetTopicsRecord | undefined, docHash: string, now: number
   return record.docHash !== docHash && age > rereadAfterMs;
 }
 
-/** Where the topics come from. The teacher's embedded sheet is instructions; a linked Doc is the student's work. */
-type SheetSource = { text: string; hash: string; purpose: 'requirements-analysis' | 'work-help' };
+/** Where the topics come from. The teacher's embedded sheets are instructions; a linked Doc is the student's work. */
+type SheetSource = { sheets: { id: string; title: string | null; text: string }[]; hash: string; purpose: 'requirements-analysis' | 'work-help' };
 
-/** The sheet to read for an assignment: the embedded teacher sheet first, else the linked Doc. Dexie reads only. */
+/** The sheets to read for an assignment: the embedded teacher sheets first, else the linked Doc. Dexie reads only. */
 async function sheetSource(db: LoomerDb, a: Assignment): Promise<SheetSource | null> {
-  const embedded = a.detail?.sheet;
-  if (embedded?.text && embedded.textHash) return { text: embedded.text, hash: embedded.textHash, purpose: 'requirements-analysis' };
+  const embedded = (a.detail?.sheets ?? []).flatMap((s) => (s.text && s.textHash ? [{ id: s.docId, title: s.title, text: s.text, hash: s.textHash }] : []));
+  if (embedded.length) return { sheets: embedded, hash: embedded.map((s) => s.hash).join('+'), purpose: 'requirements-analysis' };
   const link = await db.docLinks.get(a.id);
   const read = link ? (await db.docReads.get(link.docId))?.current : undefined;
-  return read ? { text: read.text, hash: read.hash, purpose: 'work-help' } : null;
+  return read && link ? { sheets: [{ id: link.docId, title: null, text: read.text }], hash: read.hash, purpose: 'work-help' } : null;
+}
+
+/** Splits the character budget across sheets so every sheet is sent. */
+function bounded(sheets: SheetSource['sheets']): SheetSource['sheets'] {
+  const each = Math.floor(MAX_SHEET_CHARS / sheets.length);
+  return sheets.map((s) => ({ id: s.id, title: s.title, text: s.text.slice(0, each) }));
 }
 
 /** AI may read this sheet now: never for a quiz; instructions rule for the teacher's sheet, work-help rule for the student's Doc. */
@@ -70,7 +76,8 @@ async function readTopics({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, a: A
 
   const base = { assignmentId: a.id, docHash: source.hash, createdAt: now.toISOString() };
   await db.sheetTopics.put({ ...base, status: 'pending' });
-  const request: TopicsRequest = { title: a.title.slice(0, 300), workType: type, sheet: source.text.slice(0, MAX_SHEET_CHARS) };
+  const sent = bounded(source.sheets);
+  const request: TopicsRequest = { title: a.title.slice(0, 300), workType: type, sheets: sent.map((s) => ({ title: s.title, text: s.text })) };
   let failure = 'AI service unreachable';
   try {
     const res = await fetchImpl(`${settings.brokerOrigin}${TOPICS_ROUTE}`, {
@@ -86,11 +93,16 @@ async function readTopics({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, a: A
       return;
     }
     if (parsed?.success) {
-      const text = normalize(request.sheet);
+      // A topic counts only if its quote is on the sheet it names.
       const seen = new Set<string>();
-      const topics = parsed.data.topics
-        .map((t) => ({ text: t.text.trim().slice(0, 60), quote: t.quote.trim().slice(0, 200) }))
-        .filter((t) => t.text && t.quote.length >= 3 && text.includes(normalize(t.quote)) && !seen.has(topicKey(t.text)) && seen.add(topicKey(t.text)));
+      const topics = parsed.data.topics.flatMap((t) => {
+        const sheet = sent[t.sheet];
+        const text = t.text.trim().slice(0, 60);
+        const quote = t.quote.trim().slice(0, 200);
+        if (!sheet || !text || quote.length < 3 || !normalize(sheet.text).includes(normalize(quote)) || seen.has(topicKey(text))) return [];
+        seen.add(topicKey(text));
+        return [{ text, quote, sheetId: sheet.id }];
+      });
       const ok: SheetTopicsRecord = { ...base, status: 'ok', topics };
       await db.sheetTopics.put(ok);
       return;
@@ -113,14 +125,14 @@ export async function topicsStep(deps: TopicsDeps, now: Date): Promise<void> {
 
 /** After a Canvas check: topics for open practice or study work with an embedded teacher sheet, before any session. */
 export async function embeddedTopicsStep(deps: TopicsDeps, sourceKey: string, now: Date): Promise<void> {
-  const withSheet = (await deps.db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter((a) => isOpen(a) && a.detail?.sheet?.text);
+  const withSheet = (await deps.db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter((a) => isOpen(a) && (a.detail?.sheets ?? []).some((s) => s.text));
   for (const a of withSheet) await readTopics(deps, a, now);
 }
 
 /** The session's topic list. Null unless the work is practice or study with a linked sheet that Loomer has started reading. Dexie reads only. */
 export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promise<SheetTopics> {
   const a = await db.assignments.get(assignmentId);
-  if (!a || !(a.detail?.sheet?.text || (await db.docLinks.get(assignmentId)))) return null;
+  if (!a || !((a.detail?.sheets ?? []).some((s) => s.text) || (await db.docLinks.get(assignmentId)))) return null;
   const type = await storedWorkType(db, a);
   if (type !== 'practice' && type !== 'study') return null;
   const [record, ctx] = await Promise.all([db.sheetTopics.get(assignmentId), db.studentContext.get(assignmentId)]);
@@ -129,7 +141,24 @@ export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promi
   if (!record) return null;
   if (record.status === 'pending') return { status: 'reading', items: [] };
   if (record.status === 'failed') return { status: 'failed', items: [] };
-  return { status: 'ok', items: record.topics.map((t) => ({ ...t, done: done.has(topicKey(t.text)) })) };
+  const titles = new Map((a.detail?.sheets ?? []).map((s) => [s.docId, s.title]));
+  return { status: 'ok', items: record.topics.map((t) => ({ text: t.text, quote: t.quote, done: done.has(topicKey(t.text)), sheet: titles.get(t.sheetId) ?? null })) };
+}
+
+/** The teacher's embedded sheets, named, with how many topics each has. Dexie reads only. */
+export async function loadTeacherSheets(db: LoomerDb, a: Assignment): Promise<TeacherSheet[]> {
+  const sheets = a.detail?.sheets ?? [];
+  if (sheets.length === 0) return [];
+  const record = await db.sheetTopics.get(a.id);
+  const counts = new Map<string, number>();
+  if (record?.status === 'ok') for (const t of record.topics) counts.set(t.sheetId, (counts.get(t.sheetId) ?? 0) + 1);
+  return sheets.map((s) => ({
+    docId: s.docId,
+    url: s.docId.startsWith('e/') ? `https://docs.google.com/document/d/${s.docId}/pub` : `https://docs.google.com/document/d/${s.docId}/edit`,
+    title: s.title,
+    state: s.state,
+    topics: record?.status === 'ok' ? (counts.get(s.docId) ?? 0) : null,
+  }));
 }
 
 /** The student ticks or unticks a topic. Stored as their own context; never sent anywhere. */

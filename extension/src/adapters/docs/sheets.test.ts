@@ -46,7 +46,26 @@ beforeEach(async () => {
 describe('embedded sheets', () => {
   it('finds a Google Doc embedded in the instructions', () => {
     const html = `<p>Do the review sheet.</p><iframe src="https://docs.google.com/document/d/${DOC}/preview?embedded=true"></iframe>`;
-    expect(extractHtml(html, 'https://s.test').embeds).toEqual([`https://docs.google.com/document/d/${DOC}/preview?embedded=true`]);
+    expect(extractHtml(html, 'https://s.test').embeds).toEqual([{ url: `https://docs.google.com/document/d/${DOC}/preview?embedded=true`, title: null }]);
+  });
+
+  it('reads up to three embedded sheets, each named by its frame title or first line', async () => {
+    const ids = [DOC, `${DOC}2`, `${DOC}3`, `${DOC}4`];
+    await db.assignments.put({ ...assignment, detail: { ...assignment.detail!, embeddedDocs: ids, embedTitles: { [`${DOC}2`]: 'Answer key format' } } });
+    const many: GateState = { ...gate, grants: ids.map((id) => ({ purpose: 'linked-instructions' as const, origin: 'https://docs.google.com', pathPrefix: `/document/d/${id}/`, version: 1 })) };
+    const reads: string[] = [];
+    const byDoc = async (input: unknown) => {
+      const id = String(input).match(/\/d\/([\w-]+)\//)![1]!;
+      reads.push(id);
+      const res = new Response(`Sheet ${reads.length}: Conics\nPart A`, { headers: { 'content-type': 'text/plain' } });
+      Object.defineProperty(res, 'url', { value: `https://docs.google.com/document/d/${id}/export?format=txt` });
+      return res;
+    };
+    await readEmbeddedSheets(db, many, 'k', now, { docsAccess: true, fetch: byDoc });
+    const sheets = (await db.assignments.get(assignment.id))?.detail?.sheets ?? [];
+    expect(reads).toHaveLength(3);
+    expect(sheets.map((s) => s.title)).toEqual(['Sheet 1: Conics', 'Answer key format', 'Sheet 3: Conics']);
+    expect(instructionText((await db.assignments.get(assignment.id))?.detail)).toContain('("Answer key format")');
   });
 
   it('recognizes plain, published, and Canvas-tool embeds', () => {
@@ -67,20 +86,20 @@ describe('embedded sheets', () => {
       return res;
     };
     await readEmbeddedSheets(db, published, 'k', now, { docsAccess: true, fetch: page });
-    expect((await db.assignments.get(assignment.id))?.detail?.sheet).toMatchObject({ state: 'ok', text: expect.stringContaining('Part A: Circles') });
+    expect((await db.assignments.get(assignment.id))?.detail?.sheets?.[0]).toMatchObject({ state: 'ok', text: expect.stringContaining('Part A: Circles') });
   });
 
   it('reads the sheet into the instructions, changes the hash, and keeps the text when a later read fails', async () => {
     await readEmbeddedSheets(db, gate, 'k', now, { docsAccess: true, fetch: text('Part A: Circles\n1. Find the radius.') });
     const read = (await db.assignments.get(assignment.id))!;
-    expect(read.detail?.sheet).toMatchObject({ docId: DOC, state: 'ok' });
+    expect(read.detail?.sheets?.[0]).toMatchObject({ docId: DOC, state: 'ok' });
     expect(read.detail?.hash).not.toBe('h0');
     expect(instructionText(read.detail)).toContain('Part A: Circles');
 
     const later = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     await readEmbeddedSheets(db, gate, 'k', later, { docsAccess: true, fetch: text('slow down', 429) });
     const after = (await db.assignments.get(assignment.id))!;
-    expect(after.detail?.sheet).toMatchObject({ state: 'rate-limited', text: 'Part A: Circles\n1. Find the radius.' });
+    expect(after.detail?.sheets?.[0]).toMatchObject({ state: 'rate-limited', text: 'Part A: Circles\n1. Find the radius.' });
     expect(after.detail?.hash).toBe(read.detail?.hash);
   });
 
@@ -91,9 +110,9 @@ describe('embedded sheets', () => {
       return text('Part A')();
     };
     await readEmbeddedSheets(db, gate, 'k', now, { docsAccess: false, fetch: counting });
-    expect((await db.assignments.get(assignment.id))?.detail?.sheet?.state).toBe('needs-permission');
+    expect((await db.assignments.get(assignment.id))?.detail?.sheets?.[0]?.state).toBe('needs-permission');
     expect(fetched).toBe(0);
     await readEmbeddedSheets(db, gate, 'k', new Date(now.getTime() + 60_000), { docsAccess: true, fetch: counting });
-    expect((await db.assignments.get(assignment.id))?.detail?.sheet?.state).toBe('ok');
+    expect((await db.assignments.get(assignment.id))?.detail?.sheets?.[0]?.state).toBe('ok');
   });
 });

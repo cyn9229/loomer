@@ -32,14 +32,22 @@ export type AssignmentDetail = {
   rubric: { description: string; points: number | null }[];
   submissionTypes: string[];
   canvasUpdatedAt: string | null;
-  /** Google Docs embedded in the instructions (the teacher's sheet), by Doc id. Absent on older records. */
+  /** Google Docs embedded in the instructions (the teacher's sheets), by Doc id. Absent on older records. */
   embeddedDocs?: string[];
+  /** The frame title the page gave an embedded Doc, by Doc id. */
+  embedTitles?: Record<string, string>;
+  /** Each link's visible text in the instructions, by link address (the teacher's name for it). */
+  linkLabels?: Record<string, string>;
   /**
-   * The first embedded Doc as Loomer read it. Its text counts as part of the
-   * instructions (see instructionText), and its hash is part of `hash`.
+   * Up to MAX_SHEETS embedded Docs as Loomer read them, in page order. Their
+   * text counts as part of the instructions (see instructionText), and their
+   * hashes are part of `hash`.
    */
-  sheet?: EmbeddedSheet;
+  sheets?: EmbeddedSheet[];
 };
+
+/** Embedded sheets read per assignment. */
+export const MAX_SHEETS = 3;
 
 /**
  * The teacher's instructions as AI and local rules see them: the Canvas text,
@@ -47,16 +55,26 @@ export type AssignmentDetail = {
  */
 export function instructionText(detail: AssignmentDetail | null | undefined): string {
   if (!detail) return '';
-  return detail.sheet?.text ? `${detail.text}\n\nSheet embedded in the instructions:\n${detail.sheet.text}` : detail.text;
+  const sheets = (detail.sheets ?? []).flatMap((s) => (s.text ? [`Sheet embedded in the instructions${s.title ? ` ("${s.title}")` : ''}:\n${s.text}`] : []));
+  return [detail.text, ...sheets].join('\n\n');
 }
 
 export type EmbeddedSheet = {
   docId: string;
   state: 'ok' | 'no-access' | 'unreadable' | 'rate-limited' | 'needs-permission';
+  /** A name for the sheet: the frame's title, else the first line of its text. Null until known. */
+  title: string | null;
   text: string | null;
   textHash: string | null;
   attemptAt: string;
 };
+
+/** A sheet's name from its frame title or its first line of text. */
+export function sheetTitle(frameTitle: string | undefined, text: string | null): string | null {
+  if (frameTitle) return frameTitle.slice(0, 80);
+  const first = text?.split('\n').map((l) => l.trim()).find((l) => l.length >= 3);
+  return first ? first.slice(0, 80) : null;
+}
 
 export type Assignment = {
   /** `${sourceKey}#${kind}:${canvasId}`. Stable across refreshes and deadline changes. */
@@ -176,7 +194,7 @@ export type StudentContext = {
 /** Topics read from the linked sheet of practice or study work, each with its quote from the sheet. */
 export type SheetTopicsRecord =
   | { assignmentId: string; status: 'pending'; docHash: string; createdAt: string }
-  | { assignmentId: string; status: 'ok'; docHash: string; createdAt: string; topics: { text: string; quote: string }[] }
+  | { assignmentId: string; status: 'ok'; docHash: string; createdAt: string; topics: { text: string; quote: string; sheetId: string }[] }
   | { assignmentId: string; status: 'failed'; docHash: string; createdAt: string; error: string };
 
 export type StudentWorkload = Exclude<EffortLabel, 'Unknown'>;

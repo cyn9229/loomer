@@ -1,5 +1,6 @@
 // Builds the assignment detail model: requirements with Observed / Needs review /
 // Unknown, the evidence behind each, and the student's own corrections.
+import { loadTeacherSheets } from './topics';
 import type { LoomerDb } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
@@ -58,7 +59,7 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
       sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     },
     correction: own?.correction ?? null,
-    sheet: a.detail?.sheet ? { url: `https://docs.google.com/document/d/${a.detail.sheet.docId}/edit`, state: a.detail.sheet.state } : null,
+    sheets: await loadTeacherSheets(db, a),
     note: own?.note ?? null,
   };
 }
