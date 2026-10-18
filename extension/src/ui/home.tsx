@@ -10,7 +10,7 @@ import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, Wo
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, observedAt } from './format';
 import { Icon } from './Icon';
-import { EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
+import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
 import { PlanSection, startWords, type PlanMode } from './planView';
 import type { ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
@@ -58,9 +58,11 @@ type HomeProps = {
   /** The plan's List | Week choice, kept by the panel across screens. */
   planMode: PlanMode;
   onPlanMode: (mode: PlanMode) => void;
+  /** AI is on but the local AI service didn't answer its last health check. */
+  aiDown: boolean;
 };
 
-export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode }: HomeProps) {
+export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown }: HomeProps) {
   const [whyOpen, setWhyOpen] = useState(false);
   if (model.status === 'not-connected') {
     return (
@@ -163,7 +165,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {notices.length > 0 && <div className="notices">{notices}</div>}
       <PlanSection items={next ? [next.item, ...model.rest] : model.rest} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
-      <AskBar onOpen={() => actions.openAsk('general')} />
+      <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} send={actions.send} />
     </>
   );
 }
@@ -185,10 +187,11 @@ function Brief({ brief, now, send }: { brief: NonNullable<DailyBrief>; now: Date
   );
 }
 
-/** The way into Ask Loomer, pinned to the bottom of Home. */
-function AskBar({ onOpen }: { onOpen: () => void }) {
+/** The way into Ask Loomer, pinned to the bottom of Home. Says up front when the AI service is down. */
+function AskBar({ onOpen, aiDown, send }: { onOpen: () => void; aiDown: boolean; send: PanelApi['send'] }) {
   return (
     <div className="askbar-wrap">
+      {aiDown && <AiServiceDown send={send} />}
       <button type="button" className="askbar" onClick={onOpen}>
         <Icon name="sparkle" />
         Ask Loomer anything

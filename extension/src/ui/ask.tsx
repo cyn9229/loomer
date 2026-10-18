@@ -13,7 +13,7 @@ import { Block } from './chatBlocks';
 import { dueWhen } from './format';
 import { Icon } from './Icon';
 import { LogoMark } from './Logo';
-import { SubjectTile } from './parts';
+import { AiServiceDown, SubjectTile } from './parts';
 
 type AskProps = {
   model: ChatModel | undefined;
@@ -24,9 +24,11 @@ type AskProps = {
   now: Date;
   api: PanelApi;
   onOpenItem: (assignmentId: string) => void;
+  /** AI is on but the local AI service didn't answer its last health check. */
+  aiDown: boolean;
 };
 
-export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem }: AskProps) {
+export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown }: AskProps) {
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
@@ -84,6 +86,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
       <div ref={endRef} />
 
       <div className="dock">
+        {aiDown && available && !model.streaming && <AiServiceDown send={api.send} />}
         {model?.streaming ? (
           <div className="composer writing" role="status">
             <span className="grow">Loomer is writing…</span>

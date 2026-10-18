@@ -38,9 +38,11 @@ export type PanelProps = {
   previewLabel?: string;
   /** Loomer is paused in settings (privacy:pause). */
   paused: boolean;
+  /** The local AI service's last health check; null when AI is off or not checked yet. */
+  aiService: { up: boolean; checkedAt: string } | null | undefined;
 };
 
-export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused }: PanelProps) {
+export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService }: PanelProps) {
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
   const [planMode, setPlanMode] = useState<PlanMode>('list');
@@ -92,6 +94,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     },
     continueSession: goWork,
     openAsk: (threadKey) => {
+      // Refresh the service status so a down service is said before the student types.
+      void api.send({ type: 'ai:check' });
       setOpenId(null);
       setAskThread(threadKey);
       setView('ask');
@@ -163,7 +167,18 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         {settings}
       </>
     );
-    body = <AskView model={chat} threadKey={askThread} onThread={setAskThread} threads={home ? askThreads(home) : []} now={now} api={api} onOpenItem={setOpenId} />;
+    body = (
+      <AskView
+        model={chat}
+        threadKey={askThread}
+        onThread={setAskThread}
+        threads={home ? askThreads(home) : []}
+        now={now}
+        api={api}
+        onOpenItem={setOpenId}
+        aiDown={aiService?.up === false}
+      />
+    );
   } else if (view === 'work' && active) {
     const clock = sessionClock(active, now);
     bar = (
@@ -236,6 +251,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         refreshing={refreshing}
         planMode={planMode}
         onPlanMode={setPlanMode}
+        aiDown={aiService?.up === false}
       />
     ) : (
       <p className="caption">Loading…</p>

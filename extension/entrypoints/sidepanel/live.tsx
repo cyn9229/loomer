@@ -4,6 +4,8 @@ import { widgetPageUrl } from '../../src/chat/widgetFrame';
 import { sendMessage } from '../../src/core/messages';
 import { settingsItem } from '../../src/core/settings';
 import { useStorageItem } from '../../src/model/useStorageItem';
+import { useEffect } from 'react';
+import { useAiService } from '../../src/model/useAiService';
 import { useAssignmentDetail } from '../../src/model/useAssignmentDetail';
 import { useChatModel } from '../../src/model/useChatModel';
 import { useHomeModel } from '../../src/model/useHomeModel';
@@ -21,6 +23,10 @@ const api: PanelApi = {
 };
 
 export function LivePanel() {
+  // Ask the worker to ping the AI service when the panel opens, so a down service shows up front.
+  useEffect(() => {
+    void sendMessage({ type: 'ai:check' });
+  }, []);
   return (
     <Panel
       home={useHomeModel()}
@@ -31,6 +37,7 @@ export function LivePanel() {
       now={useNow()}
       api={api}
       paused={useStorageItem(settingsItem)?.paused ?? false}
+      aiService={useAiService()}
       onRefresh={async () => {
         await sendMessage({ type: 'canvas:refresh' });
       }}

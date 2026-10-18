@@ -3126,3 +3126,24 @@ details > summary .icon {
     animation: none;
   }
 }
+
+/* The AI service is down: one quiet line above the Ask bar or the composer. */
+.service-down {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  background: var(--amber-tint);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--amber-ink);
+}
+.service-down > .icon {
+  color: var(--amber);
+}
+.service-down .link {
+  flex: none;
+  font-size: 12.5px;
+}

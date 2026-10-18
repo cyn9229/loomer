@@ -40,6 +40,7 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
   const [home, setHome] = useState<FixtureName>(pick(initial, homeNames, 'ready'));
   const [session, setSession] = useState<SessionFixtureName>(pick(initialSession, sessionNames, 'none'));
   const [paused, setPaused] = useState(false);
+  const [aiDown, setAiDown] = useState(new URLSearchParams(location.search).has('aidown'));
   const [shot, setShot] = useState(new URLSearchParams(location.search).has('screenshot'));
   const model = homes[home];
   const chats = buildChatFixtures(now, itemsOf(model));
@@ -83,6 +84,9 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
           <input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} /> Paused
         </label>
         <label>
+          <input type="checkbox" checked={aiDown} onChange={(e) => setAiDown(e.target.checked)} /> AI service down
+        </label>
+        <label>
           <input type="checkbox" checked={shot} onChange={(e) => setShot(e.target.checked)} /> Screenshot
         </label>
       </div>
@@ -99,6 +103,7 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
         now={now}
         api={api}
         paused={paused}
+        aiService={{ up: !aiDown, checkedAt: now.toISOString() }}
         previewLabel={`Fixture preview: ${home} / ${session}. Not live data.`}
       />
     </>

@@ -1,6 +1,6 @@
 // Shared building blocks for the side panel and options page. Each part renders
 // model data as given and adds no claims of its own.
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { CheckInfo, Evidence, WorkItem } from '../model/home';
 import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf, weekday } from './format';
 import { Icon, type IconName } from './Icon';
@@ -137,6 +137,32 @@ export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Dat
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * The local AI service isn't answering its health check, said before the
+ * student types. "Check again" asks the worker to ping it now (ai:check).
+ */
+export function AiServiceDown({ send }: { send: (message: { type: 'ai:check' }) => Promise<unknown> }) {
+  const [checking, setChecking] = useState(false);
+  return (
+    <p className="service-down" role="status">
+      <Icon name="power" size="sm" />
+      <span className="grow">Loomer’s AI service isn’t running. Start it with npm run dev:server.</span>
+      <button
+        type="button"
+        className="link"
+        disabled={checking}
+        aria-busy={checking}
+        onClick={() => {
+          setChecking(true);
+          void send({ type: 'ai:check' }).finally(() => setChecking(false));
+        }}
+      >
+        {checking ? 'Checking…' : 'Check again'}
+      </button>
+    </p>
   );
 }
 
