@@ -89,7 +89,7 @@ function turns(now: Date, pairs: [string, ChatBlock[], Partial<ChatTurn>?][]): C
 }
 
 export function buildChatFixtures(now: Date, items: WorkItem[]) {
-  const general = (over: Partial<ChatModel>): ChatModel => ({ threadKey: GENERAL_THREAD, assignment: null, availability: 'available', turns: [], streaming: false, ...over });
+  const general = (over: Partial<ChatModel>): ChatModel => ({ threadKey: GENERAL_THREAD, assignment: null, availability: 'available', turns: [], streaming: false, planChanges: {}, ...over });
   const essay = items.find((i) => i.assignmentId === 'a-essay') ?? null;
   const blocked = items.find((i) => i.policy.state === 'blocked') ?? null;
   return {
@@ -115,9 +115,10 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       availability: 'available',
       turns: [],
       streaming: false,
+      planChanges: {},
     } satisfies ChatModel,
-    blocked: { threadKey: blocked?.assignmentId ?? 'a-reflection', assignment: blocked, availability: 'blocked', turns: [], streaming: false } satisfies ChatModel,
-    'policy-question': { threadKey: essay?.assignmentId ?? 'a-essay', assignment: essay, availability: 'needs-policy-answer', turns: [], streaming: false } satisfies ChatModel,
+    blocked: { threadKey: blocked?.assignmentId ?? 'a-reflection', assignment: blocked, availability: 'blocked', turns: [], streaming: false, planChanges: {} } satisfies ChatModel,
+    'policy-question': { threadKey: essay?.assignmentId ?? 'a-essay', assignment: essay, availability: 'needs-policy-answer', turns: [], streaming: false, planChanges: {} } satisfies ChatModel,
     'ai-off': general({ availability: 'ai-off' }),
     'service-down': general({
       turns: turns(now, [

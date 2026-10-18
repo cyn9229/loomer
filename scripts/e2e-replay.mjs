@@ -149,6 +149,19 @@ try {
     const demo = await ask('general', 'Show me a small interactive demo: a slider for tree canopy percent that shows how street temperature changes.');
     const interactive = demo?.blocks.some((b) => b.kind === 'visual' && b.visual.type === 'interactive');
     check('chat: makes an interactive demo', demo?.status === 'done' && interactive ? true : demo?.status === 'done' ? null : false, demo?.blocks.map((b) => b.kind).join(','));
+    // Plan change by talking: the AI proposes, nothing changes until Apply, and Undo puts it back.
+    const room = await ask('general', 'Thursday is busy for me every week, I have practice.');
+    const card = room?.blocks.find((b) => b.kind === 'plan-change');
+    check('chat: proposes a plan change card', room?.status === 'done' && Boolean(card), room?.error ?? room?.blocks.map((b) => b.kind).join(','));
+    if (card) {
+      check('plan change waits for Apply', (await table('dayRoom')).length === 0);
+      let applied = await send({ type: 'plan:apply', changeId: card.changeId });
+      if (!applied.ok && /plan changed/.test(applied.error)) applied = await send({ type: 'plan:apply', changeId: card.changeId });
+      const rows = await table('dayRoom');
+      check('Apply writes the weekly busy day', applied.ok && rows.some((r) => r.key === 'weekday:4' && r.level === 'busy'), applied.ok ? JSON.stringify(rows) : applied.error);
+      const undone = await send({ type: 'plan:undo', changeId: card.changeId });
+      check('Undo restores the plan', undone.ok && (await table('dayRoom')).length === 0);
+    }
     // Open the real chat screen and confirm the visuals render there.
     const askBar = panel.getByText(/Ask Loomer anything/i).first();
     if (await askBar.count()) {

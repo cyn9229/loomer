@@ -153,6 +153,9 @@ describe('resume briefing', () => {
       choice: null,
       snapshot: null,
       briefDismissedOn: null,
+      room: [],
+      planChanges: [],
+      levelMinutes: { some: 120, little: 30 },
     });
     expect(home.status !== 'not-connected' && home.resume).toMatchObject({ facts: ['Edited your draft 1 time (+40 words)'], recommendationChanged: false });
   });

@@ -1,3 +1,4 @@
+import { DEFAULT_LEVEL_MINUTES } from './plan';
 import { describe, expect, it } from 'vitest';
 import type { Assignment, CollectionRun, Course, StudentContext } from '../core/db';
 import { buildHomeModel, type RecommendInput } from './recommend';
@@ -55,6 +56,9 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   choice: null,
   snapshot: null,
   briefDismissedOn: null,
+  room: [],
+  planChanges: [],
+  levelMinutes: DEFAULT_LEVEL_MINUTES,
   ...over,
 });
 const ctx = (key: string, c: Omit<StudentContext, 'key'>): StudentContext => ({ key, ...c });

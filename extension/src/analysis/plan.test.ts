@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { checkpointsFor, crowdedWeek, dailyBrief, keepPreviousTop, plan, rankReasons, type PlanEntry } from './plan';
+import type { RoomLevel } from '../model/home';
+import { checkpointsFor, crowdedWeek, dailyBrief, dayOfDate, keepPreviousTop, localDay, plan, rankReasons, type PlanEntry } from './plan';
+import { roomLookup } from './room';
 
 // Saturday noon, local time, so day buckets are stable.
 const now = new Date(2026, 9, 17, 12, 0);
@@ -11,6 +13,8 @@ const entry = (id: string, dueDays: number | null, effort: PlanEntry['effort'], 
   effort,
   milestones: [],
   keptActive: false,
+  startOn: null,
+  guessMinutes: null,
   ...over,
 });
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
@@ -94,5 +98,86 @@ describe('reasons, crowded week, brief', () => {
     // The quiz is due tomorrow, so it is counted there, not repeated as "start today".
     expect(dailyBrief(ranked, now)).toBe('1 due tomorrow; start Essay today.');
     expect(dailyBrief(plan([entry('Far', 20, 'Short')], now), now)).toBe('Nothing needs a start today.');
+  });
+});
+
+describe('room placement', () => {
+  // now is Saturday Oct 17; day n is n days later.
+  const dateIn = (d: number) => localDay(new Date(now.getTime() + d * 86_400_000));
+  const rooms = (levels: Record<number, RoomLevel>, weekly: Record<number, RoomLevel> = {}) =>
+    roomLookup([
+      ...Object.entries(levels).map(([d, level]) => ({ key: `date:${dateIn(Number(d))}`, level, minutes: null, setAt: '' })),
+      ...Object.entries(weekly).map(([w, level]) => ({ key: `weekday:${w}`, level, minutes: null, setAt: '' })),
+    ]);
+  const startDays = (ranked: { id: string; startBy: { at: string } | null }[]) =>
+    Object.fromEntries(ranked.map((p) => [p.id, p.startBy ? Math.round((dayOfDate(localDay(new Date(p.startBy.at))) - dayOfDate(localDay(now)))) : null]));
+
+  it('moves a start off a busy day to the day before, and says why', () => {
+    // Essay: due day 6, Heavy, starts day 2.
+    const ranked = plan([entry('Essay', 6, 'Substantial')], now, rooms({ 2: 'busy' }));
+    expect(startDays(ranked)).toEqual({ Essay: 1 });
+    expect(rankReasons(ranked).get('Essay')).toMatch(/^Start tomorrow: you said Mon is busy\. Heavy workload, due /);
+  });
+
+  it('fills a day by workload dots, moving the latest-due start, and one start always fits', () => {
+    // Both start day 3. Little room (1 dot): two Light starts do not fit, so the later due moves to day 2.
+    const lights = plan([entry('Vocab', 4, 'Short'), entry('Reading', 5, 'Moderate', { startOn: null })], now, rooms({ 3: 'little' }));
+    expect(startDays(lights)).toEqual({ Vocab: 3, Reading: 2 });
+    // One Heavy start alone on a little day still fits.
+    expect(startDays(plan([entry('Essay', 7, 'Substantial')], now, rooms({ 3: 'little' })))).toEqual({ Essay: 3 });
+    // Some room (2 dots) holds two Light starts.
+    expect(startDays(plan([entry('A', 4, 'Short'), entry('B', 4, 'Short')], now, rooms({ 3: 'some' })))).toEqual({ A: 3, B: 3 });
+  });
+
+  it('never moves a start later or before today, and flags a full today', () => {
+    const ranked = plan([entry('Quiz', 1, 'Short'), entry('Lab', 1, 'Moderate')], now, rooms({ 0: 'busy' }));
+    // Lab's start-by had already passed; it stays as it was (shown as "Start today").
+    expect(startDays(ranked)).toEqual({ Quiz: 0, Lab: -1 });
+    expect(ranked.map((p) => p.bucket)).toEqual(['today', 'today']);
+    expect(crowdedWeek(ranked, now)?.text).toBe('You said today is busy, but Lab and Quiz both need a start then. Plan time, or move one.');
+  });
+
+  it('lets a dated entry beat a weekly one', () => {
+    // Day 2 is Monday. Mondays are busy, but this Monday is free.
+    const weeklyOnly = plan([entry('Essay', 6, 'Substantial')], now, rooms({}, { 1: 'busy' }));
+    expect(startDays(weeklyOnly)).toEqual({ Essay: 1 });
+    const datedFree = plan([entry('Essay', 6, 'Substantial')], now, rooms({ 2: 'free' }, { 1: 'busy' }));
+    expect(startDays(datedFree)).toEqual({ Essay: 2 });
+  });
+
+  it('keeps a start day the student picked, even on a full day, and says how little room it leaves', () => {
+    const ranked = plan([entry('Essay', 6, 'Substantial', { startOn: dateIn(5) }), entry('Lab', 7, 'Moderate')], now, rooms({ 5: 'little' }));
+    expect(startDays(ranked)).toMatchObject({ Essay: 5 });
+    expect(rankReasons(ranked).get('Essay')).toMatch(/^Start Thu: you picked this day\. That leaves 1 day before it's due\./);
+  });
+});
+
+describe('student guesses', () => {
+  const dateIn = (d: number) => localDay(new Date(now.getTime() + d * 86_400_000));
+  const dayOf = (p: { startBy: { at: string } | null }) => dayOfDate(localDay(new Date(p.startBy!.at))) - dayOfDate(localDay(now));
+  const rooms = (levels: Record<number, { level: RoomLevel; minutes?: number }>, normal?: number) =>
+    roomLookup([
+      ...Object.entries(levels).map(([d, r]) => ({ key: `date:${dateIn(Number(d))}`, level: r.level, minutes: r.minutes ?? null, setAt: '' })),
+      ...(normal ? [{ key: 'default', level: 'free' as const, minutes: normal, setAt: '' }] : []),
+    ]);
+
+  it('counts back from the day before the target through each day’s minutes', () => {
+    // Due day 6. Normal day 60 min; day 5 is little (30), day 4 the student has 2 h. Guess 3 h:
+    // day 5 (30) + day 4 (120) + day 3 (60) = 210 ≥ 180, so start day 3.
+    const [p] = plan([entry('Essay', 6, 'Unknown', { guessMinutes: 180 })], now, rooms({ 5: { level: 'little' }, 4: { level: 'free', minutes: 120 } }, 60));
+    expect(dayOf(p!)).toBe(3);
+    expect(rankReasons([p!]).get('Essay')).toMatch(/your guess is about 3 h, counted back from the days you have/);
+  });
+
+  it('gives shared days to the earlier target first', () => {
+    // Normal day 60. A due day 3 (guess 120: days 2, 1). B due day 4 (guess 120): day 3 (60), days 2 and 1 are used, day 0 (60).
+    const ranked = plan([entry('A', 3, 'Unknown', { guessMinutes: 120 }), entry('B', 4, 'Unknown', { guessMinutes: 120 })], now, rooms({}, 60));
+    expect(Object.fromEntries(ranked.map((p) => [p.id, dayOf(p)]))).toEqual({ A: 1, B: 0 });
+  });
+
+  it('starts today and says so when the guess is more than the days before the target have', () => {
+    const [p] = plan([entry('Lab', 2, 'Unknown', { guessMinutes: 600 })], now, rooms({}, 60));
+    expect(dayOf(p!)).toBe(0);
+    expect(rankReasons([p!]).get('Lab')).toMatch(/your guess is about 10 h, more than the days before it have/);
   });
 });

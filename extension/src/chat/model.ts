@@ -1,6 +1,6 @@
 // Builds the ChatModel for one thread from the store. Dexie reads only.
 import { courseKey } from '../analysis/facts';
-import { workItemFor } from '../analysis/recommend';
+import { planChangeView, workItemFor } from '../analysis/recommend';
 import type { LoomerDb } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type ChatModel, type ThreadKey } from '../model/chat';
@@ -21,12 +21,13 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
     createdAt: t.createdAt,
   }));
   const streaming = turns.some((t) => t.status === 'streaming');
+  const planChanges = Object.fromEntries((await db.planChanges.toArray()).filter((c) => c.threadKey === threadKey).map((c) => [c.id, planChangeView(c)]));
 
   if (threadKey === GENERAL_THREAD) {
-    return { threadKey, assignment: null, availability: ai.enabled ? 'available' : 'ai-off', turns, streaming };
+    return { threadKey, assignment: null, availability: ai.enabled ? 'available' : 'ai-off', turns, streaming, planChanges };
   }
   const a = await db.assignments.get(threadKey);
-  if (!a) return { threadKey, assignment: null, availability: 'unresolved', turns, streaming };
+  if (!a) return { threadKey, assignment: null, availability: 'unresolved', turns, streaming, planChanges };
   const [course, analysis, context, decision] = await Promise.all([
     db.courses.get(courseKey(a)),
     db.analyses.get(a.id),
@@ -40,5 +41,6 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
     availability: availability(decision).availability,
     turns,
     streaming,
+    planChanges,
   };
 }

@@ -6,7 +6,7 @@ import { cleanSvg } from './sanitize';
 import { runTool, type ToolSettings } from './tools';
 
 const now = new Date('2026-10-17T12:00:00Z');
-const settings: ToolSettings = { connected: true, ai: { enabled: true, brokerOrigin: 'http://127.0.0.1:8787' }, choice: null, snapshot: null };
+const settings: ToolSettings = { connected: true, ai: { enabled: true, brokerOrigin: 'http://127.0.0.1:8787' }, choice: null, snapshot: null, levelMinutes: { some: 120, little: 30 } };
 
 const assignment = (id: string, text: string): Assignment => ({
   id,

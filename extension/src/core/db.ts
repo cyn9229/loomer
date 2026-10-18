@@ -4,7 +4,8 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
 import type { ChatBlock } from '../model/chat';
-import type { EffortLabel } from '../model/home';
+import type { EffortLabel, RoomLevel } from '../model/home';
+import type { PlanPreview } from '../model/plan';
 import type { PolicyAnswer } from './gate';
 
 export type PlannableKind = 'assignment' | 'quiz' | 'discussion_topic';
@@ -124,6 +125,57 @@ export type StudentContext = {
   note?: string;
   /** The older-work review was shown for this item; `missing` is what Canvas said then. */
   olderReview?: { at: string; missing: boolean };
+  /** The student's workload label. Beats the AI's label. */
+  workload?: StudentWorkload;
+  /** Local date (YYYY-MM-DD) the student picked to start. Used as given. */
+  startOn?: string;
+  /** The student's own guess for the whole task, in minutes. */
+  guessMinutes?: number;
+};
+
+export type StudentWorkload = Exclude<EffortLabel, 'Unknown'>;
+
+/**
+ * Room the student gave a day. Key `date:YYYY-MM-DD` (one day), `weekday:0`-`6`
+ * (every week, 0 is Sunday), or `default` (their normal day). A dated entry beats
+ * a weekly one. Only the level and their own minutes are stored, never the reason.
+ */
+export type DayRoomRecord = { key: string; level: RoomLevel; minutes: number | null; setAt: string };
+
+/** One requested plan edit, after validation. Due dates and the teacher's AI rule are never editable. */
+export type PlanEdit =
+  | { kind: 'room'; key: string; level: RoomLevel; minutes: number | null }
+  | { kind: 'workload'; assignmentId: string; label: StudentWorkload }
+  | { kind: 'start-on'; assignmentId: string; date: string }
+  | { kind: 'guess'; assignmentId: string; minutes: number }
+  | { kind: 'normal-day'; minutes: number }
+  | { kind: 'time-left'; minutes: number }
+  | { kind: 'hide' | 'done-offline' | 'keep-active'; assignmentId: string };
+
+/** StudentContext fields a plan change may write. */
+export type PlanContextField = 'workload' | 'startOn' | 'guessMinutes' | 'hidden' | 'correction';
+
+/** One stored value a change replaced, so undo can put it back. */
+export type PlanWrite =
+  | { slot: 'room'; key: string; before: DayRoomRecord | null; after: DayRoomRecord | null }
+  | { [F in PlanContextField]: { slot: 'context'; key: string; field: F; before: StudentContext[F] | null; after: StudentContext[F] | null } }[PlanContextField]
+  | { slot: 'session'; id: number; before: string | null; after: string | null };
+
+/**
+ * A plan change. The AI (or a panel control) proposes it; nothing is written
+ * until the student applies it. `writes` records what apply replaced, for undo.
+ */
+export type PlanChangeRecord = {
+  id: string;
+  /** Chat thread that proposed it, or null for a panel control. */
+  threadKey: string | null;
+  edits: PlanEdit[];
+  status: 'proposed' | 'applied' | 'undone' | 'dismissed';
+  preview: PlanPreview;
+  writes: PlanWrite[];
+  createdAt: string;
+  appliedAt: string | null;
+  undoneAt: string | null;
 };
 
 /** A Doc the student linked to an assignment: the only Doc Loomer may read for it. */
@@ -155,6 +207,8 @@ export type WorkSession = {
   lastHintEval?: { hash: string; studentWords: number; at: string };
   /** When the last unprompted hint was shown, for the cooldown. */
   lastHintAt?: string;
+  /** The student said they have time until then. Loomer never stops the session by itself. */
+  plannedUntil?: string;
 };
 
 export type SessionEvent = {
@@ -269,6 +323,8 @@ export class LoomerDb extends Dexie {
   hints!: EntityTable<HintRecord, 'id'>;
   requirementChecks!: EntityTable<RequirementCheck, 'assignmentId'>;
   chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
+  dayRoom!: EntityTable<DayRoomRecord, 'key'>;
+  planChanges!: EntityTable<PlanChangeRecord, 'id'>;
 
   constructor(name = 'loomer') {
     super(name);
@@ -295,6 +351,7 @@ export class LoomerDb extends Dexie {
     });
     this.version(5).stores({ requirementChecks: 'assignmentId' });
     this.version(6).stores({ chatTurns: '++id, threadKey' });
+    this.version(7).stores({ dayRoom: 'key', planChanges: 'id, status' });
   }
 }
 

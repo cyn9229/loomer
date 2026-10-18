@@ -2,6 +2,7 @@
 // HomeModel and never queries the database or Canvas itself. Logic owns this
 // file; UI code imports types from here and treats them as read-only.
 import type { RunOutcome } from '../core/db';
+import type { PlanChangeView } from './plan';
 
 export type EffortLabel = 'Short' | 'Moderate' | 'Substantial' | 'Unknown';
 
@@ -46,7 +47,27 @@ export type Checkpoint = { text: string; at: string; quote: string; derived: boo
  * When to begin, not just when it's due: the checkpoint (or due date) minus the
  * lead time for the requirement-based effort. A starting rule, not a time estimate.
  */
-export type StartBy = { at: string; basis: 'due' | 'checkpoint' };
+export type StartBy = { at: string; basis: 'due' | 'checkpoint' | 'student' };
+
+/**
+ * How much room the student said a day has. free is the default (no limit);
+ * some is about 2 h, little about 30 min, busy means no starts that day.
+ */
+export type RoomLevel = 'free' | 'some' | 'little' | 'busy';
+
+/**
+ * One day's room as the planner uses it. `minutes` is the student's own number:
+ * what they said for this day, or, on a free day, their normal day. Null when
+ * they gave none. Show it only as their number, never as Loomer's estimate.
+ */
+export type DayRoom = {
+  /** Local date, YYYY-MM-DD. */
+  date: string;
+  level: RoomLevel;
+  minutes: number | null;
+  /** Comes from a weekly rule ("Thursdays are busy"), not a one-day entry. */
+  repeating: boolean;
+};
 
 /** What the student told Loomer about this item. Shown in context, never as a progress status. */
 export type StudentCorrection = 'done-offline' | 'kept-active' | null;
@@ -62,7 +83,10 @@ export type WorkItem = {
   due: { at: string; source: 'canvas' | 'instructions' } | null;
   /** Canvas and the instructions name different dates; show both, pick neither. */
   dueConflict: boolean;
-  effort: { label: EffortLabel; reason: string | null };
+  /** `student` means the student set the workload; show "You set this". Their label beats the AI's. */
+  effort: { label: EffortLabel; reason: string | null; source: 'ai' | 'student' };
+  /** The student's own guess for the whole task, in minutes. Loomer never makes this number. */
+  guessMinutes: number | null;
   policy: { state: PolicyState; quote?: string; sourceLabel?: string };
   requirements: RequirementsState;
   /** Labeled local replay data. The UI must mark it visibly. */
@@ -151,6 +175,10 @@ export type HomeModel =
       olderReview: OlderReview;
       crowded: CrowdedWeek;
       brief: DailyBrief;
+      /** Room for today and the next 13 days, for the Week view's day headers. */
+      room: DayRoom[];
+      /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
+      yourChanges: PlanChangeView[];
     }
   /** Unreadable or unchecked work could change the order, so no confident top pick. */
   | {
@@ -162,6 +190,10 @@ export type HomeModel =
       olderReview: OlderReview;
       crowded: CrowdedWeek;
       brief: DailyBrief;
+      /** Room for today and the next 13 days, for the Week view's day headers. */
+      room: DayRoom[];
+      /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
+      yourChanges: PlanChangeView[];
     }
   | {
       status: 'ready';
@@ -172,6 +204,10 @@ export type HomeModel =
       olderReview: OlderReview;
       crowded: CrowdedWeek;
       brief: DailyBrief;
+      /** Room for today and the next 13 days, for the Week view's day headers. */
+      room: DayRoom[];
+      /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
+      yourChanges: PlanChangeView[];
     }
   /** Connected and checked, nothing open in the decision window. */
   | {
@@ -182,4 +218,8 @@ export type HomeModel =
       olderReview: OlderReview;
       crowded: CrowdedWeek;
       brief: DailyBrief;
+      /** Room for today and the next 13 days, for the Week view's day headers. */
+      room: DayRoom[];
+      /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
+      yourChanges: PlanChangeView[];
     };

@@ -1,12 +1,14 @@
 // Builds the HomeModel from stored evidence. The order comes from the planner
 // (plan.ts); AI output only supplies effort labels, checkpoints read from the
 // instructions, and first-step wording.
-import type { Analysis, Assignment, CollectionRun, Course, ResumePacket, Source, StudentContext } from '../core/db';
+import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, ResumePacket, Source, StudentContext } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
-import { crowdedWeek, dailyBrief, keepPreviousTop, localDay, plan, rankReasons, type PlanEntry, type Planned } from './plan';
+import type { PlanChangeView } from '../model/plan';
+import { comparePlanned, crowdedWeek, dailyBrief, keepPreviousTop, localDay, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
+import { roomDays, roomLookup } from './room';
 import type { PolicyResult } from './policy';
 
 const DAY_MS = 86_400_000;
@@ -47,7 +49,16 @@ export type RecommendInput = {
   snapshot: PlanSnapshot;
   /** Local date (YYYY-MM-DD) the student dismissed the daily brief, if any. */
   briefDismissedOn: string | null;
+  /** Room the student gave days (dated, weekly, and their normal day). */
+  room: DayRoomRecord[];
+  /** Plan changes, for Home's "Your changes" line. */
+  planChanges: PlanChangeRecord[];
+  /** Minutes a "some" or "little" day gives guessed work (settings). */
+  levelMinutes: LevelMinutes;
 };
+
+/** Applied changes shown on Home, newest first. */
+const YOUR_CHANGES_SHOWN = 10;
 
 type Candidate = {
   a: Assignment;
@@ -59,13 +70,14 @@ type Candidate = {
 };
 
 type CoreModel =
-  | DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview' | 'crowded' | 'brief'>
+  | DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview' | 'crowded' | 'brief' | 'room' | 'yourChanges'>
   | { status: 'not-connected' };
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 export function buildHomeModel(input: RecommendInput): HomeModel {
   if (!input.connected) return { status: 'not-connected' };
-  const ranking = rank(input);
+  const roomFor = roomLookup(input.room);
+  const ranking = rank(input, roomFor);
   const core = buildCore(input, ranking);
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
@@ -77,7 +89,17 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
     olderReview: olderReview(input),
     crowded: crowdedWeek(plannedOpen, input.now),
     brief: input.briefDismissedOn !== today && plannedOpen.length > 0 ? { date: today, text: dailyBrief(plannedOpen, input.now) } : null,
+    room: roomDays(roomFor, today),
+    yourChanges: input.planChanges
+      .filter((c) => c.status === 'applied')
+      .sort((x, y) => (y.appliedAt ?? '').localeCompare(x.appliedAt ?? ''))
+      .slice(0, YOUR_CHANGES_SHOWN)
+      .map(planChangeView),
   };
+}
+
+export function planChangeView(c: PlanChangeRecord): PlanChangeView {
+  return { id: c.id, status: c.status, preview: c.preview, createdAt: c.createdAt, appliedAt: c.appliedAt };
 }
 
 type Ranking = {
@@ -91,7 +113,7 @@ type Ranking = {
 };
 
 /** Plans every open item, ranks the decision set, and applies calm re-ranking. */
-function rank(input: RecommendInput): Ranking {
+function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
   const { lastRun, now } = input;
   const courseById = new Map(input.courses.map((c) => [c.id, c]));
   const contextByKey = new Map(input.context.map((c) => [c.key, c]));
@@ -106,17 +128,19 @@ function rank(input: RecommendInput): Ranking {
     id: c.a.id,
     title: c.a.title,
     due: c.due.at,
-    effort: c.analysis?.effort ?? 'Unknown',
+    effort: c.item.effort.label,
     milestones: c.analysis?.milestones ?? [],
     keptActive: c.item.correction === 'kept-active',
+    startOn: contextByKey.get(c.a.id)?.startOn ?? null,
+    guessMinutes: c.item.guessMinutes,
   });
-  const plannedById = new Map(plan(base.filter((c) => !c.item.hidden && c.item.correction !== 'done-offline').map(entry), now).map((p) => [p.id, p]));
+  // Room is shared by every visible start, so place them together.
+  const plannedById = new Map(plan(base.filter((c) => !c.item.hidden && c.item.correction !== 'done-offline').map(entry), now, roomFor, input.levelMinutes).map((p) => [p.id, p]));
   const inDecision = (c: Candidate) =>
     !c.item.hidden && c.item.correction !== 'done-offline' && (inDecisionSet(c.a, c.due, now) || c.item.correction === 'kept-active');
-  const rankedPlans = keepPreviousTop(
-    plan(base.filter(inDecision).map(entry), now),
-    input.snapshot?.topId ?? null,
-  );
+  // Ranked items keep the start days placement gave them across all visible work.
+  const decisionIds = new Set(base.filter(inDecision).map((c) => c.a.id));
+  const rankedPlans = keepPreviousTop([...plannedById.values()].filter((p) => decisionIds.has(p.id)).sort(comparePlanned), input.snapshot?.topId ?? null);
   const reasons = rankReasons(rankedPlans);
 
   const open = base.map((c) => {
@@ -200,7 +224,7 @@ function buildCore(input: RecommendInput, r: Ranking): CoreModel {
  */
 export function nextPlanSnapshot(input: RecommendInput, prev: PlanSnapshot): PlanSnapshot {
   if (!input.connected) return prev;
-  const r = rank({ ...input, snapshot: prev });
+  const r = rank({ ...input, snapshot: prev }, roomLookup(input.room));
   const top = r.loomerTop;
   const entries: NonNullable<PlanSnapshot>['entries'] = {};
   for (const c of r.ranked) entries[c.a.id] = { title: c.a.title, due: c.due.at, startBy: c.planned?.startBy?.at ?? null };
@@ -321,6 +345,9 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
       ? { kind: 'school-fact', text: `Due ${dueText}, from the instructions.`, quote: due.instructionDates[0]?.quote, sourceLabel: 'Assignment instructions', sourceUrl: a.url ?? undefined }
       : { kind: 'school-fact', text: `Due ${dueText}.`, sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined, observedAt: a.lastSeenAt },
   ];
+  if (item.effort.source === 'student') {
+    evidence.push({ kind: 'student-context', text: `You set the workload to ${WORKLOAD_WORDS[item.effort.label]}.`, sourceLabel: 'Your change' });
+  }
   if (analysis) {
     evidence.push({ kind: 'ai-interpretation', text: `${analysis.effort}: ${analysis.effortReason.text}`, quote: analysis.effortReason.quote || undefined, sourceLabel: 'Canvas assignment' });
     for (const d of analysis.deliverables) evidence.push({ kind: 'ai-interpretation', text: d.text, quote: d.quote, sourceLabel: 'Canvas assignment' });
@@ -358,7 +385,12 @@ function toWorkItem(
     url: a.url,
     due: due.at && due.source ? { at: due.at, source: due.source } : null,
     dueConflict: due.conflict,
-    effort: analysis ? { label: analysis.effort, reason: analysis.effortReason.text } : { label: 'Unknown', reason: null },
+    effort: ctx?.workload
+      ? { label: ctx.workload, reason: null, source: 'student' }
+      : analysis
+        ? { label: analysis.effort, reason: analysis.effortReason.text, source: 'ai' }
+        : { label: 'Unknown', reason: null, source: 'ai' },
+    guessMinutes: ctx?.guessMinutes ?? null,
     policy: {
       state: blocked ? 'blocked' : policy.state,
       quote: policy.finding?.quote,

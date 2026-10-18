@@ -58,7 +58,15 @@ function historyFrom(turns: ChatTurnRecord[]): ChatMessage[] {
   return turns.slice(-HISTORY_TURNS).flatMap((t): ChatMessage[] => {
     const text = t.blocks
       .map((b) =>
-        b.kind === 'markdown' ? b.text : b.kind === 'visual' ? `[Showed ${b.visual.type}: ${b.visual.title}]` : b.kind === 'quiz' ? `[Gave a quiz on ${b.quiz.concept}]` : '',
+        b.kind === 'markdown'
+          ? b.text
+          : b.kind === 'visual'
+            ? `[Showed ${b.visual.type}: ${b.visual.title}]`
+            : b.kind === 'quiz'
+              ? `[Gave a quiz on ${b.quiz.concept}]`
+              : b.kind === 'plan-change'
+                ? '[Proposed a plan change card]'
+                : '',
       )
       .filter(Boolean)
       .join('\n')
@@ -113,12 +121,17 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
   const messages: ChatMessage[] = [...historyFrom(prior), { role: 'user', content: text }];
   const context = await contextFor(db, threadKey);
   const today = now().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const session = await db.sessions.where('state').equals('active').last();
+  const session_minutes_left =
+    session?.plannedUntil && (threadKey === GENERAL_THREAD || threadKey === session.assignmentId)
+      ? Math.max(0, Math.round((Date.parse(session.plannedUntil) - now().getTime()) / 60_000))
+      : null;
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       // Re-check before every round: AI may have been turned off or a rule found.
       if (!(await chatAllowed(db, await deps.ai(), threadKey)).ok) throw new Error('not-allowed');
-      const calls = await streamRound(deps, settings, { context, today, messages }, controller.signal, appendText, flush);
+      const calls = await streamRound(deps, settings, { context, today, session_minutes_left, messages }, controller.signal, appendText, flush);
       if (calls.length === 0) break;
 
       messages.push({ role: 'assistant', content: null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } })) });
@@ -126,7 +139,7 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
         const status: ChatBlock = { kind: 'tool', label: 'Working…', status: 'running' };
         blocks.push(status);
         await flush(true);
-        const result = await runTool(db, await deps.settings(), call.name, call.arguments, now());
+        const result = await runTool(db, await deps.settings(), call.name, call.arguments, now(), threadKey);
         Object.assign(status, { label: result.label, status: 'done' });
         if (result.block) blocks.push(result.block);
         messages.push({ role: 'tool', tool_call_id: call.id, content: result.forModel.slice(0, 20_000) });

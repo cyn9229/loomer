@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { buildHomeModel } from '../analysis/recommend';
 import { db } from '../core/db';
-import { aiSettingsItem, briefDismissedItem, choiceItem, planSnapshotItem, settingsItem } from '../core/settings';
+import { aiSettingsItem, briefDismissedItem, choiceItem, levelMinutesItem, planSnapshotItem, settingsItem } from '../core/settings';
 import { loadHomeData } from './homeData';
 import type { HomeModel } from './home';
 import { useStorageItem } from './useStorageItem';
@@ -18,6 +18,7 @@ export function useHomeModel(): HomeModel | undefined {
   const choice = useStorageItem(choiceItem);
   const snapshot = useStorageItem(planSnapshotItem);
   const briefDismissedOn = useStorageItem(briefDismissedItem);
+  const levelMinutes = useStorageItem(levelMinutesItem);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
@@ -26,8 +27,8 @@ export function useHomeModel(): HomeModel | undefined {
 
   // Dexie reads only: a non-Dexie await here would stop live updates from the worker.
   return useLiveQuery(async () => {
-    if (!settings || !ai || choice === undefined || snapshot === undefined || briefDismissedOn === undefined) return undefined;
+    if (!settings || !ai || choice === undefined || snapshot === undefined || briefDismissedOn === undefined || !levelMinutes) return undefined;
     const data = await loadHomeData(db);
-    return buildHomeModel({ ...data, connected: Boolean(settings.canvasOrigin), ai, choice, snapshot, briefDismissedOn, now: new Date() });
-  }, [settings, ai, choice, snapshot, briefDismissedOn, tick]);
+    return buildHomeModel({ ...data, connected: Boolean(settings.canvasOrigin), ai, choice, snapshot, briefDismissedOn, levelMinutes, now: new Date() });
+  }, [settings, ai, choice, snapshot, briefDismissedOn, levelMinutes, tick]);
 }

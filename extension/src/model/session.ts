@@ -95,6 +95,13 @@ export type SessionModel =
       sessionId: number;
       assignment: WorkItem;
       startedAt: string;
+      /**
+       * The student said they have time until then (chips at Start working, or chat).
+       * Show "28 min left" instead of time so far, updated once a minute. At 5 min left,
+       * a quiet note; at 0, [Stop here] (session:end) [Keep going] (session:time null).
+       * Never stop the session automatically.
+       */
+      plannedUntil: string | null;
       doc: DocState;
       sources: SourceItem[];
       activity: ActivityItem[];

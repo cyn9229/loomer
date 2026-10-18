@@ -78,6 +78,7 @@ export function buildSessionFixtures(now: Date) {
     sessionId: 7,
     assignment: essay,
     startedAt: ago(38),
+    plannedUntil: null,
     doc: linkedDoc,
     sources,
     activity,
@@ -92,6 +93,7 @@ export function buildSessionFixtures(now: Date) {
     'not-linked': {
       ...base,
       startedAt: ago(1),
+      plannedUntil: null,
       doc: {
         status: 'not-linked',
         candidates: [

@@ -4,6 +4,7 @@
 // the logic has validated; the UI renders them, never executes model HTML in
 // the panel (interactive widgets go only to the sandboxed widget page).
 import type { WorkItem } from './home';
+import type { PlanChangeView } from './plan';
 import type { HelpAvailability } from './session';
 
 /** "general" for concept questions, or an assignment id to ask about that assignment. */
@@ -39,7 +40,9 @@ export type ChatBlock =
   | { kind: 'visual'; visual: Visual }
   | { kind: 'quiz'; quiz: Quiz }
   /** A link to open an assignment in the panel (the AI suggests; the student clicks). */
-  | { kind: 'open-assignment'; assignmentId: string; title: string };
+  | { kind: 'open-assignment'; assignmentId: string; title: string }
+  /** A proposed plan change. Render ChatModel.planChanges[changeId]: Apply (plan:apply) / Not now (plan:dismiss), Undo once applied. */
+  | { kind: 'plan-change'; changeId: string };
 
 export type ChatTurn = {
   id: number;
@@ -62,4 +65,6 @@ export type ChatModel = {
   turns: ChatTurn[];
   /** A reply is being written; offer Stop. */
   streaming: boolean;
+  /** Plan changes proposed in this thread, by id, with their current status and preview. */
+  planChanges: Record<string, PlanChangeView>;
 };

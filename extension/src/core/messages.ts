@@ -1,6 +1,7 @@
 // Typed messages from extension pages to the service worker. The worker parses
 // every message with this schema and ignores senders outside the extension.
 import { z } from 'zod';
+import { planChangeItemSchema } from '../../../shared/chat-contract';
 
 const exclusionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('host'), host: z.string().min(1).max(253), includeSubdomains: z.boolean() }),
@@ -20,7 +21,10 @@ export const messageSchema = z.discriminatedUnion('type', [
     value: z.enum(['teacher-allows-help', 'teacher-forbids-ai', 'not-sure']),
   }),
   /** Starts (or switches to) the one active work session and opens the linked Doc. */
-  z.object({ type: z.literal('session:start'), assignmentId: z.string() }),
+  /** `minutes`: the optional "How much time do you have?" chip. Skipping it sends none. */
+  z.object({ type: z.literal('session:start'), assignmentId: z.string(), minutes: z.number().int().min(5).max(600).optional() }),
+  /** Set the time the student has from now, or null to clear it ("Keep going"). */
+  z.object({ type: z.literal('session:time'), minutes: z.number().int().min(5).max(600).nullable() }),
   z.object({ type: z.literal('session:pause') }),
   z.object({ type: z.literal('session:resume') }),
   /** Stops all Doc reads and capture for the session. */
@@ -84,6 +88,16 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ai:check') }),
   /** Hide today's brief; it returns tomorrow. */
   z.object({ type: z.literal('brief:dismiss') }),
+  /** Apply a proposed plan change. Fails with a new preview if the plan moved since the card was made. */
+  z.object({ type: z.literal('plan:apply'), changeId: z.string().max(100) }),
+  /** "Not now" on a proposed plan change. */
+  z.object({ type: z.literal('plan:dismiss'), changeId: z.string().max(100) }),
+  /** Put back what an applied change replaced. */
+  z.object({ type: z.literal('plan:undo'), changeId: z.string().max(100) }),
+  /** A panel control (workload picker, "Roughly how much is left?"): check and apply at once. Listed in Your changes with Undo. */
+  z.object({ type: z.literal('plan:set'), changes: z.array(planChangeItemSchema).min(1).max(10) }),
+  /** Settings: minutes a "some" or "little" day gives work with a time guess. */
+  z.object({ type: z.literal('room:minutes'), some: z.number().int().min(0).max(1_440), little: z.number().int().min(0).max(1_440) }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);

@@ -12,7 +12,8 @@ import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiServiceItem, aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiServiceItem, aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, type PlanSettings } from '../src/analysis/changes';
 import { localDay } from '../src/analysis/plan';
 import { nextPlanSnapshot } from '../src/analysis/recommend';
 import { loadHomeData } from '../src/model/homeData';
@@ -20,7 +21,7 @@ import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
-import { currentSession, endSession, setState, startSession, tickSession, touch } from '../src/session/session';
+import { currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
 const REFRESH_ALARM = 'canvas-refresh';
@@ -182,9 +183,9 @@ async function cropImage(dataUrl: string, crop: Crop): Promise<string> {
  */
 /** Recomputes the plan snapshot so Home's top stays steady and can say what moved. */
 async function updatePlan() {
-  const [settings, ai, choice, prev] = await Promise.all([settingsItem.getValue(), aiSettingsItem.getValue(), choiceItem.getValue(), planSnapshotItem.getValue()]);
+  const { snapshot: prev, ...settings } = await planSettings();
   const data = await loadHomeData(db);
-  const next = nextPlanSnapshot({ ...data, connected: Boolean(settings.canvasOrigin), ai, choice, snapshot: prev, briefDismissedOn: null, now: new Date() }, prev);
+  const next = nextPlanSnapshot({ ...data, ...settings, snapshot: prev, briefDismissedOn: null, now: new Date() }, prev);
   if (JSON.stringify(next) !== JSON.stringify(prev)) await planSnapshotItem.setValue(next);
 }
 
@@ -201,6 +202,17 @@ async function checkAiService() {
   await aiServiceItem.setValue({ up, checkedAt: new Date().toISOString() });
 }
 
+async function planSettings(): Promise<PlanSettings> {
+  const [settings, ai, choice, snapshot, levelMinutes] = await Promise.all([
+    settingsItem.getValue(),
+    aiSettingsItem.getValue(),
+    choiceItem.getValue(),
+    planSnapshotItem.getValue(),
+    levelMinutesItem.getValue(),
+  ]);
+  return { connected: Boolean(settings.canvasOrigin), ai, choice, snapshot, levelMinutes };
+}
+
 /** Starts a chat reply in the background; keeps the worker awake while it streams. */
 function startChat(threadKey: string, text: string) {
   const keepAlive = setInterval(() => void browser.runtime.getPlatformInfo(), 15_000);
@@ -208,10 +220,7 @@ function startChat(threadKey: string, text: string) {
     {
       db,
       ai: () => aiSettingsItem.getValue(),
-      settings: async () => {
-        const [settings, ai, choice, snapshot] = await Promise.all([settingsItem.getValue(), aiSettingsItem.getValue(), choiceItem.getValue(), planSnapshotItem.getValue()]);
-        return { connected: Boolean(settings.canvasOrigin), ai, choice, snapshot };
-      },
+      settings: planSettings,
     },
     threadKey,
     text,
@@ -413,13 +422,41 @@ async function handle(message: Message): Promise<Reply> {
       });
       void analyze();
       return { ok: true };
+    case 'plan:apply': {
+      const r = await applyChange(db, message.changeId, await planSettings(), new Date());
+      if (r.ok) await updatePlan();
+      return r.ok ? { ok: true } : { ok: false, error: r.error };
+    }
+    case 'room:minutes':
+      await levelMinutesItem.setValue({ some: message.some, little: message.little });
+      await updatePlan();
+      return { ok: true };
+    case 'plan:dismiss':
+      return dismissChange(db, message.changeId);
+    case 'plan:undo': {
+      const r = await undoChange(db, message.changeId, new Date());
+      if (r.ok) await updatePlan();
+      return r;
+    }
+    case 'plan:set': {
+      const now = new Date();
+      const edits = message.changes.map((c) => editFromItem(c, now));
+      const bad = edits.find((e) => typeof e === 'string');
+      if (bad) return { ok: false, error: bad };
+      const settings = await planSettings();
+      const proposed = await proposeChange(db, edits.filter((e) => typeof e !== 'string'), null, settings, now);
+      if (!proposed.ok) return proposed;
+      const r = await applyChange(db, proposed.change.id, settings, now, false);
+      if (r.ok) await updatePlan();
+      return r.ok ? { ok: true } : { ok: false, error: r.error };
+    }
     case 'item:hide':
       await db.studentContext.put({ ...(await db.studentContext.get(message.assignmentId)), key: message.assignmentId, hidden: message.hidden });
       await updatePlan();
       return { ok: true };
     case 'session:start': {
       if ((await settingsItem.getValue()).paused) return { ok: false, error: 'Loomer is paused. Resume it in settings first.' };
-      await startSession(db, message.assignmentId, new Date());
+      await startSession(db, message.assignmentId, new Date(), message.minutes);
       // Starting work on something is a choice; Home keeps it until the evidence changes.
       await rememberChoice(message.assignmentId);
       await openDoc(message.assignmentId);
@@ -436,6 +473,8 @@ async function handle(message: Message): Promise<Reply> {
       await runDiscovery();
       return { ok: true };
     }
+    case 'session:time':
+      return (await setPlannedTime(db, message.minutes, new Date())) ? { ok: true } : { ok: false, error: 'No session.' };
     case 'session:end':
       await endSession(db, new Date());
       stopSessionLoop();

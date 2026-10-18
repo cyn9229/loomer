@@ -46,7 +46,7 @@ export function pageRuleFor(url: string): Exclusion {
 export async function deleteAssignmentData(db: LoomerDb, assignmentId: string) {
   const link = await db.docLinks.get(assignmentId);
   const sessions = await db.sessions.where('assignmentId').equals(assignmentId).toArray();
-  await db.transaction('rw', [db.analyses, db.chat, db.hints, db.sources, db.resumePackets, db.docLinks, db.docReads, db.sessions, db.sessionEvents, db.studentContext, db.requirementChecks, db.chatTurns], async () => {
+  await db.transaction('rw', [db.analyses, db.chat, db.hints, db.sources, db.resumePackets, db.docLinks, db.docReads, db.sessions, db.sessionEvents, db.studentContext, db.requirementChecks, db.chatTurns, db.planChanges], async () => {
     await db.analyses.delete(assignmentId);
     await db.requirementChecks.delete(assignmentId);
     await db.chatTurns.where('threadKey').equals(assignmentId).delete();
@@ -58,6 +58,8 @@ export async function deleteAssignmentData(db: LoomerDb, assignmentId: string) {
     if (link) await db.docReads.delete(link.docId);
     await db.sessionEvents.where('assignmentId').equals(assignmentId).delete();
     await db.sessions.bulkDelete(sessions.map((s) => s.id));
+    // Plan changes that name it carry its title in their preview.
+    await db.planChanges.filter((c) => c.threadKey === assignmentId || c.edits.some((e) => 'assignmentId' in e && e.assignmentId === assignmentId)).delete();
     await db.studentContext.put({ key: assignmentId, hidden: true });
   });
 }

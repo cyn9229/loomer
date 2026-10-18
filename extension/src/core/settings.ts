@@ -2,6 +2,7 @@
 // context (worker, panel, options) reads the same values and can watch changes.
 import { storage } from 'wxt/utils/storage';
 import { db } from './db';
+import { DEFAULT_LEVEL_MINUTES, type LevelMinutes } from '../analysis/plan';
 import type { PlanSnapshot } from '../analysis/recommend';
 import type { Exclusion, GateState, Grant } from './gate';
 
@@ -74,3 +75,6 @@ export const briefDismissedItem = storage.defineItem<string | null>('local:brief
 
 /** Whether the local AI service answered its last health check. Null until AI is turned on and checked. */
 export const aiServiceItem = storage.defineItem<{ up: boolean; checkedAt: string } | null>('local:aiService', { fallback: null });
+
+/** Minutes a "some" or "little" day gives work the student put a time guess on. */
+export const levelMinutesItem = storage.defineItem<LevelMinutes>('local:levelMinutes', { fallback: DEFAULT_LEVEL_MINUTES });

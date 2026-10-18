@@ -14,7 +14,7 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 // Spread into each connected fixture: no resume briefing, older-work review, busy-days note, or brief.
-const noResume = { resume: null, olderReview: null, crowded: null, brief: null };
+const noResume = { resume: null, olderReview: null, crowded: null, brief: null, room: [], yourChanges: [] };
 
 /** A local date `days` from now at hh:mm, as ISO. */
 function at(now: Date, days: number, hh: number, mm: number): string {
@@ -55,7 +55,8 @@ function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId'
     url: 'https://lincolnhs.instructure.com/courses/1840/assignments/88213',
     due: null,
     dueConflict: false,
-    effort: { label: 'Unknown', reason: null },
+    effort: { label: 'Unknown', reason: null, source: 'ai' },
+    guessMinutes: null,
     policy: { state: 'none-found' },
     requirements: 'checked',
     replay: false,
@@ -75,7 +76,7 @@ export function buildFixtures(now: Date) {
     title: 'Heat islands comparison essay',
     courseName: 'English 10',
     due: { at: essayDue, source: 'canvas' },
-    effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.' },
+    effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.', source: 'ai' },
     policy: { state: 'permitted', sourceLabel: 'Course syllabus' },
     checkpoints: [{ text: 'Draft for peer review', at: new Date(Date.parse(essayDue) - DAY).toISOString(), quote: 'Bring a full draft for peer review the day before the final deadline.', derived: true }],
     rankReason: `Start today: heavy workload, Draft for peer review by ${new Date(Date.parse(essayDue) - DAY).toLocaleDateString(undefined, { weekday: 'short' })}.`,
@@ -86,7 +87,7 @@ export function buildFixtures(now: Date) {
     courseName: 'Biology',
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88310',
     due: { at: at(now, 1, 19, 59), source: 'canvas' },
-    effort: { label: 'Short', reason: 'One paragraph answer.' },
+    effort: { label: 'Short', reason: 'One paragraph answer.', source: 'ai' },
     rankReason: 'Start today: light workload, due tomorrow. Second because Heat islands comparison essay needs a start today.',
   });
   const vocab = item(now, {
@@ -95,7 +96,7 @@ export function buildFixtures(now: Date) {
     courseName: 'Biology',
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88301',
     due: { at: at(now, 2, 8, 0), source: 'canvas' },
-    effort: { label: 'Short', reason: 'Twenty terms, one short quiz.' },
+    effort: { label: 'Short', reason: 'Twenty terms, one short quiz.', source: 'ai' },
     rankReason: 'Start tomorrow: light workload, due Mon.',
   });
   const reflection = item(now, {
@@ -104,7 +105,7 @@ export function buildFixtures(now: Date) {
     courseName: 'Health',
     url: 'https://lincolnhs.instructure.com/courses/1842/assignments/90211',
     due: { at: at(now, 4, 23, 59), source: 'canvas' },
-    effort: { label: 'Moderate', reason: 'One 300 to 500 word reflection with a source.' },
+    effort: { label: 'Moderate', reason: 'One 300 to 500 word reflection with a source.', source: 'ai' },
     policy: {
       state: 'blocked',
       quote: 'Complete this reflection on your own. Do not use AI tools.',
@@ -126,7 +127,7 @@ export function buildFixtures(now: Date) {
     url: 'https://lincolnhs.instructure.com/courses/1840/assignments/88290',
     due: { at: at(now, 9, 23, 59), source: 'canvas' },
     dueConflict: true,
-    effort: { label: 'Moderate', reason: 'One page with three sources.' },
+    effort: { label: 'Moderate', reason: 'One page with three sources.', source: 'ai' },
   });
   const reading = item(now, {
     assignmentId: 'a-reading',
@@ -141,7 +142,7 @@ export function buildFixtures(now: Date) {
     courseName: 'Biology',
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88200',
     due: { at: at(now, -3, 8, 0), source: 'canvas' },
-    effort: { label: 'Short', reason: null },
+    effort: { label: 'Short', reason: null, source: 'ai' },
   });
   const hiddenItem = { ...item(now, { assignmentId: 'a-hidden', title: 'Optional: extra credit poster', courseName: 'Health' }), hidden: true };
   const replayItem = item(now, {
@@ -150,7 +151,7 @@ export function buildFixtures(now: Date) {
     courseName: 'Environmental Science (replay)',
     url: 'http://127.0.0.1:8787/courses/9001/assignments/1',
     due: { at: at(now, 3, 23, 59), source: 'canvas' },
-    effort: { label: 'Short', reason: 'Fill one data table.' },
+    effort: { label: 'Short', reason: 'Fill one data table.', source: 'ai' },
     replay: true,
   });
 
@@ -369,6 +370,8 @@ export function buildFixtures(now: Date) {
       olderReview: null,
       crowded: null,
       brief: null,
+      room: [],
+      yourChanges: [],
     },
 
     'resume-changed': {
@@ -397,6 +400,8 @@ export function buildFixtures(now: Date) {
       olderReview: null,
       crowded: null,
       brief: null,
+      room: [],
+      yourChanges: [],
     },
 
     'your-pick': {
@@ -418,6 +423,8 @@ export function buildFixtures(now: Date) {
 
     'older-review': {
       status: 'ready',
+      room: [],
+      yourChanges: [],
       resume: null,
       crowded: null,
       brief: null,
@@ -444,6 +451,8 @@ export function buildFixtures(now: Date) {
     // work, and a resume briefing for the same assignment as the next step.
     busy: {
       status: 'ready',
+      room: [],
+      yourChanges: [],
       resume: essayResume(false),
       crowded,
       brief,

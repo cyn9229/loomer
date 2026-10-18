@@ -31,6 +31,8 @@ export const chatRequestSchema = z.strictObject({
   ]),
   /** The student's local date and weekday, for "this week" questions. */
   today: z.string().max(40),
+  /** Minutes left in the work session, when the student said how much time they have. Their number, not an estimate. */
+  session_minutes_left: z.number().int().min(0).max(600).nullable().optional(),
   messages: z.array(chatMessageSchema).min(1).max(40),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
@@ -51,6 +53,27 @@ export const chartSpecSchema = z.strictObject({
   x_label: z.string().max(40).nullable(),
   y_label: z.string().max(40).nullable(),
 });
+
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** One requested plan edit. The extension checks it and shows a preview; the student applies it. */
+export const planChangeItemSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('room'),
+    date: ymd.nullable(),
+    weekday: z.enum(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).nullable(),
+    repeat: z.boolean(),
+    level: z.enum(['free', 'some', 'little', 'busy']),
+    minutes: z.number().int().min(0).max(1_440).nullable(),
+  }),
+  z.strictObject({ kind: z.literal('workload'), assignment_id: z.string().max(300), label: z.enum(['Light', 'Medium', 'Heavy']) }),
+  z.strictObject({ kind: z.literal('start_on'), assignment_id: z.string().max(300), date: ymd }),
+  z.strictObject({ kind: z.literal('guess'), assignment_id: z.string().max(300), minutes: z.number().int().min(5).max(10_000) }),
+  z.strictObject({ kind: z.literal('normal_day'), minutes: z.number().int().min(0).max(1_440) }),
+  z.strictObject({ kind: z.literal('time_left'), minutes: z.number().int().min(5).max(600) }),
+  z.strictObject({ kind: z.literal('mark'), assignment_id: z.string().max(300), as: z.enum(['hidden', 'done_offline', 'keep_active']) }),
+]);
+export type PlanChangeItem = z.infer<typeof planChangeItemSchema>;
 
 /** Tool argument schemas, shared so the broker advertises exactly what the extension accepts. */
 export const chatTools = {
@@ -81,6 +104,11 @@ export const chatTools = {
       html: z.string().max(60_000).nullable(),
       height: z.number().int().min(120).max(600).nullable(),
     }),
+  },
+  propose_plan_change: {
+    description:
+      "Propose changes to the student's plan from what THEY said: how much room a day has (free, some about 2 h, little about 30 min, busy means no starts; for one date, or a weekday with repeat true for every week), their own workload label for an assignment, a day they want to start it, their own time guess for it, their normal day's free time, the time they have in this work session, or hiding / done offline / keep active. Never invent numbers; use only the student's. Nothing changes until the student taps Apply on the card. Due dates and the teacher's AI rule can't be changed.",
+    schema: z.strictObject({ changes: z.array(planChangeItemSchema).min(1).max(10) }),
   },
   quiz_me: {
     description:

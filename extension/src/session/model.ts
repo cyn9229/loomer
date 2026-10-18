@@ -37,6 +37,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     sessionId: session.id,
     assignment: workItemFor(a, { course, analysis, context: contextMap }, now),
     startedAt: session.startedAt,
+    plannedUntil: session.plannedUntil ?? null,
     doc: docState(link, read, a.detail?.links ?? [], a.detail?.text ?? ''),
     sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     activity: activity(events),

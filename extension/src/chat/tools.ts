@@ -2,10 +2,13 @@
 // never change anything. Each returns text for the model and, for display
 // tools, one validated block for the panel. Arguments are untrusted model output.
 import { chatTools, type ChatToolName } from '../../../shared/chat-contract';
+import { editFromItem, proposeChange, type PlanSettings } from '../analysis/changes';
 import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
-import { buildHomeModel, type RecommendInput } from '../analysis/recommend';
+import { localDay, minutesWords, WORKLOAD_WORDS } from '../analysis/plan';
+import { buildHomeModel } from '../analysis/recommend';
+import { roomDays, roomKey, roomLookup } from '../analysis/room';
 import { checkAiDispatch } from '../core/gate';
-import type { LoomerDb } from '../core/db';
+import type { LoomerDb, PlanEdit } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
 import { loadHomeData } from '../model/homeData';
@@ -15,7 +18,7 @@ const MAX_INSTRUCTIONS = 6_000;
 const MAX_HTML = 60_000;
 const DAY_MS = 86_400_000;
 
-export type ToolSettings = Pick<RecommendInput, 'ai' | 'choice' | 'snapshot'> & { connected: boolean };
+export type ToolSettings = PlanSettings;
 export type ToolResult = { forModel: string; block?: ChatBlock; label: string };
 
 const LABELS: Record<ChatToolName, string> = {
@@ -25,6 +28,7 @@ const LABELS: Record<ChatToolName, string> = {
   open_assignment: 'Linked an assignment',
   show_visual: 'Made a visual',
   quiz_me: 'Made a quick check',
+  propose_plan_change: 'Suggested a plan change',
 };
 
 const isTool = (name: string): name is ChatToolName => Object.hasOwn(chatTools, name);
@@ -40,7 +44,10 @@ function itemSummary(i: WorkItem) {
     class: i.courseName,
     due: day(i.due?.at),
     start_by: day(i.startBy?.at),
-    size: i.effort.label,
+    workload: WORKLOAD_WORDS[i.effort.label],
+    workload_set_by: i.effort.source === 'student' ? 'student' : 'loomer',
+    start_day_picked_by_student: i.startBy?.basis === 'student',
+    student_guess: i.guessMinutes ? minutesWords(i.guessMinutes) : null,
     checkpoints: i.checkpoints.map((c) => `${c.text}: ${day(c.at)}`),
     ai_help: i.policy.state === 'blocked' ? 'off (teacher rule)' : 'allowed',
     plan_note: i.rankReason,
@@ -53,7 +60,23 @@ async function allItems(db: LoomerDb, settings: ToolSettings, now: Date): Promis
   return home.status === 'ready' ? [home.next.item, ...home.rest] : home.rest;
 }
 
-export async function runTool(db: LoomerDb, settings: ToolSettings, name: string, rawArgs: string, now: Date): Promise<ToolResult> {
+/** The student's room for the coming week (only days that are not plain free) and their normal day. */
+async function roomSummary(db: LoomerDb, now: Date) {
+  const records = await db.dayRoom.toArray();
+  const normal = records.find((r) => r.key === roomKey.default);
+  const days = roomDays(roomLookup(records), localDay(now), 7)
+    .filter((d) => d.level !== 'free' || d.repeating)
+    .map((d) => ({ date: d.date, room: d.level, every_week: d.repeating, student_minutes: d.minutes }));
+  const session = await db.sessions.where('state').equals('active').last();
+  const left = session?.plannedUntil ? Math.max(0, Math.round((Date.parse(session.plannedUntil) - now.getTime()) / 60_000)) : null;
+  return {
+    your_room: days,
+    normal_day: normal?.minutes != null ? minutesWords(normal.minutes) : 'not set yet',
+    session: session ? { assignment_id: session.assignmentId, minutes_left: left } : null,
+  };
+}
+
+export async function runTool(db: LoomerDb, settings: ToolSettings, name: string, rawArgs: string, now: Date, threadKey: string | null = null): Promise<ToolResult> {
   if (!isTool(name)) return { forModel: `Unknown tool ${name}.`, label: 'Unknown tool' };
   let json: unknown;
   try {
@@ -72,7 +95,7 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
         return t <= now.getTime() + 7 * DAY_MS;
       };
       const chosen = (args.success && args.data.range === 'all' ? items : items.filter(inWeek)).slice(0, 25);
-      return { forModel: JSON.stringify({ items: chosen.map(itemSummary), shown: chosen.length, total_open: items.length }), label };
+      return { forModel: JSON.stringify({ items: chosen.map(itemSummary), shown: chosen.length, total_open: items.length, ...(await roomSummary(db, now)) }), label };
     }
     case 'get_assignment': {
       const args = chatTools.get_assignment.schema.safeParse(json);
@@ -136,6 +159,29 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
       if (!html || html.length > MAX_HTML) return { forModel: 'The interactive page was missing or too large.', label };
       // Runs only in the sandboxed widget page; no extension access, no network.
       return { forModel: 'Shown to the student in a sandboxed frame.', block: { kind: 'visual', visual: { type: 'interactive', title, html, height: height ?? 320 } }, label };
+    }
+    case 'propose_plan_change': {
+      const args = chatTools.propose_plan_change.schema.safeParse(json);
+      if (!args.success) return { forModel: 'The changes did not match the schema.', label };
+      const edits: PlanEdit[] = [];
+      for (const c of args.data.changes) {
+        const edit = editFromItem(c, now);
+        if (typeof edit === 'string') return { forModel: `Not proposed: ${edit}`, label };
+        edits.push(edit);
+      }
+      const proposed = await proposeChange(db, edits, threadKey, settings, now);
+      if (!proposed.ok) return { forModel: `Not proposed: ${proposed.error}`, label };
+      const { preview } = proposed.change;
+      const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'off the plan');
+      return {
+        forModel: JSON.stringify({
+          shown: 'A card with Apply and Not now is on the student’s screen. Nothing changes until they tap Apply. Say in one short sentence what it does.',
+          changes: preview.lines,
+          start_days_that_move: preview.moves.map((m) => `${m.title}: ${day(m.from)} → ${day(m.to)}`),
+        }),
+        block: { kind: 'plan-change', changeId: proposed.change.id },
+        label,
+      };
     }
     case 'quiz_me': {
       const args = chatTools.quiz_me.schema.safeParse(json);

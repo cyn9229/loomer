@@ -20,14 +20,16 @@ async function log(db: LoomerDb, s: WorkSession, at: string, kind: SessionEvent[
   await db.sessionEvents.add({ sessionId: s.id, assignmentId: s.assignmentId, at, kind, ...extra });
 }
 
-/** Starts a session for the assignment, ending any other one. Returns it. */
-export async function startSession(db: LoomerDb, assignmentId: string, now: Date): Promise<WorkSession> {
+/** Starts a session for the assignment, ending any other one. `minutes` is the time the student said they have. Returns it. */
+export async function startSession(db: LoomerDb, assignmentId: string, now: Date, minutes?: number): Promise<WorkSession> {
   const at = now.toISOString();
+  const plannedUntil = minutes ? new Date(now.getTime() + minutes * 60_000).toISOString() : undefined;
   const assignment = await db.assignments.get(assignmentId);
   if (!assignment) throw new Error('Unknown assignment');
   const existing = await currentSession(db);
   if (existing?.assignmentId === assignmentId) {
     if (existing.state === 'paused') await setState(db, existing, 'active', now);
+    if (plannedUntil) await db.sessions.update(existing.id, { plannedUntil });
     return (await db.sessions.get(existing.id))!;
   }
   if (existing) await endSession(db, now);
@@ -38,6 +40,7 @@ export async function startSession(db: LoomerDb, assignmentId: string, now: Date
     startedAt: at,
     endedAt: null,
     lastActivityAt: at,
+    plannedUntil,
   });
   const session = (await db.sessions.get(id))!;
   await log(db, session, at, 'started');
@@ -59,6 +62,14 @@ export async function endSession(db: LoomerDb, now: Date) {
   await db.sessions.update(s.id, { state: 'ended', endedAt: at });
   await log(db, s, at, 'ended');
   await writeResumePacket(db, s, now);
+}
+
+/** Sets or clears the time the student has. Clearing is "Keep going"; nothing ends the session by itself. */
+export async function setPlannedTime(db: LoomerDb, minutes: number | null, now: Date): Promise<boolean> {
+  const s = await currentSession(db);
+  if (!s) return false;
+  await db.sessions.update(s.id, { plannedUntil: minutes ? new Date(now.getTime() + minutes * 60_000).toISOString() : undefined });
+  return true;
 }
 
 export async function touch(db: LoomerDb, s: WorkSession, now: Date) {
