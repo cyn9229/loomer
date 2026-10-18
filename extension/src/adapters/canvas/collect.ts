@@ -1,6 +1,6 @@
 // Canvas collection: overview (planner + undated assignments), then requirement
 // details for work in the decision window. Writes only to the local store.
-import type { Assignment, AssignmentDetail, CollectionRun, DeadlineChange, LoomerDb, PlannableKind, RunOutcome } from '../../core/db';
+import { doneInCanvas, type Assignment, type AssignmentDetail, type CollectionRun, type DeadlineChange, type LoomerDb, type PlannableKind, type RunOutcome, type SubmissionState } from '../../core/db';
 import type { GateState } from '../../core/gate';
 import { contentHash } from '../../core/hash';
 import { mapLimit } from '../../core/concurrency';
@@ -127,8 +127,15 @@ function fromPlanner(item: PlannerItem, courseNames: Map<string, string>, base: 
     url: item.html_url ? new URL(item.html_url, base.origin).toString() : null,
     dueAt: plannerDue(item),
     pointsPossible: item.plannable.points_possible ?? null,
-    submission: item.submissions ? item.submissions : null,
+    submission: plannerSubmission(item),
   };
+}
+
+/** Workflow flags plus the student's own "Mark as done", which applies even when Canvas takes no submissions. */
+function plannerSubmission(item: PlannerItem): SubmissionState | null {
+  const markedDone = item.planner_override?.marked_complete === true;
+  if (item.submissions) return { ...item.submissions, markedDone };
+  return markedDone ? { submitted: false, excused: false, missing: false, late: false, graded: false, markedDone } : null;
 }
 
 /**
@@ -202,8 +209,7 @@ async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
   const candidates = (await db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter(
     (a) =>
       a.presence === 'seen-in-last-check' &&
-      !a.submission?.submitted &&
-      !a.submission?.excused &&
+      !doneInCanvas(a.submission) &&
       (!a.dueAt || Date.parse(a.dueAt) <= horizon) &&
       (!a.detail || now.getTime() - Date.parse(a.detail.observedAt) > DETAIL_MAX_AGE_MS),
   );

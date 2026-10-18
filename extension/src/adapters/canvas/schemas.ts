@@ -27,7 +27,7 @@ export const plannerItemSchema = z.object({
     points_possible: z.number().nullish(),
     updated_at: z.string().nullish(),
   }),
-  // Canvas sends `false` when submissions do not apply.
+  // Canvas sends `false` when submissions do not apply. Only yes/no workflow flags are kept.
   submissions: z
     .union([
       z.literal(false),
@@ -36,9 +36,12 @@ export const plannerItemSchema = z.object({
         excused: z.boolean().default(false),
         missing: z.boolean().default(false),
         late: z.boolean().default(false),
+        graded: z.boolean().default(false),
       }),
     ])
     .optional(),
+  /** The student's own "Mark as done" in Canvas's To Do list. */
+  planner_override: z.object({ marked_complete: z.boolean().default(false) }).nullish(),
 });
 
 export const assignmentSchema = z.object({

@@ -1,6 +1,6 @@
 // Per-assignment facts derived locally from stored evidence. Shared by the
 // analysis runner and the recommendation so both judge an assignment the same way.
-import type { Assignment, Course, StudentContext } from '../core/db';
+import { doneInCanvas, type Assignment, type Course, type StudentContext } from '../core/db';
 import type { PolicyAnswer } from '../core/gate';
 import { findInstructionDeadlines, localDate, type InstructionDeadline } from './deadlines';
 import { resolvePolicy, type PolicyResult } from './policy';
@@ -37,7 +37,7 @@ export function effectiveDue(a: Assignment, now: Date): EffectiveDue {
 
 /** Open means still possibly to do: seen in the last check, not submitted, not excused. */
 export function isOpen(a: Assignment): boolean {
-  return a.presence === 'seen-in-last-check' && !a.submission?.submitted && !a.submission?.excused;
+  return a.presence === 'seen-in-last-check' && !doneInCanvas(a.submission);
 }
 
 /** Open work due between now and the horizon. Past-due and undated work is listed, not ranked. */

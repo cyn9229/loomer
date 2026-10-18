@@ -10,8 +10,18 @@ import type { PolicyAnswer } from './gate';
 
 export type PlannableKind = 'assignment' | 'quiz' | 'discussion_topic';
 
-/** Only workflow flags. Grade-related fields from Canvas are dropped at parse time. */
-export type SubmissionState = { submitted: boolean; excused: boolean; missing: boolean; late: boolean };
+/**
+ * Only workflow flags. Scores and other grade fields from Canvas are dropped at
+ * parse time. `graded` says only that the teacher marked it (for work handed in
+ * on paper, `submitted` stays false). `markedDone` is the student's own "Mark as
+ * done" in Canvas. Both are absent on records stored before they existed.
+ */
+export type SubmissionState = { submitted: boolean; excused: boolean; missing: boolean; late: boolean; graded?: boolean; markedDone?: boolean };
+
+/** Canvas shows this work as finished: turned in, excused, graded without being missing, or checked off by the student. */
+export function doneInCanvas(s: SubmissionState | null): boolean {
+  return Boolean(s && (s.submitted || s.excused || s.markedDone || (s.graded && !s.missing)));
+}
 
 export type AssignmentDetail = {
   observedAt: string;

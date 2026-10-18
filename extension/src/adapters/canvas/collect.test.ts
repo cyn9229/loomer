@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LoomerDb } from '../../core/db';
 import type { GateState } from '../../core/gate';
+import { isOpen } from '../../analysis/facts';
 import { collectCanvas } from './collect';
 import { fakeFetch, json } from './testing';
 
@@ -28,7 +29,7 @@ function canvas(assignments: FakeAssignment[]) {
             course_id: 1,
             plannable_date: a.due_at,
             plannable: { title: a.name, due_at: a.due_at, points_possible: 10 },
-            submissions: { submitted: false, excused: false, missing: false, late: false, graded: true, has_feedback: true },
+            submissions: { submitted: false, excused: false, missing: false, late: false, graded: false, has_feedback: true },
           })),
       );
     }
@@ -61,8 +62,8 @@ describe('collectCanvas', () => {
     expect(a).toMatchObject({ sourceKey: `${origin}|user:42`, title: 'Essay', presence: 'seen-in-last-check', replay: false });
     expect(a?.detail?.text).toBe('Compare two sources.');
     expect(a?.detail?.links).toEqual([`${origin}/files/3`]);
-    // Grade-related planner flags never reach storage.
-    expect(a?.submission).toEqual({ submitted: false, excused: false, missing: false, late: false });
+    // Only yes/no workflow flags reach storage; has_feedback and any score are dropped.
+    expect(a?.submission).toEqual({ submitted: false, excused: false, missing: false, late: false, graded: false, markedDone: false });
   });
 
   it('updates the same record when a deadline changes, and keeps first-seen time', async () => {
@@ -111,6 +112,30 @@ describe('collectCanvas', () => {
     await collectCanvas({ db, origin, gate, now, fetch });
     const due = Object.fromEntries((await db.assignments.toArray()).map((a) => [a.title, a.dueAt]));
     expect(due).toEqual({ 'Unit 2: Conic Sections': '2026-10-22T16:50:00Z', 'Read ahead': null });
+  });
+
+  it('treats graded paper work and work the student marked done as finished', async () => {
+    const fetch = fakeFetch((url) => {
+      const p = url.pathname;
+      if (p === '/api/v1/users/self') return json({ id: 42 });
+      if (p === '/api/v1/courses') return json([{ id: 1, name: 'Precalculus' }]);
+      if (p === '/api/v1/courses/1') return json({ id: 1, name: 'Precalculus', syllabus_body: '' });
+      if (p === '/api/v1/courses/1/assignments') return json([]);
+      if (p === '/api/v1/planner/items') {
+        const item = (id: number, title: string, extra: object) => ({ plannable_id: id, plannable_type: 'assignment', course_id: 1, plannable_date: '2026-10-15T14:00:00Z', plannable: { title, due_at: '2026-10-15T14:00:00Z' }, ...extra });
+        const flags = { submitted: false, excused: false, late: false };
+        return json([
+          item(1, 'Paper worksheet', { submissions: { ...flags, missing: false, graded: true } }),
+          item(2, 'Checked off', { submissions: false, planner_override: { marked_complete: true } }),
+          item(3, 'Graded as missing', { submissions: { ...flags, missing: true, graded: true } }),
+          item(4, 'Not done', { submissions: { ...flags, missing: false, graded: false } }),
+        ]);
+      }
+      return undefined;
+    });
+    await collectCanvas({ db, origin, gate, now, fetch });
+    const open = (await db.assignments.toArray()).filter(isOpen).map((a) => a.title).sort();
+    expect(open).toEqual(['Graded as missing', 'Not done']);
   });
 
   it('records an expired session as auth-expired and keeps known data', async () => {
