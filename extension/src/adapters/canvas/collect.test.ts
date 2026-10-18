@@ -91,6 +91,28 @@ describe('collectCanvas', () => {
     expect(byId.get('77')).toBe('seen-in-last-check');
   });
 
+  it('uses the student’s own date when the teacher set due dates per section', async () => {
+    const fetch = fakeFetch((url) => {
+      const p = url.pathname;
+      if (p === '/api/v1/users/self') return json({ id: 42 });
+      if (p === '/api/v1/courses') return json([{ id: 1, name: 'Precalculus' }]);
+      if (p === '/api/v1/courses/1') return json({ id: 1, name: 'Precalculus', syllabus_body: '' });
+      if (p === '/api/v1/courses/1/assignments') return json([]);
+      if (p === '/api/v1/planner/items') {
+        return json([
+          // Section override: base due_at is empty, plannable_date is this student's date.
+          { plannable_id: 5, plannable_type: 'assignment', course_id: 1, plannable_date: '2026-10-22T16:50:00Z', plannable: { title: 'Unit 2: Conic Sections', due_at: null } },
+          // An ungraded "to do" date is not a deadline.
+          { plannable_id: 6, plannable_type: 'discussion_topic', course_id: 1, plannable_date: '2026-10-21T14:00:00Z', plannable: { title: 'Read ahead', due_at: null, todo_date: '2026-10-21T14:00:00Z' } },
+        ]);
+      }
+      return undefined;
+    });
+    await collectCanvas({ db, origin, gate, now, fetch });
+    const due = Object.fromEntries((await db.assignments.toArray()).map((a) => [a.title, a.dueAt]));
+    expect(due).toEqual({ 'Unit 2: Conic Sections': '2026-10-22T16:50:00Z', 'Read ahead': null });
+  });
+
   it('records an expired session as auth-expired and keeps known data', async () => {
     await collectCanvas({ db, origin, gate, now, fetch: canvas([{ id: 9, name: 'Essay', due_at: '2026-10-20T23:59:00Z' }]) });
     const run = await collectCanvas({ db, origin, gate, now, fetch: fakeFetch(() => json({ errors: [] }, { status: 401 })) });

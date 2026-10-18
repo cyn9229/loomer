@@ -14,12 +14,16 @@ export const plannerItemSchema = z.object({
   plannable_id: id,
   plannable_type: z.string(),
   course_id: id.optional(),
+  /** The date Canvas shows this student: their own due date, including a section or student override. */
   plannable_date: z.string(),
   html_url: z.string().nullish(),
   context_name: z.string().nullish(),
   plannable: z.object({
     title: z.string(),
+    /** The assignment's base due date. Empty when the teacher set dates per section or student. */
     due_at: z.string().nullish(),
+    /** A "to do" date on ungraded work; then plannable_date is that date, not a deadline. */
+    todo_date: z.string().nullish(),
     points_possible: z.number().nullish(),
     updated_at: z.string().nullish(),
   }),

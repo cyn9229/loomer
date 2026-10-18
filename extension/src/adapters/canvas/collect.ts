@@ -125,10 +125,20 @@ function fromPlanner(item: PlannerItem, courseNames: Map<string, string>, base: 
     courseName: courseNames.get(courseId) ?? item.context_name ?? null,
     title: item.plannable.title,
     url: item.html_url ? new URL(item.html_url, base.origin).toString() : null,
-    dueAt: item.plannable.due_at ?? null,
+    dueAt: plannerDue(item),
     pointsPossible: item.plannable.points_possible ?? null,
     submission: item.submissions ? item.submissions : null,
   };
+}
+
+/**
+ * The student's due date. A teacher who sets dates per section leaves the base
+ * due_at empty, but plannable_date still holds this student's date. A "to do"
+ * date on ungraded work is not a deadline, so it never counts as due.
+ */
+function plannerDue(item: PlannerItem): string | null {
+  if (item.plannable.due_at) return item.plannable.due_at;
+  return item.plannable.todo_date ? null : item.plannable_date;
 }
 
 function fromAssignment(a: CanvasAssignment, courseNames: Map<string, string>, base: Base): OverviewRecord {
