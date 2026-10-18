@@ -7,9 +7,9 @@
 import { useState, type ReactNode } from 'react';
 import type { HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
-import { checkProblem, dayHeading, dueWhen, observedAt } from './format';
+import { calendarDaysUntil, checkProblem, dayHeading, dueWhen, observedAt } from './format';
 import { Icon } from './Icon';
-import { EvidenceList, PolicyNote, SyncFoot, WorkRow } from './parts';
+import { EvidenceList, PolicyNote, SubjectTile, SyncFoot, WorkRow } from './parts';
 import type { ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
 
@@ -239,12 +239,18 @@ function NextStep({
     <section className="focus" aria-label="Next step">
       <div className="eyebrow">{next.chosenByStudent ? 'Your pick' : 'Next step'}</div>
       <h1 className={titleClass(next.action)}>{next.action}</h1>
-      <button type="button" className="focus-sub" onClick={() => actions.openItem(item.assignmentId)}>
-        {item.title}
-      </button>
-      <p className="focus-meta">
-        {item.courseName ?? 'No class'} · {item.due ? <>due <b>{dueWhen(item.due.at, now)}</b></> : 'no due date'}
-      </p>
+      <div className="ctx">
+        <SubjectTile courseName={item.courseName} size="lg" />
+        <span className="grow">
+          <button type="button" className="focus-sub" onClick={() => actions.openItem(item.assignmentId)}>
+            {item.title}
+          </button>
+          <span className="focus-meta">
+            {item.courseName ?? 'No class'} · {item.due ? <>due <b>{dueWhen(item.due.at, now)}</b></> : 'no due date'}
+          </span>
+        </span>
+      </div>
+      {item.due && <Countdown due={item.due.at} now={now} />}
       {lastTime && lastTime.facts.length > 0 && <p className="focus-line ellipsis">Last time: {lastTime.facts.slice(0, 2).join(' · ')}</p>}
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
       <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
@@ -395,10 +401,10 @@ function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions
     days.set(key, [...(days.get(key) ?? []), item]);
   }
   const folds = [
-    { label: 'Later', items: visible.filter((i) => i.bucket === 'later').sort(byDue) },
-    { label: 'No due date', items: visible.filter((i) => i.bucket === 'no-date') },
-    { label: 'Past due', items: visible.filter((i) => i.bucket === 'past').sort((a, b) => byDue(b, a)) },
-  ];
+    { label: 'Later', icon: 'calendarRange', items: visible.filter((i) => i.bucket === 'later').sort(byDue) },
+    { label: 'No due date', icon: 'inbox', items: visible.filter((i) => i.bucket === 'no-date') },
+    { label: 'Past due', icon: 'alert', items: visible.filter((i) => i.bucket === 'past').sort((a, b) => byDue(b, a)) },
+  ] as const;
   const hidden = items.filter((i) => i.hidden);
 
   return (
@@ -407,13 +413,14 @@ function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions
         <h2>This week</h2>
         <span className="aside">{week.length === 0 ? 'Nothing due' : `${week.length} due`}</span>
       </div>
+      {week.length > 0 && <WeekChart items={week} now={now} />}
       {[...days.values()].map((dayItems) => {
         const first = dayItems[0]!;
         const at = new Date(first.due!.at);
         const head = dayHeading(first.due!.at, now);
         const date = `${at.toLocaleDateString(undefined, { weekday: 'short' })} ${at.getDate()}`;
         return (
-          <section key={at.toDateString()} aria-label={head.label}>
+          <section key={at.toDateString()} id={dayId(at)} aria-label={head.label}>
             <div className="day">
               {head.soon ? (
                 <>
@@ -440,6 +447,9 @@ function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions
           .map((f) => (
             <details className="fold" key={f.label}>
               <summary>
+                <span className="fold-ic">
+                  <Icon name={f.icon} />
+                </span>
                 {f.label}
                 <span className="count">{f.items.length}</span>
                 <Icon name="chevronRight" />
@@ -452,6 +462,9 @@ function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions
         {hidden.length > 0 && (
           <details className="fold">
             <summary>
+              <span className="fold-ic">
+                <Icon name="eyeOff" />
+              </span>
               Hidden
               <span className="count">{hidden.length}</span>
               <Icon name="chevronRight" />
@@ -482,4 +495,84 @@ function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions
 
 function byDue(a: WorkItem, b: WorkItem): number {
   return (a.due ? Date.parse(a.due.at) : Infinity) - (b.due ? Date.parse(b.due.at) : Infinity);
+}
+
+/** Stable id for a day's agenda group, so the week chart can jump to it. */
+function dayId(at: Date): string {
+  return `day-${at.getFullYear()}-${at.getMonth() + 1}-${at.getDate()}`;
+}
+
+/**
+ * Today and the next six days as bars, one per day, sized by how many items are
+ * due. Tapping a day jumps to its group below. Today and tomorrow use the
+ * urgency color; the counts are the visible items in "This week".
+ */
+function WeekChart({ items, now }: { items: WorkItem[]; now: Date }) {
+  const days = Array.from({ length: 7 }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
+  const counts = days.map(() => 0);
+  for (const item of items) {
+    const offset = calendarDaysUntil(new Date(item.due!.at), now);
+    if (offset >= 0 && offset < 7) counts[offset]! += 1;
+  }
+  const max = Math.max(1, ...counts);
+  return (
+    <div className="week" role="group" aria-label="Due this week">
+      {days.map((d, i) => {
+        const n = counts[i]!;
+        const name = d.toLocaleDateString(undefined, { weekday: 'short' });
+        return (
+          <button
+            key={i}
+            type="button"
+            className={['wk', i === 0 ? 'today' : '', i <= 1 && n > 0 ? 'soon' : ''].filter(Boolean).join(' ')}
+            disabled={n === 0}
+            aria-label={`${name} ${d.getDate()}: ${n} due`}
+            onClick={() => document.getElementById(dayId(d))?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' })}
+          >
+            <em>{n > 0 ? n : ''}</em>
+            <i style={{ height: n === 0 ? 4 : 10 + (n / max) * 34 }} />
+            <b>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</b>
+            <small>{d.getDate()}</small>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Time from today to the next step's due date, as seven day segments: today,
+ * the days in between, and the due day. Shown only when it falls this week.
+ */
+function Countdown({ due, now }: { due: string; now: Date }) {
+  const at = new Date(due);
+  const days = calendarDaysUntil(at, now);
+  if (at.getTime() < now.getTime() || days > 6) return null;
+  const label = days === 0 ? 'Due today' : days === 1 ? '1 day left' : `${days} days left`;
+  return (
+    <div className="countdown" aria-label={`${label}, due ${at.toLocaleDateString(undefined, { weekday: 'long' })}`}>
+      <div className="countdown-k">
+        <b className={days <= 1 ? 'urgent' : undefined}>{label}</b>
+        <span>
+          Today → {days === 0 ? 'tonight' : at.toLocaleDateString(undefined, { weekday: 'long' })}
+        </span>
+      </div>
+      <div className="ticks" aria-hidden="true">
+        {Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+          const cls = i === days ? 'due' : i === 0 ? 'now' : i < days ? 'gap' : '';
+          return (
+            <span key={i} className={cls ? `tick ${cls}` : 'tick'}>
+              <i />
+              <b>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</b>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function reduceMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

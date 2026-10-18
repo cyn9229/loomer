@@ -1,19 +1,28 @@
-// Assignment detail: tap any assignment. Class, title, then the facts as a
-// short list (due, size, AI help), what the assignment asks for, and Start
-// working at the bottom. Before any draft check the requirements are a plain
+// Assignment detail: tap any assignment. Subject icon and class, title, then
+// three tiles (days left, size, AI help), what the assignment asks for, links
+// as icon buttons, and Start working at the bottom. Before any draft check the requirements are a plain
 // list; per-item marks (found / take a look / can't tell) appear only after a
 // check. Renders the AssignmentDetailModel when it has loaded, and the WorkItem
 // alone before.
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { StudentCorrection, WorkItem } from '../model/home';
 import { useAction } from './api';
-import { dateTime, effortText, observedAt } from './format';
+import { calendarDaysUntil, dueWhen, observedAt } from './format';
 import { type HomeActions, startControl } from './home';
 import { Icon } from './Icon';
+import { Mark, SizeMeter, SubjectTile } from './parts';
 import { DeleteAssignmentData } from './privacy';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
+
+/** One short word for the size tile. */
+const sizeWord: Record<WorkItem['effort']['label'], string> = {
+  Short: 'Quick',
+  Moderate: 'Medium',
+  Substantial: 'Big',
+  Unknown: 'Not sure',
+};
 
 const aiText: Record<WorkItem['policy']['state'], string> = {
   permitted: 'Allowed',
@@ -26,42 +35,45 @@ const aiText: Record<WorkItem['policy']['state'], string> = {
 export function DetailView({ item, detail, now, actions }: { item: WorkItem; detail: AssignmentDetailModel | undefined; now: Date; actions: HomeActions }) {
   const start = startControl(item, actions);
   const ok = detail?.status === 'ok' ? detail : null;
-  const effort = effortText[item.effort.label];
   return (
     <>
-      <p className="d-class">{item.courseName ?? 'No class'}</p>
+      <div className="d-head">
+        <SubjectTile courseName={item.courseName} size="lg" />
+        <span className="d-class">{item.courseName ?? 'No class'}</span>
+      </div>
       <h1 className="d-title">{item.title}</h1>
-      <dl className="dl">
-        <div>
-          <dt>Due</dt>
-          <dd>
-            {item.due ? dateTime(item.due.at) : 'No due date'}
-            {item.dueConflict && <span className="sub warn">Canvas and the instructions list different dates. Check both.</span>}
-          </dd>
+      <div className="facts">
+        <DueTile item={item} now={now} />
+        <div className="fact">
+          <SizeMeter label={item.effort.label} />
+          <b>{sizeWord[item.effort.label]}</b>
+          <span>Size</span>
         </div>
-        <div>
-          <dt>Size</dt>
-          <dd>
-            {effort ?? 'Not sure yet'}
-            {ok?.effort.reason && <span className="sub">{ok.effort.reason}</span>}
-          </dd>
+        <div className={item.policy.state === 'permitted' ? 'fact ok' : item.policy.state === 'blocked' || item.policy.state === 'limited' ? 'fact warn' : 'fact'}>
+          <Icon name={item.policy.state === 'permitted' ? 'shieldCheck' : 'shield'} />
+          <b>{aiText[item.policy.state]}</b>
+          <span>AI help</span>
         </div>
-        <div>
-          <dt>AI help</dt>
-          <dd>
-            <span className={item.policy.state === 'blocked' || item.policy.state === 'limited' ? 'warn' : undefined}>{aiText[item.policy.state]}</span>
-            {item.policy.sourceLabel && <span className="sub">{item.policy.sourceLabel}</span>}
-            {item.policy.quote && <span className="sub">“{item.policy.quote}”</span>}
-          </dd>
-        </div>
-      </dl>
+      </div>
+      {item.dueConflict && (
+        <p className="d-note warn">
+          <Icon name="alert" size="xs" />
+          Canvas and the instructions list different due dates. Check both.
+        </p>
+      )}
+      {(item.policy.state === 'blocked' || item.policy.state === 'limited') && item.policy.quote && (
+        <p className="d-note">
+          “{item.policy.quote}” {item.policy.sourceLabel && <span>{item.policy.sourceLabel}</span>}
+        </p>
+      )}
+      {ok?.effort.reason && <p className="d-note">{ok.effort.reason}</p>}
       {ok ? <Requirements detail={ok} now={now} actions={actions} /> : <p className="hint-line" style={{ paddingTop: 16 }}>Loading…</p>}
       <div className="end">
+        <Links item={item} detail={ok} />
         <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
           {start.busy ? 'Starting…' : start.label}
           <Icon name="arrowRight" />
         </button>
-        <Links item={item} detail={ok} />
         <Corrections item={item} correction={ok?.correction ?? item.correction} actions={actions} />
         <div className="row-actions center" style={{ marginTop: 14 }}>
           <button type="button" className="link subtle" onClick={() => actions.setHidden(item.assignmentId, !item.hidden)}>
@@ -74,10 +86,10 @@ export function DetailView({ item, detail, now, actions }: { item: WorkItem; det
   );
 }
 
-const mark: Record<RequirementItem['state'], ReactNode> = {
-  observed: <Icon name="check" label="Found in your draft" />,
-  'needs-review': <span aria-label="Take a look">!</span>,
-  unknown: <span aria-label="Can’t tell yet" />,
+const summaryWord: Record<RequirementItem['state'], string> = {
+  observed: 'found',
+  'needs-review': 'to look at',
+  unknown: 'can’t tell',
 };
 
 const fallbackNote: Record<RequirementItem['state'], string> = {
@@ -118,9 +130,20 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
           {(detail.check.scope === 'partial' || detail.check.stale) && (
             <p className="hint-line">{detail.check.stale ? 'Your draft changed since this check.' : 'Only part of your draft was readable.'}</p>
           )}
+          <p className="marks-line">
+            {(['observed', 'needs-review', 'unknown'] as const).map((state) => {
+              const n = detail.requirements.filter((r) => r.state === state).length;
+              return n > 0 ? (
+                <span key={state}>
+                  <Mark state={state} />
+                  {n} {summaryWord[state]}
+                </span>
+              ) : null;
+            })}
+          </p>
           {detail.requirements.map((r, i) => (
             <div className={`req ${r.state}`} key={i}>
-              <span className={`mark ${r.state}`}>{mark[r.state]}</span>
+              <Mark state={r.state} />
               <span className="req-text">{r.text}</span>
               <span className="req-note">{r.evidence?.note ?? fallbackNote[r.state]}</span>
               {r.evidence?.quote && <span className="quote">“{r.evidence.quote}”</span>}
@@ -151,24 +174,56 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   );
 }
 
+/** Where the work lives: Canvas, the draft, saved sources. */
 function Links({ item, detail }: { item: WorkItem; detail: Detail | null }) {
   const instructions = detail?.links.instructions[0] ?? item.url;
   const sources = detail?.links.sources.length ?? 0;
   if (!instructions && !detail?.links.doc && sources === 0) return null;
   return (
-    <p className="links-row">
+    <div className="icon-links">
       {instructions && (
         <a href={instructions} target="_blank" rel="noreferrer">
-          {item.replay ? 'Open replay page' : 'Open in Canvas'}
+          <Icon name="external" />
+          {item.replay ? 'Replay page' : 'Canvas'}
         </a>
       )}
       {detail?.links.doc && (
         <a href={detail.links.doc} target="_blank" rel="noreferrer">
+          <Icon name="doc" />
           Your draft
         </a>
       )}
-      {sources > 0 && <span>{sources === 1 ? '1 source saved' : `${sources} sources saved`}</span>}
-    </p>
+      {sources > 0 && (
+        <span>
+          <Icon name="layers" />
+          {sources === 1 ? '1 source' : `${sources} sources`}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Days until due, as the first tile. Today and tomorrow use the urgency color. */
+function DueTile({ item, now }: { item: WorkItem; now: Date }) {
+  if (!item.due) {
+    return (
+      <div className="fact">
+        <Icon name="calendar" />
+        <b>No date</b>
+        <span>Due</span>
+      </div>
+    );
+  }
+  const at = new Date(item.due.at);
+  const past = at.getTime() < now.getTime();
+  const days = calendarDaysUntil(at, now);
+  const big = past ? 'Past due' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
+  return (
+    <div className={!past && days <= 1 ? 'fact urgent' : 'fact'}>
+      <Icon name={!past && days <= 1 ? 'clock' : 'calendar'} />
+      <b>{big}</b>
+      <span>{dueWhen(item.due.at, now)}</span>
+    </div>
   );
 }
 

@@ -1,14 +1,17 @@
 // The Working screen's pieces. WorkHeader: which assignment, what Loomer last
-// read, and the Help | Sources switch. SourcesBody: the draft, saved pages and
+// read, a stat strip (words, sources, checklist marks), and the Help | Sources
+// switch. SourcesBody: the draft, saved pages and
 // screenshots, what happened this session, and Pause / End. HintCard,
 // SuggestionRow and LinkDocStep render inside Help. Every change goes through
 // PanelApi messages.
 import { useEffect, useState, type FormEvent } from 'react';
 import { DOCS_ORIGINS } from '../core/messages';
+import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { observedAt, timeOf } from './format';
 import { Icon } from './Icon';
+import { Mark } from './parts';
 import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
 export type ActiveSession = Extract<SessionModel, { status: 'active' | 'paused' }>;
@@ -37,11 +40,24 @@ export function sessionClock(session: ActiveSession, now: Date): { text: string;
   return { text: minutes < 1 ? 'Just started' : `${minutes} min`, paused: false };
 }
 
-export function WorkHeader({ session, now, tab, onTab, hintWaiting }: { session: ActiveSession; now: Date; tab: WorkTab; onTab: (t: WorkTab) => void; hintWaiting: boolean }) {
+type WorkHeaderProps = {
+  session: ActiveSession;
+  now: Date;
+  tab: WorkTab;
+  onTab: (t: WorkTab) => void;
+  hintWaiting: boolean;
+  /** The assignment's detail model, for the checklist marks. */
+  detail: AssignmentDetailModel | undefined;
+  /** Opens the assignment's detail (the full checklist). */
+  onChecklist: () => void;
+};
+
+export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist }: WorkHeaderProps) {
   return (
     <>
       <h1 className="w-title">{session.assignment.title}</h1>
       <p className="w-meta">{session.status === 'paused' ? 'Paused. Loomer isn’t reading your draft or saving pages.' : draftLine(session.doc, now)}</p>
+      <StatStrip session={session} detail={detail} onSources={() => onTab('sources')} onChecklist={onChecklist} />
       <div className="seg" role="tablist" aria-label="Working">
         <button type="button" role="tab" aria-selected={tab === 'help'} onClick={() => onTab('help')}>
           Help
@@ -52,6 +68,48 @@ export function WorkHeader({ session, now, tab, onTab, hintWaiting }: { session:
         </button>
       </div>
     </>
+  );
+}
+
+/**
+ * Three facts at a glance: your words in the draft, saved sources, and the
+ * checklist marks from the last draft check. Each one opens where it lives.
+ */
+function StatStrip({ session, detail, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; onSources: () => void; onChecklist: () => void }) {
+  const words = session.doc.status === 'linked' ? session.doc.studentWords : null;
+  const check = detail?.status === 'ok' && detail.check ? detail.requirements : null;
+  const count = (state: RequirementItem['state']) => check?.filter((r) => r.state === state).length ?? 0;
+  return (
+    <div className="stats">
+      <button type="button" className="stat" onClick={onSources}>
+        <Icon name="doc" />
+        <b>{words ?? '—'}</b>
+        <span>{words === null ? 'no draft read yet' : 'your words'}</span>
+      </button>
+      <button type="button" className="stat" onClick={onSources}>
+        <Icon name="layers" />
+        <b>{session.sources.length}</b>
+        <span>{session.sources.length === 1 ? 'source' : 'sources'}</span>
+      </button>
+      <button type="button" className="stat wide" onClick={onChecklist}>
+        <Icon name="listChecks" />
+        {check ? (
+          <span className="marks">
+            {(['observed', 'needs-review', 'unknown'] as const).map((state) =>
+              count(state) > 0 ? (
+                <span key={state} className="mark-n">
+                  <Mark state={state} />
+                  {count(state)}
+                </span>
+              ) : null,
+            )}
+          </span>
+        ) : (
+          <b className="soft">Not checked</b>
+        )}
+        <span>checklist</span>
+      </button>
+    </div>
   );
 }
 
@@ -105,7 +163,9 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
   return (
     <section className={leaving ? 'hint leaving' : 'hint'} aria-label="Hint" aria-hidden={leaving || undefined}>
       <div className="hint-k">
-        <Icon name="sparkle" />
+        <span className="hint-ic">
+          <Icon name="sparkle" />
+        </span>
         Hint
         <span className="grow" />
         <button type="button" className="link muted" onClick={onMoreHelp}>
@@ -116,7 +176,11 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
         </button>
       </div>
       <p className="hint-text">{hint.text}</p>
-      {hint.reference && <Reference quote={hint.reference.quote} from={hint.reference.from} />}
+      {hint.reference && (
+        <p className="reference">
+          <mark>“{hint.reference.quote}”</mark> <span className="from">{hint.reference.from}</span>
+        </p>
+      )}
     </section>
   );
 }

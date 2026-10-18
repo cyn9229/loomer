@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { CheckInfo, Evidence, WorkItem } from '../model/home';
 import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf } from './format';
 import { Icon, type IconName } from './Icon';
+import { subjectIcon } from './subject';
 
 type Tone = 'accent' | 'green' | 'red' | 'amber' | 'replay' | 'gray';
 
@@ -32,18 +33,27 @@ function itemFlags(item: WorkItem): string[] {
   return flags;
 }
 
+/** The class's subject icon in a soft square. */
+export function SubjectTile({ courseName, size }: { courseName: string | null; size?: 'lg' }) {
+  return (
+    <span className={size ? `subject ${size}` : 'subject'} aria-hidden="true">
+      <Icon name={subjectIcon(courseName)} />
+    </span>
+  );
+}
+
 /**
- * One agenda row: a time column, then the title with the class under it.
- * `when` picks the left column: the due time (inside a day group) or the date
- * (in Later, No due date, and Past due).
+ * One agenda row: the class's subject icon, the title with the class under
+ * it, and when it is due on the right. `when` picks the right side: the due
+ * time (inside a day group) or the date (in Later, No due date, Past due).
  */
 export function WorkRow({ item, now, when, onOpen }: { item: WorkItem; now: Date; when: 'time' | 'date'; onOpen: (id: string) => void }) {
   const flags = itemFlags(item);
   const soon = item.due ? isSoon(item.due.at, now) : false;
-  const left = !item.due ? '' : when === 'time' ? timeOf(item.due.at) : monthDay(item.due.at);
+  const right = !item.due ? '' : when === 'time' ? timeOf(item.due.at) : monthDay(item.due.at);
   return (
     <button type="button" className="item" onClick={() => onOpen(item.assignmentId)}>
-      <span className={soon ? 'item-t soon' : 'item-t'}>{left}</span>
+      <SubjectTile courseName={item.courseName} />
       <span className="item-body">
         <span className="item-title">{item.title}</span>
         <span className="item-sub">
@@ -51,7 +61,29 @@ export function WorkRow({ item, now, when, onOpen }: { item: WorkItem; now: Date
           {flags.length > 0 && <span className="flag"> · {flags.join(' · ')}</span>}
         </span>
       </span>
+      <span className={soon ? 'item-t soon' : 'item-t'}>{right}</span>
     </button>
+  );
+}
+
+/** One of the three requirement marks: found, take a look, can't tell. */
+export function Mark({ state }: { state: 'observed' | 'needs-review' | 'unknown' }) {
+  return (
+    <span className={`mark ${state}`}>
+      {state === 'observed' ? <Icon name="check" label="Found in your draft" /> : state === 'needs-review' ? <span aria-label="Take a look">!</span> : <span aria-label="Can’t tell yet">?</span>}
+    </span>
+  );
+}
+
+/** Size as a three-step meter: Short 1, Moderate 2, Substantial 3, Unknown 0. */
+export function SizeMeter({ label }: { label: WorkItem['effort']['label'] }) {
+  const filled = { Short: 1, Moderate: 2, Substantial: 3, Unknown: 0 }[label];
+  return (
+    <span className="meter" aria-hidden="true">
+      {[1, 2, 3].map((n) => (
+        <i key={n} className={n <= filled ? 'on' : undefined} />
+      ))}
+    </span>
   );
 }
 

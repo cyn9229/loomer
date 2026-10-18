@@ -45,9 +45,10 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
   const [startingId, setStartingId] = useState<string | null>(null);
   const [hidingId, setHidingId] = useState<string | null>(null);
   const start = useAction();
-  const detail = useDetail(openId);
 
   const active: ActiveSession | null = session && session.status !== 'none' ? session : null;
+  // One detail model at a time: the open assignment, or the session's own (for the stat strip).
+  const detail = useDetail(openId ?? (view === 'work' ? (active?.assignment.assignmentId ?? null) : null));
   const hint = active?.hint ?? null;
   // Keep a vanished hint briefly so it fades out instead of disappearing.
   const shownHint = useLingering(hint, 200);
@@ -153,7 +154,15 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
     );
     body = (
       <>
-        <WorkHeader session={active} now={now} tab={workTab} onTab={setWorkTab} hintWaiting={hint !== null} />
+        <WorkHeader
+          session={active}
+          now={now}
+          tab={workTab}
+          onTab={setWorkTab}
+          hintWaiting={hint !== null}
+          detail={detail}
+          onChecklist={() => setOpenId(active.assignment.assignmentId)}
+        />
         {workTab === 'help' ? (
           <ChatView
             session={active}
