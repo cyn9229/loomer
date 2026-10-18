@@ -36,6 +36,8 @@ export type HomeActions = {
   send: PanelApi['send'];
   /** Opens Ask Loomer on a thread: "general" or an assignment id. */
   openAsk: (threadKey: string) => void;
+  /** Asks Chrome for site access; call first in a click handler, before any await. */
+  requestOrigins: PanelApi['requestOrigins'];
   /** Pause, resume or end the running session (one tap; errors show at the top). */
   sessionVerb: (verb: SessionVerb) => void;
   sessionBusy: boolean;

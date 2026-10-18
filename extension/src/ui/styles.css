@@ -3757,3 +3757,22 @@ details > summary .icon {
 .end .nudge {
   margin-bottom: 12px;
 }
+/* The teacher's sheet in the instructions: allow Google Docs, or why it couldn't be read. */
+.d-note.sheet {
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding-bottom: 6px;
+}
+.d-note.sheet .grow {
+  color: var(--text);
+}
+.d-note.sheet.warn .grow {
+  color: var(--amber);
+}
+.d-note.sheet .link {
+  flex: none;
+  font-size: 13px;
+}
+.d-note.sheet .status-line {
+  flex-basis: 100%;
+}

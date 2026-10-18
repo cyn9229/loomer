@@ -101,6 +101,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     },
     continueSession: goWork,
     sessionVerb: (verb) => start.run(() => api.send(verbMessage(verb))),
+    requestOrigins: api.requestOrigins,
     sessionBusy: start.busy,
     openAsk: (threadKey) => {
       // Refresh the service status so a down service is said before the student types.

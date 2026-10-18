@@ -593,7 +593,13 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     },
     correction: item.correction,
     note: null,
-    sheet: null,
+    // The practice sheet's instructions embed a Doc Loomer may not read yet; the reading's embedded Doc was read.
+    sheet:
+      item.assignmentId === 'a-sheet'
+        ? { url: 'https://docs.google.com/document/d/3cSheet/edit', state: 'needs-permission' }
+        : item.assignmentId === 'a-lectura'
+          ? { url: 'https://docs.google.com/document/d/4dLectura/edit', state: 'ok' }
+          : null,
   };
 }
 
