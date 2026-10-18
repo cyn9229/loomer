@@ -88,6 +88,16 @@ export type DiscoverySuggestion = {
   matched: string[];
 } | null;
 
+/**
+ * Topics on the linked sheet of practice or study work, for the student to tick
+ * off (topic:toggle). `reading`: Loomer is reading the sheet. Each quote is from
+ * the sheet. Ticks are the student's own; Loomer never marks a topic done.
+ */
+export type SheetTopics = {
+  status: 'reading' | 'ok' | 'failed';
+  items: { text: string; quote: string; done: boolean }[];
+} | null;
+
 export type SessionModel =
   | { status: 'none' }
   | {
@@ -102,6 +112,8 @@ export type SessionModel =
        * Never stop the session automatically.
        */
       plannedUntil: string | null;
+      /** Null unless the work is practice or study with a linked sheet that Loomer has started reading. */
+      topics: SheetTopics;
       doc: DocState;
       sources: SourceItem[];
       activity: ActivityItem[];

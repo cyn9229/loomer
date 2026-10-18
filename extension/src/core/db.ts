@@ -145,7 +145,15 @@ export type StudentContext = {
   guessMinutes?: number;
   /** The student's own work type. Beats the AI's and the rules'. */
   workType?: WorkType;
+  /** Sheet topics the student ticked off, by normalized topic text. Loomer never ticks them. */
+  topicsDone?: string[];
 };
+
+/** Topics read from the linked sheet of practice or study work, each with its quote from the sheet. */
+export type SheetTopicsRecord =
+  | { assignmentId: string; status: 'pending'; docHash: string; createdAt: string }
+  | { assignmentId: string; status: 'ok'; docHash: string; createdAt: string; topics: { text: string; quote: string }[] }
+  | { assignmentId: string; status: 'failed'; docHash: string; createdAt: string; error: string };
 
 export type StudentWorkload = Exclude<EffortLabel, 'Unknown'>;
 
@@ -340,6 +348,7 @@ export class LoomerDb extends Dexie {
   chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
   dayRoom!: EntityTable<DayRoomRecord, 'key'>;
   planChanges!: EntityTable<PlanChangeRecord, 'id'>;
+  sheetTopics!: EntityTable<SheetTopicsRecord, 'assignmentId'>;
 
   constructor(name = 'loomer') {
     super(name);
@@ -367,6 +376,7 @@ export class LoomerDb extends Dexie {
     this.version(5).stores({ requirementChecks: 'assignmentId' });
     this.version(6).stores({ chatTurns: '++id, threadKey' });
     this.version(7).stores({ dayRoom: 'key', planChanges: 'id, status' });
+    this.version(8).stores({ sheetTopics: 'assignmentId' });
   }
 }
 

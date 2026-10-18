@@ -199,3 +199,28 @@ export const requirementsCheckResponseSchema = z.strictObject({
 
 export type RequirementsCheckRequest = z.infer<typeof requirementsCheckRequestSchema>;
 export type RequirementsCheckResponse = z.infer<typeof requirementsCheckResponseSchema>;
+
+export const TOPICS_ROUTE = '/ai/topics';
+
+/** The topics a practice or study sheet covers. Needs the work-help AI check: the sheet may hold the student's answers. */
+export const topicsRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  workType: z.enum(WORK_TYPES),
+  sheet: z.string().max(15_000),
+});
+
+export const topicsResponseSchema = z.strictObject({
+  topics: z
+    .array(
+      z.strictObject({
+        /** 1 to 5 words naming the topic, e.g. "Ellipses: foci". */
+        text: z.string(),
+        /** Exact passage from the sheet that shows the topic: a heading or the start of a problem. */
+        quote: z.string(),
+      }),
+    )
+    .max(12),
+});
+
+export type TopicsRequest = z.infer<typeof topicsRequestSchema>;
+export type TopicsResponse = z.infer<typeof topicsResponseSchema>;

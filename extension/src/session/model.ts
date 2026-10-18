@@ -6,6 +6,7 @@ import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
 import type { ActivityItem, DocState, HelpAvailability, SessionModel, SourceItem } from '../model/session';
 import { currentSession } from './session';
+import { loadSheetTopics } from './topics';
 import { workHelpDecision, type HelpDecision } from './help';
 
 /** A student message without a reply for this long is no longer shown as pending. */
@@ -38,6 +39,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     assignment: workItemFor(a, { course, analysis, context: contextMap }, now),
     startedAt: session.startedAt,
     plannedUntil: session.plannedUntil ?? null,
+    topics: await loadSheetTopics(db, a.id),
     doc: docState(link, read, a.detail?.links ?? [], a.detail?.text ?? ''),
     sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     activity: activity(events),

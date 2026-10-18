@@ -17,6 +17,7 @@ Only when the student turns AI help on, and only through the local AI service (`
 | Requirement analysis | Assignment title, course name, due date, instruction text, rubric | For open work due within 14 days, unless the assignment's AI policy is blocked or unresolved |
 | Help and review | The above plus the student's own text from the linked Doc (instruction lines removed) and recent chat | Only when the student asks, and only if the policy allows help |
 | Proactive hint | The above plus newly added lines | Only after the pause rules allow it, and only if the policy allows help |
+| Sheet topics | The assignment title and the text of the linked sheet (which may include the student's answers) | Once per sheet during a practice or study session, only if the policy allows help; never for a quiz |
 | Requirement check | Instructions, the requirement list, and the student's own text | Only when the student asks, and only if the policy allows help |
 | Ask Loomer | The conversation, and what the read-only tools return: titles, classes, dates, workload, and plan notes for open work; the room and time numbers the student gave (day levels, their own guesses, minutes left in a session, never the reason for a busy day); instructions and rubric of one assignment when its policy allows analysis; saved page titles and links | Only when the student sends a message. For an assignment thread, only if the policy allows help. A blocked assignment's content is never returned to the model, only that AI help is off |
 

@@ -21,6 +21,7 @@ import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
+import { setTopicDone, topicsStep } from '../src/session/topics';
 import { currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
@@ -49,7 +50,7 @@ function runSessionLoop() {
       console.error('loomer: session tick failed', error);
       return true;
     });
-    if (more) await runProactive(now);
+    if (more) await Promise.all([runProactive(now), runTopics(now)]);
     await runDiscovery();
     sessionLoop = more ? setTimeout(step, SESSION_LOOP_MS) : null;
     if (!more) await browser.alarms.clear(SESSION_ALARM);
@@ -63,6 +64,21 @@ async function linkedTypingAt(): Promise<number | null> {
   const s = await currentSession(db);
   const link = s ? await db.docLinks.get(s.assignmentId) : undefined;
   return typingAtFor(link?.docId);
+}
+
+let topicsRunning = false;
+
+/** Reads the linked sheet's topics for practice or study work; one read in flight. */
+async function runTopics(now: Date) {
+  if (topicsRunning) return;
+  topicsRunning = true;
+  try {
+    await topicsStep({ db, ai: () => aiSettingsItem.getValue() }, now);
+  } catch (error) {
+    console.error('loomer: topics step failed', error);
+  } finally {
+    topicsRunning = false;
+  }
 }
 
 let hintRunning = false;
@@ -450,6 +466,9 @@ async function handle(message: Message): Promise<Reply> {
       if (r.ok) await updatePlan();
       return r.ok ? { ok: true } : { ok: false, error: r.error };
     }
+    case 'topic:toggle':
+      await setTopicDone(db, message.assignmentId, message.topic, message.done);
+      return { ok: true };
     case 'item:hide':
       await db.studentContext.put({ ...(await db.studentContext.get(message.assignmentId)), key: message.assignmentId, hidden: message.hidden });
       await updatePlan();

@@ -98,6 +98,8 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('plan:set'), changes: z.array(planChangeItemSchema).min(1).max(10) }),
   /** Settings: minutes a "some" or "little" day gives work with a time guess. */
   z.object({ type: z.literal('room:minutes'), some: z.number().int().min(0).max(1_440), little: z.number().int().min(0).max(1_440) }),
+  /** The student ticks a topic on their sheet, or unticks it. Loomer never ticks topics. */
+  z.object({ type: z.literal('topic:toggle'), assignmentId: z.string(), topic: z.string().min(1).max(60), done: z.boolean() }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);
