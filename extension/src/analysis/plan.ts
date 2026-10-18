@@ -102,7 +102,8 @@ export function keepPreviousTop(ranked: Planned[], previousTopId: string | null)
 }
 
 const weekday = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });
-const effortWords: Record<EffortLabel, string> = { Substantial: 'big assignment', Moderate: 'medium assignment', Short: 'quick task', Unknown: 'size not known yet' };
+/** Matches the panel's "Workload: Light / Medium / Heavy" labels. */
+const effortWords: Record<EffortLabel, string> = { Substantial: 'heavy workload', Moderate: 'medium workload', Short: 'light workload', Unknown: 'workload not known yet' };
 
 /** "Start today", "Start tomorrow", or "Start by Wed". */
 export function startPhrase(p: Planned): string {

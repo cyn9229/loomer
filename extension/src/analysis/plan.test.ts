@@ -74,7 +74,7 @@ describe('reasons, crowded week, brief', () => {
 
   it('gives every ranked item a plain reason, and says why the second is second', () => {
     const reasons = rankReasons(ranked);
-    expect(reasons.get('Quiz')).toMatch(/^Start today: quick task, due /);
+    expect(reasons.get('Quiz')).toMatch(/^Start today: light workload, due /);
     expect(reasons.get('Essay')).toMatch(/Second because Quiz needs a start today\.$/);
   });
 
