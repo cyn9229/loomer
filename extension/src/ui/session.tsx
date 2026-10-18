@@ -137,9 +137,9 @@ type WorkHeaderProps = {
 };
 
 /**
- * The topics on a linked practice or study sheet. The student ticks them
- * (topic:toggle); Loomer never marks one done. Each topic's quote from the
- * sheet is its tooltip.
+ * The topics on a practice or study sheet. Interim until the redesign: each row
+ * starts a quick check (topic:help) and shows the standing from past checks.
+ * Each topic's quote from the sheet is its tooltip.
  */
 function TopicsList({ topics, item, send }: { topics: NonNullable<ActiveSession['topics']>; item: ActiveSession['assignment']; send: PanelApi['send'] }) {
   const toggle = useAction();
@@ -147,29 +147,26 @@ function TopicsList({ topics, item, send }: { topics: NonNullable<ActiveSession[
   const groups = [...new Set(topics.items.map((t) => t.sheet))];
   const grouped = groups.length > 1;
   const title = grouped ? 'Topics' : item.workType.type === 'study' ? 'What’s on the test' : 'Topics on the sheet';
-  const done = topics.items.filter((t) => t.done).length;
+  const shaky = topics.items.filter((t) => t.standing === 'shaky').length;
   const row = (t: NonNullable<ActiveSession['topics']>['items'][number]) => (
-    <label className={t.done ? 'topic done' : 'topic'} key={`${t.sheet}:${t.text}`} title={`“${t.quote}”`}>
-      <input
-        type="checkbox"
-        checked={t.done}
-        disabled={toggle.busy}
-        onChange={(e) => toggle.run(() => send({ type: 'topic:toggle', assignmentId: item.assignmentId, topic: t.text, done: e.target.checked }))}
-      />
-      <span className="cbx" aria-hidden="true">
-        {t.done && <Icon name="check" />}
-      </span>
+    <button
+      type="button"
+      className={t.standing === 'solid' ? 'topic done' : 'topic'}
+      key={`${t.sheet}:${t.text}`}
+      title={`“${t.quote}”`}
+      disabled={toggle.busy}
+      onClick={() => toggle.run(() => send({ type: 'topic:help', assignmentId: item.assignmentId, topic: t.text, mode: 'check' }))}
+    >
       <span className="grow">{t.text}</span>
-    </label>
+      <span>{t.lastCheck ? `${t.lastCheck.correct} of ${t.lastCheck.total}` : 'Check'}</span>
+    </button>
   );
   return (
     <section className="topics" aria-label={title}>
       <div className="topics-k">
         <b>{title}</b>
         {topics.status === 'ok' && topics.items.length > 0 && (
-          <span>
-            {done} of {topics.items.length} ticked
-          </span>
+          <span>{shaky > 0 ? `${shaky} shaky` : `${topics.items.length} topics`}</span>
         )}
       </div>
       {topics.status === 'reading' && <p className="topics-note">Loomer is reading the sheet…</p>}

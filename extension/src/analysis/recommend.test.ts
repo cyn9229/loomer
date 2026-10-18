@@ -75,10 +75,25 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   room: [],
   planChanges: [],
   levelMinutes: DEFAULT_LEVEL_MINUTES,
+  sheetTopics: [],
+  topicChecks: [],
   ...over,
 });
 
 describe('buildHomeModel', () => {
+  it('turns the next step of practice work into the topic to review, from the student\'s own checks', () => {
+    const sheet = { ...assignment('review', 2), title: 'Unit 2 review worksheet' };
+    const m = buildHomeModel(
+      input({
+        assignments: [sheet],
+        analyses: [analysis(sheet, 'Short')],
+        sheetTopics: [{ assignmentId: 'review', status: 'ok', docHash: 'd', createdAt: '', topics: [{ text: 'Hyperbolas', quote: 'Part C', sheetId: 's' }] }],
+        topicChecks: [0, 1, 2].map((q) => ({ id: q, assignmentId: 'review', topic: 'hyperbolas', quizId: 'z', question: q, correct: q === 0, at: now.toISOString() })),
+      }),
+    );
+    expect(m.status === 'ready' && [m.next.action, m.next.topic]).toEqual(['Review Hyperbolas', { topic: 'Hyperbolas', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' }]);
+  });
+
   it('lets a genuinely urgent short task beat a larger assignment due later', () => {
     const short = assignment('short', 1);
     const essay = assignment('essay', 5);

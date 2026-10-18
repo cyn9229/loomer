@@ -3,6 +3,7 @@
 // file; UI code imports types from here and treats them as read-only.
 import type { RunOutcome } from '../core/db';
 import type { PlanChangeView } from './plan';
+import type { TopicNext } from './session';
 
 export type EffortLabel = 'Short' | 'Moderate' | 'Substantial' | 'Unknown';
 
@@ -132,6 +133,12 @@ export type NextAction = {
   loomerPick: { item: WorkItem; reason: string } | null;
   /** One line when the top of the plan moved since the last check, and why. Null when nothing moved. */
   change: string | null;
+  /**
+   * For practice or study work with a sheet: the topic to do next and why. When
+   * set, `action` is "Review <topic>" (explain) or "Check <topic>" (quick
+   * check); the primary button can send topic:help with this mode.
+   */
+  topic: TopicNext;
 };
 
 /** Two or more bigger assignments need a start within two days of each other. */

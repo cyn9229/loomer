@@ -46,7 +46,7 @@ beforeEach(async () => {
   });
 });
 
-const propose = (changes: object[]) => runTool(db, settings, 'propose_plan_change', JSON.stringify({ changes }), now, 'general');
+const propose = (changes: object[]) => runTool(db, settings, 'propose_plan_change', JSON.stringify({ changes }), now, { threadKey: 'general', topic: null });
 const busy = (date: string) => ({ kind: 'room', date, weekday: null, repeat: false, level: 'busy', minutes: 0 });
 
 describe('propose_plan_change', () => {

@@ -104,8 +104,12 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('nudge:dismiss'), assignmentId: z.string() }),
   /** Settings: nudges on or off. */
   z.object({ type: z.literal('nudge:set'), enabled: z.boolean() }),
-  /** The student ticks a topic on their sheet, or unticks it. Loomer never ticks topics. */
-  z.object({ type: z.literal('topic:toggle'), assignmentId: z.string(), topic: z.string().min(1).max(60), done: z.boolean() }),
+  /** Skip a sheet topic (for example the teacher dropped it), or bring it back. */
+  z.object({ type: z.literal('topic:skip'), assignmentId: z.string(), topic: z.string().min(1).max(60), skipped: z.boolean() }),
+  /** One tap on a sheet topic: ask in that assignment's Ask Loomer thread. The reply streams there. */
+  z.object({ type: z.literal('topic:help'), assignmentId: z.string(), topic: z.string().min(1).max(60), mode: z.enum(['explain', 'example', 'check']) }),
+  /** A quick-check answer was checked in the panel: right or wrong only. Sets the topic's standing. */
+  z.object({ type: z.literal('quiz:answer'), quizId: z.string().max(100), questionIndex: z.number().int().min(0).max(10), correct: z.boolean() }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);

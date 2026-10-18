@@ -92,15 +92,36 @@ export type DiscoverySuggestion = {
 } | null;
 
 /**
- * Topics on the linked sheet of practice or study work, for the student to tick
- * off (topic:toggle). `reading`: Loomer is reading the sheet. Each quote is from
- * the sheet. Ticks are the student's own; Loomer never marks a topic done.
+ * Topics on the sheet of practice or study work. `reading`: Loomer is reading
+ * the sheet. Each quote is from the sheet. Topics are shortcuts to help and a
+ * picture of where the student stands; there is nothing to tick.
  */
 export type SheetTopics = {
   status: 'reading' | 'ok' | 'failed';
-  /** In sheet order. `sheet` is the sheet's name (null if unknown); group by it when there is more than one sheet. */
-  items: { text: string; quote: string; done: boolean; sheet: string | null }[];
+  /** In sheet order. Group by `sheet` when there is more than one sheet. */
+  items: TopicItem[];
+  /** What to do next, for the "Next:" line. Null when every topic is solid or skipped. */
+  next: TopicNext;
 } | null;
+
+/**
+ * One topic on the sheet. Tap opens Explain / Example / Quick check
+ * (topic:help). `standing` comes from the student's own quick checks, never
+ * from ticking: shaky is under 80% right on the latest check.
+ */
+export type TopicItem = {
+  text: string;
+  quote: string;
+  /** The sheet's name, null if unknown. */
+  sheet: string | null;
+  standing: 'unchecked' | 'shaky' | 'solid';
+  lastCheck: { correct: number; total: number; at: string } | null;
+  /** The student skipped it (topic:skip), for example because the teacher dropped it. */
+  skipped: boolean;
+};
+
+/** `mode`: the best first action (explain for a shaky topic, check for an unchecked one). */
+export type TopicNext = { topic: string; reason: string; mode: 'explain' | 'check' } | null;
 
 /**
  * A teacher's sheet embedded in the instructions. Loomer reads it on its own

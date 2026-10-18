@@ -97,7 +97,8 @@ async function contextFor(db: LoomerDb, threadKey: ThreadKey): Promise<ChatReque
 }
 
 /** Sends one student message and streams Loomer's reply into the store. */
-export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: string): Promise<void> {
+/** `topic`: the sheet topic the student tapped for help; a quick check in this reply is tagged with it. */
+export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: string, { topic = null }: { topic?: string | null } = {}): Promise<void> {
   const { db } = deps;
   const now = deps.now ?? (() => new Date());
   if (running.has(threadKey)) return;
@@ -148,7 +149,7 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
         const status: ChatBlock = { kind: 'tool', label: 'Working…', status: 'running' };
         blocks.push(status);
         await flush(true);
-        const result = await runTool(db, await deps.settings(), call.name, call.arguments, now(), threadKey);
+        const result = await runTool(db, await deps.settings(), call.name, call.arguments, now(), { threadKey, topic });
         Object.assign(status, { label: result.label, status: 'done' });
         if (result.block) blocks.push(result.block);
         messages.push({ role: 'tool', tool_call_id: call.id, content: result.forModel.slice(0, 20_000) });

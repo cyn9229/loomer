@@ -59,6 +59,8 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   room: [],
   planChanges: [],
   levelMinutes: DEFAULT_LEVEL_MINUTES,
+  sheetTopics: [],
+  topicChecks: [],
   ...over,
 });
 const ctx = (key: string, c: Omit<StudentContext, 'key'>): StudentContext => ({ key, ...c });

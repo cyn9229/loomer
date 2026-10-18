@@ -2,12 +2,14 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LoomerDb, type Assignment } from '../core/db';
 import { startSession } from './session';
-import { embeddedTopicsStep, loadSheetTopics, setTopicDone, topicsStep } from './topics';
+import { embeddedTopicsStep, loadSheetTopics, recordTopicAnswer, setTopicSkipped, topicsStep } from './topics';
+import { runTool } from '../chat/tools';
 
 const t0 = new Date('2026-10-18T12:00:00Z');
 const DOC = 'y'.repeat(30);
 const sheet = 'Part A: Parabolas\n1. Find the vertex of y = x^2 - 4x.\nPart B: Ellipses\n5. Find the foci of x^2/9 + y^2/4 = 1.';
 const ai = async () => ({ enabled: true, brokerOrigin: 'http://127.0.0.1:8787' });
+const settings = { connected: true, ai: { enabled: true, brokerOrigin: 'http://127.0.0.1:8787' }, choice: null, snapshot: null, levelMinutes: { some: 120, little: 30 } };
 
 const worksheet = (over: Partial<Assignment> = {}): Assignment => ({
   id: 'k#assignment:2',
@@ -47,7 +49,7 @@ beforeEach(async () => {
 });
 
 describe('sheet topics', () => {
-  it('keeps only topics quoted from the sheet, once, and lets the student tick them', async () => {
+  it('keeps only topics quoted from the sheet, once, and sets standing from quick checks, not ticks', async () => {
     await db.assignments.put(worksheet());
     await startSession(db, 'k#assignment:2', t0);
     const fetch = broker([
@@ -56,13 +58,27 @@ describe('sheet topics', () => {
       { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', sheet: 0 },
     ]);
     await topicsStep({ db, ai, fetch }, t0);
-    await setTopicDone(db, 'k#assignment:2', 'Parabolas', true);
+    // A quick check on Parabolas, tagged by the one-tap request; 1 of 3 right.
+    const quiz = await runTool(
+      db,
+      settings,
+      'quiz_me',
+      JSON.stringify({ concept: 'Parabolas', questions: [0, 1, 2].map((i) => ({ prompt: `q${i}`, choices: ['a', 'b'], answer_index: 0, explanation: 'e' })) }),
+      t0,
+      { threadKey: 'k#assignment:2', topic: 'Parabolas' },
+    );
+    const block = quiz.block?.kind === 'quiz' ? quiz.block : null;
+    expect(block?.quiz.topic).toBe('Parabolas');
+    await db.chatTurns.add({ threadKey: 'k#assignment:2', role: 'loomer', blocks: [block!], status: 'done', createdAt: t0.toISOString() });
+    for (const [i, right] of [true, false, false].entries()) expect(await recordTopicAnswer(db, block!.quiz.id, i, right, t0)).toBe(true);
+    await setTopicSkipped(db, 'k#assignment:2', 'Ellipses', true);
     expect(await loadSheetTopics(db, 'k#assignment:2')).toEqual({
       status: 'ok',
       items: [
-        { text: 'Parabolas', quote: 'Part A: Parabolas', done: true, sheet: null },
-        { text: 'Ellipses', quote: 'Part B: Ellipses', done: false, sheet: null },
+        { text: 'Parabolas', quote: 'Part A: Parabolas', sheet: null, standing: 'shaky', lastCheck: { correct: 1, total: 3, at: t0.toISOString() }, skipped: false },
+        { text: 'Ellipses', quote: 'Part B: Ellipses', sheet: null, standing: 'unchecked', lastCheck: null, skipped: true },
       ],
+      next: { topic: 'Parabolas', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' },
     });
     // Read once: the next step does not ask again.
     await topicsStep({ db, ai, fetch }, new Date(t0.getTime() + 60_000));
@@ -112,9 +128,10 @@ describe('embedded teacher sheet', () => {
     expect(await loadSheetTopics(db, embedded.id)).toEqual({
       status: 'ok',
       items: [
-        { text: 'Ellipses', quote: 'Part B: Ellipses', done: false, sheet: 'Unit 2 Review' },
-        { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', done: false, sheet: 'Extra practice' },
+        { text: 'Ellipses', quote: 'Part B: Ellipses', sheet: 'Unit 2 Review', standing: 'unchecked', lastCheck: null, skipped: false },
+        { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', sheet: 'Extra practice', standing: 'unchecked', lastCheck: null, skipped: false },
       ],
+      next: { topic: 'Ellipses', reason: 'Not checked yet.', mode: 'check' },
     });
     expect(calls).toHaveLength(1);
   });

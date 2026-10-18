@@ -179,13 +179,14 @@ export function buildSessionFixtures(now: Date) {
       topics: {
         status: 'ok',
         items: [
-          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', done: true, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Complete the square', quote: 'Rewrite by completing the square.', done: true, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Vertex form', quote: 'Write each function in vertex form.', done: false, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', done: false, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Quadratic formula', quote: 'x = (−b ± √(b² − 4ac)) / 2a', done: false, sheet: 'Formula sheet' },
-          { text: 'Discriminant', quote: 'b² − 4ac tells you how many solutions.', done: false, sheet: 'Formula sheet' },
+          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', sheet: 'Unit 6 Review: Quadratics', standing: 'solid', lastCheck: { correct: 3, total: 3, at: ago(20) }, skipped: false },
+          { text: 'Complete the square', quote: 'Rewrite by completing the square.', sheet: 'Unit 6 Review: Quadratics', standing: 'solid', lastCheck: { correct: 3, total: 3, at: ago(20) }, skipped: false },
+          { text: 'Vertex form', quote: 'Write each function in vertex form.', sheet: 'Unit 6 Review: Quadratics', standing: 'shaky', lastCheck: { correct: 1, total: 3, at: ago(10) }, skipped: false },
+          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
+          { text: 'Quadratic formula', quote: 'x = (−b ± √(b² − 4ac)) / 2a', sheet: 'Formula sheet', standing: 'unchecked', lastCheck: null, skipped: false },
+          { text: 'Discriminant', quote: 'b² − 4ac tells you how many solutions.', sheet: 'Formula sheet', standing: 'unchecked', lastCheck: null, skipped: false },
         ],
+        next: null,
       },
     },
     // One sheet read: a single line, flat topics, and the own-copy line.
@@ -201,11 +202,12 @@ export function buildSessionFixtures(now: Date) {
       topics: {
         status: 'ok',
         items: [
-          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', done: false, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Complete the square', quote: 'Rewrite by completing the square.', done: false, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Vertex form', quote: 'Write each function in vertex form.', done: false, sheet: 'Unit 6 Review: Quadratics' },
-          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', done: false, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
+          { text: 'Complete the square', quote: 'Rewrite by completing the square.', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
+          { text: 'Vertex form', quote: 'Write each function in vertex form.', sheet: 'Unit 6 Review: Quadratics', standing: 'shaky', lastCheck: { correct: 1, total: 3, at: ago(10) }, skipped: false },
+          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
         ],
+        next: null,
       },
     },
     // Three sheets, three states: read, needs Google Docs, and Google refused.
@@ -222,7 +224,7 @@ export function buildSessionFixtures(now: Date) {
         { docId: '3fSetB', url: 'https://docs.google.com/document/d/3fSetB/edit', title: 'Practice set B', state: 'needs-permission', topics: null },
         { docId: '3gKey', url: 'https://docs.google.com/document/d/3gKey/edit', title: 'Answer key (teacher view)', state: 'no-access', topics: null },
       ],
-      topics: { status: 'reading', items: [] },
+      topics: { status: 'reading', items: [], next: null },
     },
     'reading-work': {
       ...base,

@@ -11,7 +11,9 @@ import type { Assignment, LoomerDb, SheetTopicsRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { isQuiz, storedWorkType } from '../analysis/workType';
+import type { ChatBlock } from '../model/chat';
 import type { SheetTopics, TeacherSheet } from '../model/session';
+import { nextTopic, topicItems, topicKey } from '../analysis/topicStanding';
 import { workHelpDecision } from './help';
 import { currentSession } from './session';
 
@@ -23,7 +25,6 @@ const PENDING_STALE_MS = 2 * 60 * 1000;
 const REREAD_MS = 24 * 60 * 60 * 1000;
 
 const normalize = (t: string) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
-export const topicKey = (text: string) => normalize(text);
 
 export type TopicsDeps = { db: LoomerDb; ai: () => Promise<AiSettings>; fetch?: typeof fetch };
 
@@ -135,14 +136,21 @@ export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promi
   if (!a || !((a.detail?.sheets ?? []).some((s) => s.text) || (await db.docLinks.get(assignmentId)))) return null;
   const type = await storedWorkType(db, a);
   if (type !== 'practice' && type !== 'study') return null;
-  const [record, ctx] = await Promise.all([db.sheetTopics.get(assignmentId), db.studentContext.get(assignmentId)]);
-  const done = new Set(ctx?.topicsDone ?? []);
+  const [record, ctx, checks] = await Promise.all([db.sheetTopics.get(assignmentId), db.studentContext.get(assignmentId), db.topicChecks.where('assignmentId').equals(assignmentId).toArray()]);
   // No record yet means no read has started (AI off, help not allowed, or a quiz): show nothing rather than "reading".
   if (!record) return null;
-  if (record.status === 'pending') return { status: 'reading', items: [] };
-  if (record.status === 'failed') return { status: 'failed', items: [] };
-  const titles = new Map((a.detail?.sheets ?? []).map((s) => [s.docId, s.title]));
-  return { status: 'ok', items: record.topics.map((t) => ({ text: t.text, quote: t.quote, done: done.has(topicKey(t.text)), sheet: titles.get(t.sheetId) ?? null })) };
+  if (record.status === 'pending') return { status: 'reading', items: [], next: null };
+  if (record.status === 'failed') return { status: 'failed', items: [], next: null };
+  const items = topicItems(record, checks, new Set(ctx?.topicsSkipped ?? []), new Map((a.detail?.sheets ?? []).map((s) => [s.docId, s.title])));
+  return { status: 'ok', items, next: nextTopic(items) };
+}
+
+/** A topic the reader found on this assignment's sheet, by name. Null if there is none (the name came from outside). */
+export async function findTopic(db: LoomerDb, assignmentId: string, name: string): Promise<{ text: string; quote: string } | null> {
+  const record = await db.sheetTopics.get(assignmentId);
+  if (record?.status !== 'ok') return null;
+  const key = topicKey(name);
+  return record.topics.find((t) => topicKey(t.text) === key) ?? null;
 }
 
 /** The teacher's embedded sheets, named, with how many topics each has. Dexie reads only. */
@@ -161,11 +169,26 @@ export async function loadTeacherSheets(db: LoomerDb, a: Assignment): Promise<Te
   }));
 }
 
-/** The student ticks or unticks a topic. Stored as their own context; never sent anywhere. */
-export async function setTopicDone(db: LoomerDb, assignmentId: string, topic: string, done: boolean) {
+/** The student skips a topic (for example the teacher dropped it), or brings it back. Stored as their own context. */
+export async function setTopicSkipped(db: LoomerDb, assignmentId: string, topic: string, skipped: boolean) {
   const ctx = (await db.studentContext.get(assignmentId)) ?? { key: assignmentId };
-  const set = new Set(ctx.topicsDone ?? []);
-  if (done) set.add(topicKey(topic));
+  const set = new Set(ctx.topicsSkipped ?? []);
+  if (skipped) set.add(topicKey(topic));
   else set.delete(topicKey(topic));
-  await db.studentContext.put({ ...ctx, topicsDone: [...set] });
+  await db.studentContext.put({ ...ctx, topicsSkipped: [...set] });
+}
+
+/**
+ * Stores one quick-check answer for a quiz on a sheet topic: right or wrong
+ * only. The quiz must be one Loomer showed in that assignment's thread.
+ */
+export async function recordTopicAnswer(db: LoomerDb, quizId: string, question: number, correct: boolean, now: Date): Promise<boolean> {
+  const turn = await db.chatTurns.filter((t) => t.blocks.some((b) => b.kind === 'quiz' && b.quiz.id === quizId)).first();
+  const block = turn?.blocks.find((b): b is Extract<ChatBlock, { kind: 'quiz' }> => b.kind === 'quiz' && b.quiz.id === quizId);
+  if (!turn || !block?.quiz.topic || question < 0 || question >= block.quiz.questions.length) return false;
+  await db.transaction('rw', db.topicChecks, async () => {
+    await db.topicChecks.where('quizId').equals(quizId).filter((c) => c.question === question).delete();
+    await db.topicChecks.add({ assignmentId: turn.threadKey, topic: topicKey(block.quiz.topic!), quizId, question, correct, at: now.toISOString() });
+  });
+  return true;
 }

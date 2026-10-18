@@ -59,6 +59,8 @@ const ANSWER: ChatBlock[] = [
 const QUIZ: ChatBlock = {
   kind: 'quiz',
   quiz: {
+    id: 'quiz-1',
+    topic: null,
     concept: 'Urban heat islands',
     questions: [
       {

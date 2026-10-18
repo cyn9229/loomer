@@ -22,7 +22,7 @@ import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
-import { embeddedTopicsStep, setTopicDone, topicsStep } from '../src/session/topics';
+import { embeddedTopicsStep, findTopic, recordTopicAnswer, setTopicSkipped, topicsStep } from '../src/session/topics';
 import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
 import { currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
@@ -232,8 +232,16 @@ async function planSettings(): Promise<PlanSettings> {
   return { connected: Boolean(settings.canvasOrigin), ai, choice, snapshot, levelMinutes };
 }
 
-/** Starts a chat reply in the background; keeps the worker awake while it streams. */
-function startChat(threadKey: string, text: string) {
+/** The student's one-tap request about a sheet topic, in their words. The quote keeps the reply on their sheet. */
+function topicRequest(topic: { text: string; quote: string }, mode: 'explain' | 'example' | 'check'): string {
+  const where = `"${topic.text}" from my sheet (it says: "${topic.quote}")`;
+  if (mode === 'explain') return `Explain ${where}, simply.`;
+  if (mode === 'example') return `Show me a worked example like ${where}, with different numbers. Don't solve my own problem.`;
+  return `Give me a quick check on ${where}: 3 questions.`;
+}
+
+/** Starts a chat reply in the background; keeps the worker awake while it streams. `topic`: a sheet topic the student tapped. */
+function startChat(threadKey: string, text: string, topic: string | null = null) {
   const keepAlive = setInterval(() => void browser.runtime.getPlatformInfo(), 15_000);
   void sendChat(
     {
@@ -243,6 +251,7 @@ function startChat(threadKey: string, text: string) {
     },
     threadKey,
     text,
+    { topic },
   )
     .catch((error: unknown) => console.error('loomer: chat failed', error))
     .finally(() => {
@@ -532,9 +541,19 @@ async function handle(message: Message): Promise<Reply> {
       await nudgesItem.setValue({ enabled: message.enabled });
       if (!message.enabled) await settleNudge((n) => ({ ...n, nudge: null }));
       return { ok: true };
-    case 'topic:toggle':
-      await setTopicDone(db, message.assignmentId, message.topic, message.done);
+    case 'topic:skip':
+      await setTopicSkipped(db, message.assignmentId, message.topic, message.skipped);
       return { ok: true };
+    case 'topic:help': {
+      // Only a topic the reader found on this sheet; the request quotes the sheet so the reply stays on it.
+      const topic = await findTopic(db, message.assignmentId, message.topic);
+      if (!topic) return { ok: false, error: 'That topic is not on this sheet.' };
+      if (isStreaming(message.assignmentId)) return { ok: false, error: 'Loomer is still answering.' };
+      startChat(message.assignmentId, topicRequest(topic, message.mode), topic.text);
+      return { ok: true };
+    }
+    case 'quiz:answer':
+      return (await recordTopicAnswer(db, message.quizId, message.questionIndex, message.correct, new Date())) ? { ok: true } : { ok: false, error: 'Not a quick check on a topic.' };
     case 'item:hide':
       await db.studentContext.put({ ...(await db.studentContext.get(message.assignmentId)), key: message.assignmentId, hidden: message.hidden });
       await updatePlan();

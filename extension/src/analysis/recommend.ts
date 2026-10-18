@@ -1,7 +1,7 @@
 // Builds the HomeModel from stored evidence. The order comes from the planner
 // (plan.ts); AI output only supplies effort labels, checkpoints read from the
 // instructions, and first-step wording.
-import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, ResumePacket, Source, StudentContext } from '../core/db';
+import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
@@ -9,6 +9,7 @@ import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet,
 import type { PlanChangeView } from '../model/plan';
 import { comparePlanned, crowdedWeek, dailyBrief, keepPreviousTop, localDay, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
+import { nextTopic, topicItems } from './topicStanding';
 import { isQuiz, workTypeFor } from './workType';
 import type { PolicyResult } from './policy';
 
@@ -56,6 +57,9 @@ export type RecommendInput = {
   planChanges: PlanChangeRecord[];
   /** Minutes a "some" or "little" day gives guessed work (settings). */
   levelMinutes: LevelMinutes;
+  /** Topics read from sheets, and the student's quick-check answers on them. */
+  sheetTopics: SheetTopicsRecord[];
+  topicChecks: TopicCheckRecord[];
 };
 
 /** Applied changes shown on Home, newest first. */
@@ -79,7 +83,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
   if (!input.connected) return { status: 'not-connected' };
   const roomFor = roomLookup(input.room);
   const ranking = rank(input, roomFor);
-  const core = buildCore(input, ranking);
+  const core = withTopic(input, buildCore(input, ranking));
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
   const today = localDay(input.now);
@@ -96,6 +100,38 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
       .sort((x, y) => (y.appliedAt ?? '').localeCompare(x.appliedAt ?? ''))
       .slice(0, YOUR_CHANGES_SHOWN)
       .map(planChangeView),
+  };
+}
+
+/**
+ * For practice or study work with a sheet, the next step names a topic: review
+ * the shakiest one, else check the first unchecked one. The reason is the
+ * student's own quick-check result.
+ */
+function withTopic(input: RecommendInput, core: CoreModel): CoreModel {
+  if (core.status !== 'ready') return core;
+  const { item } = core.next;
+  if (item.quiz || (item.workType.type !== 'practice' && item.workType.type !== 'study')) return core;
+  const record = input.sheetTopics.find((r) => r.assignmentId === item.assignmentId);
+  if (record?.status !== 'ok') return core;
+  const a = input.assignments.find((x) => x.id === item.assignmentId);
+  const ctx = input.context.find((c) => c.key === item.assignmentId);
+  const items = topicItems(
+    record,
+    input.topicChecks.filter((c) => c.assignmentId === item.assignmentId),
+    new Set(ctx?.topicsSkipped ?? []),
+    new Map((a?.detail?.sheets ?? []).map((s) => [s.docId, s.title])),
+  );
+  const topic = nextTopic(items);
+  if (!topic) return core;
+  const t = items.find((x) => x.text === topic.topic)!;
+  const evidence: Evidence =
+    topic.mode === 'explain'
+      ? { kind: 'student-context', text: topic.reason, sourceLabel: 'Your quick checks' }
+      : { kind: 'ai-interpretation', text: `"${t.text}" is on your sheet.`, quote: t.quote, sourceLabel: t.sheet ?? 'Your sheet' };
+  return {
+    ...core,
+    next: { ...core.next, action: `${topic.mode === 'explain' ? 'Review' : 'Check'} ${topic.topic}`, aiGenerated: true, topic, evidence: [...core.next.evidence, evidence] },
   };
 }
 
@@ -365,8 +401,8 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
   }
 
   return analysis
-    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, ...choice }
-    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, ...choice };
+    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, ...choice }
+    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, ...choice };
 }
 
 function toWorkItem(

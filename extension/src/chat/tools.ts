@@ -8,6 +8,7 @@ import { localDay, minutesWords, WORKLOAD_WORDS } from '../analysis/plan';
 import { buildHomeModel } from '../analysis/recommend';
 import { roomDays, roomKey, roomLookup } from '../analysis/room';
 import { checkAiDispatch } from '../core/gate';
+import { findTopic, loadSheetTopics } from '../session/topics';
 import { instructionText, type LoomerDb, type PlanEdit } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
@@ -77,7 +78,10 @@ async function roomSummary(db: LoomerDb, now: Date) {
   };
 }
 
-export async function runTool(db: LoomerDb, settings: ToolSettings, name: string, rawArgs: string, now: Date, threadKey: string | null = null): Promise<ToolResult> {
+/** Where a tool call happens: the thread, and the sheet topic the student asked about with one tap, if any. */
+export type ToolContext = { threadKey: string | null; topic: string | null };
+
+export async function runTool(db: LoomerDb, settings: ToolSettings, name: string, rawArgs: string, now: Date, { threadKey, topic }: ToolContext = { threadKey: null, topic: null }): Promise<ToolResult> {
   if (!isTool(name)) return { forModel: `Unknown tool ${name}.`, label: 'Unknown tool' };
   let json: unknown;
   try {
@@ -121,6 +125,12 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
           instructions: (a.detail ? instructionText(a.detail) : '(not readable)').slice(0, MAX_INSTRUCTIONS),
           rubric: (a.detail?.rubric ?? []).map((r) => r.description),
           plain_words: analysis?.status === 'ok' ? (analysis.plainWords ?? null) : null,
+          // Where the student stands on each sheet topic, from their own quick checks.
+          topics: ((await loadSheetTopics(db, a.id))?.items ?? []).map((t) => ({
+            topic: t.text,
+            standing: t.skipped ? 'skipped' : t.standing,
+            last_check: t.lastCheck ? `${t.lastCheck.correct} of ${t.lastCheck.total} right` : null,
+          })),
         }),
         label,
       };
@@ -189,11 +199,13 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
       if (!args.success) return { forModel: 'The quiz did not match the schema.', label };
       const questions = args.data.questions.filter((q) => q.answer_index < q.choices.length);
       if (questions.length === 0) return { forModel: 'Every answer index was out of range.', label };
+      // A check on a sheet topic: the one the student tapped, or a topic whose name matches the concept.
+      const sheetTopic = threadKey ? ((topic && (await findTopic(db, threadKey, topic))) || (await findTopic(db, threadKey, args.data.concept))) : null;
       return {
         forModel: "Quiz shown; the student checks answers on their screen and the results are not shared with you.",
         block: {
           kind: 'quiz',
-          quiz: { concept: args.data.concept, questions: questions.map((q) => ({ prompt: q.prompt, choices: q.choices, answerIndex: q.answer_index, explanation: q.explanation })) },
+          quiz: { id: crypto.randomUUID(), topic: sheetTopic?.text ?? null, concept: args.data.concept, questions: questions.map((q) => ({ prompt: q.prompt, choices: q.choices, answerIndex: q.answer_index, explanation: q.explanation })) },
         },
         label,
       };

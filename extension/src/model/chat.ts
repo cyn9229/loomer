@@ -26,8 +26,15 @@ export type Visual =
   /** Small self-contained HTML demo. Render ONLY inside the sandboxed widget page (no extension access, no network). */
   | { type: 'interactive'; title: string; html: string; height: number };
 
-/** Check-your-understanding questions on a concept. Answers are checked in the panel and never stored. */
+/**
+ * Check-your-understanding questions on a concept. Answers are checked in the
+ * panel. When `topic` is set (a quick check on a sheet topic), send
+ * quiz:answer { quizId: id, questionIndex, correct } after each check; only
+ * right or wrong is stored, to set the topic's standing.
+ */
 export type Quiz = {
+  id: string;
+  topic: string | null;
   concept: string;
   questions: { prompt: string; choices: string[]; answerIndex: number; explanation: string }[];
 };

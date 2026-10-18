@@ -114,7 +114,7 @@ export const chatTools = {
   },
   quiz_me: {
     description:
-      "Give 3 to 5 multiple-choice questions that check the student's understanding of a concept. Only when they ask or agree. Never use the assignment's own questions.",
+      "Give 3 to 5 multiple-choice questions that check the student's understanding of a concept. Only when they ask or agree. Never use the assignment's own questions or their numbers.",
     schema: z.strictObject({
       concept: z.string().max(120),
       questions: z

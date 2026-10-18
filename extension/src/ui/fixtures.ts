@@ -244,6 +244,7 @@ export function buildFixtures(now: Date) {
     chosenByStudent: false,
     loomerPick: null,
     change: null,
+    topic: null,
   };
   const weekday = (iso: string | undefined) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }) : '');
   const crowded = {
@@ -355,6 +356,7 @@ export function buildFixtures(now: Date) {
         chosenByStudent: true,
         loomerPick: { item: essay, reason: 'The largest open requirement due this week.' },
         change: null,
+        topic: null,
       },
       rest: [essay, vocab, lab],
       lastCheck,
@@ -380,6 +382,7 @@ export function buildFixtures(now: Date) {
         chosenByStudent: false,
         loomerPick: null,
         change: null,
+        topic: null,
       },
       rest: [{ ...essay, replay: true }],
       lastCheck: { ...lastCheck, replay: true, courses: 1 },
@@ -397,6 +400,7 @@ export function buildFixtures(now: Date) {
         chosenByStudent: false,
         loomerPick: null,
         change: null,
+        topic: null,
       },
       rest: [vocab, reflection],
       lastCheck: { ...lastCheck, outcome: 'auth-expired', at: new Date(now.getTime() - 26 * HOUR).toISOString() },
@@ -441,6 +445,7 @@ export function buildFixtures(now: Date) {
         chosenByStudent: false,
         loomerPick: null,
         change: 'Moved up: the vocab check is due before the essay needs its start.',
+        topic: null,
       },
       rest: [essay, reflection, lab],
       lastCheck,
@@ -464,6 +469,7 @@ export function buildFixtures(now: Date) {
         chosenByStudent: true,
         loomerPick: { item: vocab, reason: `It’s due ${dateTime(vocab.due?.at ?? checkedAt)} and it’s short.` },
         change: null,
+        topic: null,
       },
       rest: [vocab, reflection, lab],
       lastCheck,
@@ -527,6 +533,7 @@ export function buildFixtures(now: Date) {
         chosenByStudent: true,
         loomerPick: { item: vocab, reason: 'It’s due soon and it’s short.' },
         change: null,
+        topic: null,
       },
       rest: Array.from({ length: 55 }, (_, i) =>
         item(now, {

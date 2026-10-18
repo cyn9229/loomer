@@ -4,7 +4,7 @@ Loomer is a hackathon prototype. This file states what it does to protect studen
 
 ## What stays on the device
 
-- Assignment metadata, requirement text, analyses, saved research excerpts and screenshots, draft snapshots of the linked Doc, help chat and Ask Loomer conversations, hints, the plan snapshot, and session history live in the browser profile (IndexedDB and `chrome.storage`).
+- Assignment metadata, requirement text, analyses, saved research excerpts and screenshots, draft snapshots of the linked Doc, help chat and Ask Loomer conversations, hints, the plan snapshot, sheet topics and quick-check results (right or wrong per question, never the text), and session history live in the browser profile (IndexedDB and `chrome.storage`).
 - There is no Loomer account, no Loomer database, and no sync.
 - **Browser profile storage is not encrypted by Loomer.** Anyone who can use the same Chrome profile, or read its files on disk, can read this data. On a shared computer, use Settings > Clear all Loomer data before you leave.
 
