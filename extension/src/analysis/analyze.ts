@@ -9,7 +9,7 @@ import {
   type RequirementsRequest,
   type RequirementsResponse,
 } from '../../../shared/ai-contract';
-import type { Analysis, Assignment, LoomerDb, Quoted } from '../core/db';
+import { instructionText, type Analysis, type Assignment, type LoomerDb, type Quoted } from '../core/db';
 import { mapLimit } from '../core/concurrency';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
@@ -59,7 +59,7 @@ async function analyzeOne(db: LoomerDb, a: Assignment, settings: AiSettings, ai:
     title: a.title.slice(0, 300),
     courseName: a.courseName?.slice(0, 200) ?? null,
     dueAt: a.dueAt,
-    instructions: detail.text.slice(0, 12_000),
+    instructions: instructionText(detail).slice(0, 12_000),
     rubric: detail.rubric.slice(0, 30).map((r) => ({ description: r.description.slice(0, 1_000), points: r.points })),
   };
 

@@ -1,6 +1,6 @@
 // Builds the SessionModel for the work-session screen from stored state.
 import { parseDocId, studentText, wordCount } from '../adapters/docs/reader';
-import type { ChatRecord, DocLink, DocRead, LoomerDb, SessionEvent, Source } from '../core/db';
+import { instructionText, type ChatRecord, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
@@ -40,7 +40,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     startedAt: session.startedAt,
     plannedUntil: session.plannedUntil ?? null,
     topics: await loadSheetTopics(db, a.id),
-    doc: docState(link, read, a.detail?.links ?? [], a.detail?.text ?? ''),
+    doc: docState(link, read, a.detail?.links ?? [], instructionText(a.detail)),
     sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     activity: activity(events),
     help: {

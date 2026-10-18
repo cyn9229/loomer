@@ -69,6 +69,8 @@ const ROUTES_BY_PURPOSE: Partial<Record<Purpose, readonly RegExp[]>> = {
   'school-metadata': CANVAS_METADATA_ROUTES,
   // Only the plain-text export of a granted Doc, never the editor or Drive.
   'work-doc': [/^\/document\/d\/[\w-]+\/export$/],
+  // A teacher's sheet embedded in the instructions: the same export route only.
+  'linked-instructions': [/^\/document\/d\/[\w-]+\/export$/],
 };
 
 /** Page routes never captured as research on any host: sign-in, account, inbox, grades, payment. */

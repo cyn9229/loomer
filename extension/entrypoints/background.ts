@@ -22,7 +22,8 @@ import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
-import { setTopicDone, topicsStep } from '../src/session/topics';
+import { embeddedTopicsStep, setTopicDone, topicsStep } from '../src/session/topics';
+import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
 import { currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { typingAtFor, typingItem } from '../src/session/typing';
@@ -392,8 +393,10 @@ function refresh(): Promise<void> {
     do {
       rerun = false;
       await runRefresh();
+      await readSheets().catch((error: unknown) => console.error('loomer: sheet read failed', error));
       // Analysis failures are stored per assignment; this only catches bugs.
       await analyze().catch((error: unknown) => console.error('loomer: analysis failed', error));
+      await sheetTopics().catch((error: unknown) => console.error('loomer: sheet topics failed', error));
       await updatePlan().catch((error: unknown) => console.error('loomer: plan update failed', error));
     } while (rerun);
   })().finally(() => {
@@ -403,6 +406,24 @@ function refresh(): Promise<void> {
 }
 
 /** AI requirement analysis for the decision set. Reads consent fresh on every check. */
+/** The current school account's key, from the last Canvas check. */
+async function currentSourceKey(): Promise<string | null> {
+  return (await db.runs.orderBy('startedAt').last())?.sourceKey ?? null;
+}
+
+/** Reads teacher sheets embedded in instructions, so analysis sees them. */
+async function readSheets() {
+  const sourceKey = await currentSourceKey();
+  if (!sourceKey) return;
+  await readEmbeddedSheets(db, await loadGateState(), sourceKey, new Date(), { docsAccess: await browser.permissions.contains({ origins: DOCS_ORIGINS }) });
+}
+
+/** Topic lists for practice or study work with an embedded sheet, ready before a session starts. */
+async function sheetTopics() {
+  const sourceKey = await currentSourceKey();
+  if (sourceKey) await embeddedTopicsStep({ db, ai: () => aiSettingsItem.getValue() }, sourceKey, new Date());
+}
+
 function analyze() {
   return analyzeRequirements({ db, ai: () => aiSettingsItem.getValue() });
 }

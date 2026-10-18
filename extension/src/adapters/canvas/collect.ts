@@ -5,6 +5,7 @@ import type { GateState } from '../../core/gate';
 import { contentHash } from '../../core/hash';
 import { mapLimit } from '../../core/concurrency';
 import { extractHtml } from '../../core/html';
+import { parseDocId } from '../docs/reader';
 import { isLoopback } from '../../core/url';
 import { canvasGet, canvasGetAll, type CanvasContext, type CanvasFailure } from './client';
 import {
@@ -224,7 +225,10 @@ async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
       return;
     }
     fetched += 1;
-    await db.assignments.update(a.id, { detail: result.detail, detailError: null });
+    // Keep the sheet already read for the same embedded Doc; the sheet reader refreshes it on its own schedule.
+    const sheet = a.detail?.sheet && result.detail.embeddedDocs?.[0] === a.detail.sheet.docId ? a.detail.sheet : undefined;
+    const detail = sheet ? { ...result.detail, sheet, hash: await detailHash({ ...result.detail, sheet }) } : result.detail;
+    await db.assignments.update(a.id, { detail, detailError: null });
   });
   return { fetched, failed };
 }
@@ -293,16 +297,22 @@ async function toDetail(
   origin: string,
   now: Date,
 ): Promise<AssignmentDetail> {
-  const { text, links } = extractHtml(html ?? '', origin);
-  return {
-    observedAt: now.toISOString(),
-    hash: await contentHash({ text, links, rubric }),
-    text,
-    links,
-    rubric,
-    submissionTypes,
-    canvasUpdatedAt: canvasUpdatedAt ?? null,
-  };
+  const { text, links, embeds } = extractHtml(html ?? '', origin);
+  const embeddedDocs = [...new Set(embeds.flatMap((u) => parseDocId(u) ?? []))];
+  // An embedded Doc is also offered as a link, so the student can pick it as their sheet.
+  const allLinks = [...new Set([...links, ...embeddedDocs.map((id) => `https://docs.google.com/document/d/${id}/edit`)])];
+  const detail = { observedAt: now.toISOString(), hash: '', text, links: allLinks, rubric, submissionTypes, canvasUpdatedAt: canvasUpdatedAt ?? null, embeddedDocs };
+  return { ...detail, hash: await detailHash(detail) };
+}
+
+/**
+ * Hash of everything that defines the requirements: text, links, rubric, and the
+ * embedded sheet's text when one was read. Without a sheet it equals the older
+ * hash, so existing analyses stay valid.
+ */
+export function detailHash(d: Pick<AssignmentDetail, 'text' | 'links' | 'rubric' | 'sheet'>): Promise<string> {
+  const base = { text: d.text, links: d.links, rubric: d.rubric };
+  return contentHash(d.sheet?.textHash ? { ...base, sheet: d.sheet.textHash } : base);
 }
 
 function describe(f: CanvasFailure): string {

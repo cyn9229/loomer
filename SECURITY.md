@@ -14,10 +14,10 @@ Only when the student turns AI help on, and only through the local AI service (`
 
 | Purpose | What is sent | When |
 | --- | --- | --- |
-| Requirement analysis | Assignment title, course name, due date, instruction text, rubric | For open work due within 14 days, unless the assignment's AI policy is blocked or unresolved |
+| Requirement analysis | Assignment title, course name, due date, instruction text (including the text of a Google Doc the teacher embedded in the instructions), rubric | For open work due within 14 days, unless the assignment's AI policy is blocked or unresolved |
 | Help and review | The above plus the student's own text from the linked Doc (instruction lines removed) and recent chat | Only when the student asks, and only if the policy allows help |
 | Proactive hint | The above plus newly added lines | Only after the pause rules allow it, and only if the policy allows help |
-| Sheet topics | The assignment title and the text of the linked sheet (which may include the student's answers) | Once per sheet during a practice or study session, only if the policy allows help; never for a quiz |
+| Sheet topics | The assignment title and the sheet's text: the teacher's sheet embedded in the instructions, or else the student's linked Doc (which may include their answers) | Embedded sheet: after a Canvas check, under the requirement-analysis rule. Linked Doc: once per sheet during a practice or study session, only if the policy allows help. Never for a quiz |
 | Requirement check | Instructions, the requirement list, and the student's own text | Only when the student asks, and only if the policy allows help |
 | Ask Loomer | The conversation, and what the read-only tools return: titles, classes, dates, workload, and plan notes for open work; the room and time numbers the student gave (day levels, their own guesses, minutes left in a session, never the reason for a busy day); instructions and rubric of one assignment when its policy allows analysis; saved page titles and links | Only when the student sends a message. For an assignment thread, only if the policy allows help. A blocked assignment's content is never returned to the model, only that AI help is off |
 
@@ -48,6 +48,7 @@ Turning AI off, pausing, blocking a site, or deleting data stops future sending.
 - **The local AI service has no real client authentication.** It also caps AI request bodies at 512 KB. It binds to `127.0.0.1`, accepts only requests with a `chrome-extension://` origin and a custom header (which web pages cannot send without a CORS preflight that is never approved), and can be pinned to one extension id with `LOOMER_EXTENSION_ID`. Another program on the same computer could still call it. It is meant for a single student's computer and a recorded demo, not for hosting.
 - **The provider key** lives in `server/.env` on the student's computer and never in the extension bundle.
 - **Canvas reads use the student's browser session** through the Canvas REST API. Canvas may record these reads in its access logs. Loomer never writes to Canvas.
+- **Embedded teacher sheets.** A Google Doc embedded in Canvas instructions is read with the same plain-text export, only for open work in the connected school account, only after the student granted Docs access, and at most every 6 hours. Its text is treated as instructions, never as the student's work.
 - **Google Docs reads use the plain-text export** of the linked Doc with the student's Google session. Google throttles rapid exports; Loomer paces reads (at least 15 s apart, backing off on HTTP 429). Google may record exports.
 - **Teacher-text detection in a shared Doc is a heuristic:** lines that match the Canvas instructions are treated as teacher text. Reviews state when only part of a draft was readable.
 - **Ask Loomer can be wrong.** The model's explanations, diagrams, and quiz answers can contain mistakes. Prompts and checks keep it from doing assigned work, but they are not a guarantee.

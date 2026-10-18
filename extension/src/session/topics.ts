@@ -1,11 +1,16 @@
-// Topics on the linked sheet of practice or study work. The AI lists what the
-// sheet covers, each topic with a quote copied from the sheet; a topic whose
-// quote is not on the sheet is dropped. The student ticks topics off; Loomer
-// never does. Needs the work-help AI check, since the sheet may hold answers.
+// Topics on the sheet of practice or study work. The AI lists what the sheet
+// covers, each topic with a quote copied from the sheet; a topic whose quote is
+// not on the sheet is dropped. The student ticks topics off; Loomer never does.
+// The teacher's sheet embedded in the instructions is read under the
+// instructions rule, right after a Canvas check. Without one, the student's
+// linked Doc is read during a session under the stricter work-help rule, since
+// it may hold their answers. Never for a quiz.
 import { brokerEnvelopeSchema, TOPICS_ROUTE, topicsResponseSchema, type TopicsRequest } from '../../../shared/ai-contract';
-import type { LoomerDb, SheetTopicsRecord } from '../core/db';
+import { assignmentPolicy, courseKey, isOpen, policyAnswer } from '../analysis/facts';
+import type { Assignment, LoomerDb, SheetTopicsRecord } from '../core/db';
+import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
-import { storedWorkType } from '../analysis/workType';
+import { isQuiz, storedWorkType } from '../analysis/workType';
 import type { SheetTopics } from '../model/session';
 import { workHelpDecision } from './help';
 import { currentSession } from './session';
@@ -22,32 +27,50 @@ export const topicKey = (text: string) => normalize(text);
 
 export type TopicsDeps = { db: LoomerDb; ai: () => Promise<AiSettings>; fetch?: typeof fetch };
 
-/** Whether the current sheet needs a (re)read, given the stored record. */
-function due(record: SheetTopicsRecord | undefined, docHash: string, now: number): boolean {
+/** Whether the sheet needs a (re)read. A linked working copy changes as the student writes, so it waits a day. */
+function due(record: SheetTopicsRecord | undefined, docHash: string, now: number, rereadAfterMs: number): boolean {
   if (!record) return true;
   const age = now - Date.parse(record.createdAt);
   if (record.status === 'pending') return age > PENDING_STALE_MS;
   if (record.status === 'failed') return age > RETRY_FAILED_MS;
-  return record.docHash !== docHash && age > REREAD_MS;
+  return record.docHash !== docHash && age > rereadAfterMs;
 }
 
-/** One step for the active session: reads the sheet's topics when they are missing or old. */
-export async function topicsStep({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, now: Date): Promise<void> {
-  const s = await currentSession(db);
-  if (!s || s.state !== 'active') return;
-  const a = await db.assignments.get(s.assignmentId);
-  if (!a) return;
+/** Where the topics come from. The teacher's embedded sheet is instructions; a linked Doc is the student's work. */
+type SheetSource = { text: string; hash: string; purpose: 'requirements-analysis' | 'work-help' };
+
+/** The sheet to read for an assignment: the embedded teacher sheet first, else the linked Doc. Dexie reads only. */
+async function sheetSource(db: LoomerDb, a: Assignment): Promise<SheetSource | null> {
+  const embedded = a.detail?.sheet;
+  if (embedded?.text && embedded.textHash) return { text: embedded.text, hash: embedded.textHash, purpose: 'requirements-analysis' };
+  const link = await db.docLinks.get(a.id);
+  const read = link ? (await db.docReads.get(link.docId))?.current : undefined;
+  return read ? { text: read.text, hash: read.hash, purpose: 'work-help' } : null;
+}
+
+/** AI may read this sheet now: never for a quiz; instructions rule for the teacher's sheet, work-help rule for the student's Doc. */
+async function allowed(db: LoomerDb, settings: AiSettings, a: Assignment, purpose: SheetSource['purpose']): Promise<boolean> {
+  if (isQuiz(a)) return false;
+  if (purpose === 'work-help') return (await workHelpDecision(db, settings, a.id)).allowed;
+  const context = (await db.studentContext.bulkGet([a.id, courseKey(a)])).filter((c) => c !== undefined);
+  const answer = policyAnswer(a, new Map(context.map((c) => [c.key, c])));
+  return checkAiDispatch({ aiEnabled: settings.enabled, policy: assignmentPolicy(a, await db.courses.get(courseKey(a))), answer, purpose }).allowed;
+}
+
+/** Lists the topics of one sheet if they are missing or old. Skips writing work and anything AI may not read. */
+async function readTopics({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, a: Assignment, now: Date): Promise<void> {
   const type = await storedWorkType(db, a);
   if (type !== 'practice' && type !== 'study') return;
-  const link = await db.docLinks.get(a.id);
-  const sheet = link ? (await db.docReads.get(link.docId))?.current : undefined;
-  if (!sheet || !due(await db.sheetTopics.get(a.id), sheet.hash, now.getTime())) return;
+  const source = await sheetSource(db, a);
+  if (!source) return;
+  const rereadAfter = source.purpose === 'work-help' ? REREAD_MS : 0;
+  if (!due(await db.sheetTopics.get(a.id), source.hash, now.getTime(), rereadAfter)) return;
   const settings = await ai();
-  if (!(await workHelpDecision(db, settings, a.id)).allowed) return;
+  if (!(await allowed(db, settings, a, source.purpose))) return;
 
-  const base = { assignmentId: a.id, docHash: sheet.hash, createdAt: now.toISOString() };
+  const base = { assignmentId: a.id, docHash: source.hash, createdAt: now.toISOString() };
   await db.sheetTopics.put({ ...base, status: 'pending' });
-  const request: TopicsRequest = { title: a.title.slice(0, 300), workType: type, sheet: sheet.text.slice(0, MAX_SHEET_CHARS) };
+  const request: TopicsRequest = { title: a.title.slice(0, 300), workType: type, sheet: source.text.slice(0, MAX_SHEET_CHARS) };
   let failure = 'AI service unreachable';
   try {
     const res = await fetchImpl(`${settings.brokerOrigin}${TOPICS_ROUTE}`, {
@@ -58,7 +81,7 @@ export async function topicsStep({ db, ai, fetch: fetchImpl = fetch }: TopicsDep
     const envelope = brokerEnvelopeSchema.safeParse(await res.json().catch(() => null));
     const parsed = envelope.success && envelope.data.ok ? topicsResponseSchema.safeParse(envelope.data.result) : null;
     // Permission may have changed while waiting.
-    if (!(await workHelpDecision(db, await ai(), a.id)).allowed) {
+    if (!(await allowed(db, await ai(), a, source.purpose))) {
       await db.sheetTopics.delete(a.id);
       return;
     }
@@ -80,10 +103,24 @@ export async function topicsStep({ db, ai, fetch: fetchImpl = fetch }: TopicsDep
   await db.sheetTopics.put(failed);
 }
 
+/** One step for the active session: topics for its practice or study sheet. */
+export async function topicsStep(deps: TopicsDeps, now: Date): Promise<void> {
+  const s = await currentSession(deps.db);
+  if (!s || s.state !== 'active') return;
+  const a = await deps.db.assignments.get(s.assignmentId);
+  if (a) await readTopics(deps, a, now);
+}
+
+/** After a Canvas check: topics for open practice or study work with an embedded teacher sheet, before any session. */
+export async function embeddedTopicsStep(deps: TopicsDeps, sourceKey: string, now: Date): Promise<void> {
+  const withSheet = (await deps.db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter((a) => isOpen(a) && a.detail?.sheet?.text);
+  for (const a of withSheet) await readTopics(deps, a, now);
+}
+
 /** The session's topic list. Null unless the work is practice or study with a linked sheet that Loomer has started reading. Dexie reads only. */
 export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promise<SheetTopics> {
   const a = await db.assignments.get(assignmentId);
-  if (!a || !(await db.docLinks.get(assignmentId))) return null;
+  if (!a || !(a.detail?.sheet?.text || (await db.docLinks.get(assignmentId)))) return null;
   const type = await storedWorkType(db, a);
   if (type !== 'practice' && type !== 'study') return null;
   const [record, ctx] = await Promise.all([db.sheetTopics.get(assignmentId), db.studentContext.get(assignmentId)]);

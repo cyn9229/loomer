@@ -8,7 +8,7 @@ import { localDay, minutesWords, WORKLOAD_WORDS } from '../analysis/plan';
 import { buildHomeModel } from '../analysis/recommend';
 import { roomDays, roomKey, roomLookup } from '../analysis/room';
 import { checkAiDispatch } from '../core/gate';
-import type { LoomerDb, PlanEdit } from '../core/db';
+import { instructionText, type LoomerDb, type PlanEdit } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
 import { loadHomeData } from '../model/homeData';
@@ -118,7 +118,7 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
       return {
         forModel: JSON.stringify({
           ...itemSummary(item),
-          instructions: (a.detail?.text ?? '(not readable)').slice(0, MAX_INSTRUCTIONS),
+          instructions: (a.detail ? instructionText(a.detail) : '(not readable)').slice(0, MAX_INSTRUCTIONS),
           rubric: (a.detail?.rubric ?? []).map((r) => r.description),
           plain_words: analysis?.status === 'ok' ? (analysis.plainWords ?? null) : null,
         }),

@@ -1,6 +1,6 @@
 // Per-assignment facts derived locally from stored evidence. Shared by the
 // analysis runner and the recommendation so both judge an assignment the same way.
-import { doneInCanvas, type Assignment, type Course, type StudentContext } from '../core/db';
+import { instructionText, doneInCanvas, type Assignment, type Course, type StudentContext } from '../core/db';
 import type { PolicyAnswer } from '../core/gate';
 import { findInstructionDeadlines, localDate, type InstructionDeadline } from './deadlines';
 import { resolvePolicy, type PolicyResult } from './policy';
@@ -53,7 +53,7 @@ export function courseKey(a: Assignment): string {
 
 /** Policy from the course syllabus plus the assignment's own text and rubric. */
 export function assignmentPolicy(a: Assignment, course: Course | undefined): PolicyResult {
-  const assignmentText = a.detail ? [a.detail.text, ...a.detail.rubric.map((r) => r.description)].join('\n') : null;
+  const assignmentText = a.detail ? [instructionText(a.detail), ...a.detail.rubric.map((r) => r.description)].join('\n') : null;
   return resolvePolicy([
     { label: 'Course syllabus', text: course?.syllabus?.text ?? null },
     { label: 'Canvas assignment', text: assignmentText },

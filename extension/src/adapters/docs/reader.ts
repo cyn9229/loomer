@@ -28,8 +28,13 @@ export type DocFetch =
   | { kind: 'unreadable'; detail: string };
 
 /** One gated export read. Only Google's export host is accepted as a redirect target. */
-export async function fetchDocText(gate: GateState, docId: string, fetchImpl: typeof fetch = fetch): Promise<DocFetch> {
-  const decision = checkCollect(gate, 'work-doc', `https://docs.google.com/document/d/${docId}/export?format=txt`);
+export async function fetchDocText(
+  gate: GateState,
+  docId: string,
+  fetchImpl: typeof fetch = fetch,
+  purpose: 'work-doc' | 'linked-instructions' = 'work-doc',
+): Promise<DocFetch> {
+  const decision = checkCollect(gate, purpose, `https://docs.google.com/document/d/${docId}/export?format=txt`);
   if (!decision.allowed) return { kind: 'unreadable', detail: `denied: ${decision.reason}` };
   let res: Response;
   try {

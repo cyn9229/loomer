@@ -32,6 +32,30 @@ export type AssignmentDetail = {
   rubric: { description: string; points: number | null }[];
   submissionTypes: string[];
   canvasUpdatedAt: string | null;
+  /** Google Docs embedded in the instructions (the teacher's sheet), by Doc id. Absent on older records. */
+  embeddedDocs?: string[];
+  /**
+   * The first embedded Doc as Loomer read it. Its text counts as part of the
+   * instructions (see instructionText), and its hash is part of `hash`.
+   */
+  sheet?: EmbeddedSheet;
+};
+
+/**
+ * The teacher's instructions as AI and local rules see them: the Canvas text,
+ * plus the embedded sheet's text when Loomer read it.
+ */
+export function instructionText(detail: AssignmentDetail | null | undefined): string {
+  if (!detail) return '';
+  return detail.sheet?.text ? `${detail.text}\n\nSheet embedded in the instructions:\n${detail.sheet.text}` : detail.text;
+}
+
+export type EmbeddedSheet = {
+  docId: string;
+  state: 'ok' | 'no-access' | 'unreadable' | 'rate-limited' | 'needs-permission';
+  text: string | null;
+  textHash: string | null;
+  attemptAt: string;
 };
 
 export type Assignment = {

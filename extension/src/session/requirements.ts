@@ -8,7 +8,7 @@ import {
   type RequirementsCheckRequest,
 } from '../../../shared/ai-contract';
 import { studentText } from '../adapters/docs/reader';
-import type { Analysis, Assignment, LoomerDb, RequirementCheck } from '../core/db';
+import { instructionText, type Analysis, type Assignment, type LoomerDb, type RequirementCheck } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { workHelpDecision } from './help';
 
@@ -60,7 +60,7 @@ export async function checkRequirements({ db, ai, fetch: fetchImpl = fetch }: Ch
 
   const requirements = requirementList(a, await db.analyses.get(assignmentId));
   if (requirements.length === 0) return;
-  const own = studentText(read.current.text, a.detail?.text ?? '');
+  const own = studentText(read.current.text, instructionText(a.detail));
   const docHash = read.current.hash;
   // Records are typed first: Dexie's insert type does not narrow a union.
   const pending: RequirementCheck = { assignmentId, status: 'pending', startedAt: now.toISOString() };
@@ -68,7 +68,7 @@ export async function checkRequirements({ db, ai, fetch: fetchImpl = fetch }: Ch
 
   const request: RequirementsCheckRequest = {
     title: a.title.slice(0, 300),
-    instructions: (a.detail?.text ?? '').slice(0, 12_000),
+    instructions: instructionText(a.detail).slice(0, 12_000),
     studentWork: own.slice(0, MAX_WORK_CHARS),
     workScope: own.length > MAX_WORK_CHARS ? 'partial' : 'full',
     requirements: requirements.map((r, index) => ({ index, text: r.text.slice(0, 1_000) })),

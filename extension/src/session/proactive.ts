@@ -10,7 +10,7 @@ import {
   type HintRequest,
 } from '../../../shared/ai-contract';
 import { studentText, wordCount } from '../adapters/docs/reader';
-import type { DocRead, LoomerDb } from '../core/db';
+import { instructionText, type DocRead, type LoomerDb } from '../core/db';
 import type { AiSettings, ProactiveSettings } from '../core/settings';
 import { storedWorkType } from '../analysis/workType';
 import { workHelpDecision } from './help';
@@ -102,7 +102,7 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
   const link = await db.docLinks.get(s.assignmentId);
   const read = link ? await db.docReads.get(link.docId) : undefined;
   const a = await db.assignments.get(s.assignmentId);
-  const instructions = a?.detail?.text ?? '';
+  const instructions = instructionText(a?.detail);
   const own = read?.current ? studentText(read.current.text, instructions) : '';
 
   // Guidance for an old draft must not linger after the student changed that passage.

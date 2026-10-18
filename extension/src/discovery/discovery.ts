@@ -3,7 +3,7 @@
 // dwell offer "Add this page". Only the current candidate is kept, in
 // chrome.storage.session (memory only); no browsing history is stored.
 import { storage } from 'wxt/utils/storage';
-import type { LoomerDb } from '../core/db';
+import { instructionText, type LoomerDb } from '../core/db';
 import { checkCollect, type GateState } from '../core/gate';
 import { canonicalLink, hostMatches } from '../core/url';
 import { currentSession } from '../session/session';
@@ -68,7 +68,7 @@ export async function evaluateForeground(input: {
 
   const a = await db.assignments.get(s.assignmentId);
   if (!a) return none;
-  const terms = assignmentTerms(a.title, [a.detail?.text ?? '', ...(a.detail?.rubric ?? []).map((r) => r.description)].join('\n'));
+  const terms = assignmentTerms(a.title, [instructionText(a.detail), ...(a.detail?.rubric ?? []).map((r) => r.description)].join('\n'));
   const { suggest, matched } = matchTab(terms, tab.title, tab.url);
   if (!suggest) return none;
 

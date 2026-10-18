@@ -3,7 +3,7 @@
 // rounds, and enforces consent and the assignment's AI policy before every send.
 import { brokerEnvelopeSchema } from '../../../shared/ai-contract';
 import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent } from '../../../shared/chat-contract';
-import type { ChatTurnRecord, LoomerDb } from '../core/db';
+import { instructionText, type ChatTurnRecord, type LoomerDb } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type ChatBlock, type ThreadKey } from '../model/chat';
 import { isQuiz, storedWorkType } from '../analysis/workType';
@@ -91,7 +91,7 @@ async function contextFor(db: LoomerDb, threadKey: ThreadKey): Promise<ChatReque
     kind: 'assignment',
     title: (a?.title ?? 'Assignment').slice(0, 300),
     work_type: a ? await storedWorkType(db, a) : 'writing',
-    instructions: (a?.detail?.text ?? '').slice(0, 12_000),
+    instructions: instructionText(a?.detail).slice(0, 12_000),
     rubric: (a?.detail?.rubric ?? []).slice(0, 30).map((r) => r.description.slice(0, 1_000)),
   };
 }

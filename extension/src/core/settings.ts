@@ -19,16 +19,20 @@ export const settingsItem = storage.defineItem<Settings>('local:settings', {
   fallback: { canvasOrigin: null, grantVersion: 0, paused: false, exclusions: [] },
 });
 
-/** Current grants: the school origin plus one grant per linked Doc. */
+/**
+ * Current grants: the school origin, one grant per linked Doc, and one per Doc
+ * the school embedded in instructions (part of the school's own content, read
+ * only while the school is connected).
+ */
 export async function loadGateState(): Promise<GateState> {
   const s = await settingsItem.getValue();
-  const grants: Grant[] = (await db.docLinks.toArray()).map((l) => ({
-    purpose: 'work-doc',
-    origin: 'https://docs.google.com',
-    pathPrefix: `/document/d/${l.docId}/`,
-    version: s.grantVersion,
-  }));
-  if (s.canvasOrigin) grants.push({ purpose: 'school-metadata', origin: s.canvasOrigin, version: s.grantVersion });
+  const doc = (purpose: Grant['purpose'], docId: string): Grant => ({ purpose, origin: 'https://docs.google.com', pathPrefix: `/document/d/${docId}/`, version: s.grantVersion });
+  const grants: Grant[] = (await db.docLinks.toArray()).map((l) => doc('work-doc', l.docId));
+  if (s.canvasOrigin) {
+    grants.push({ purpose: 'school-metadata', origin: s.canvasOrigin, version: s.grantVersion });
+    const embedded = new Set((await db.assignments.toArray()).flatMap((a) => a.detail?.embeddedDocs ?? []));
+    for (const id of embedded) grants.push(doc('linked-instructions', id));
+  }
   return { paused: s.paused, exclusions: s.exclusions, grants };
 }
 

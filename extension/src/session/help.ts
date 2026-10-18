@@ -12,7 +12,7 @@ import {
   type ReviewRequest,
 } from '../../../shared/ai-contract';
 import { studentText } from '../adapters/docs/reader';
-import type { ChatRecord, LoomerDb } from '../core/db';
+import { instructionText, type ChatRecord, type LoomerDb } from '../core/db';
 import { checkAiDispatch, type AiDenyReason } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
@@ -40,7 +40,7 @@ export async function workHelpDecision(db: LoomerDb, ai: AiSettings, assignmentI
 async function workContext(db: LoomerDb, assignmentId: string): Promise<WorkContext | null> {
   const a = await db.assignments.get(assignmentId);
   if (!a) return null;
-  const instructions = a.detail?.text ?? '';
+  const instructions = instructionText(a.detail);
   const link = await db.docLinks.get(assignmentId);
   const doc = link ? (await db.docReads.get(link.docId))?.current : undefined;
   const own = doc ? studentText(doc.text, instructions) : '';

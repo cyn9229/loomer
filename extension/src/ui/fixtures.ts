@@ -593,6 +593,7 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     },
     correction: item.correction,
     note: null,
+    sheet: null,
   };
 }
 

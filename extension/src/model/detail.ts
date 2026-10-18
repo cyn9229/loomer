@@ -1,5 +1,6 @@
 // Data contract for the assignment detail screen inside the panel. Logic owns
 // this file; the UI renders useAssignmentDetail(assignmentId).
+import type { EmbeddedSheet } from '../core/db';
 import type { StudentCorrection, WorkItem } from './home';
 import type { HelpAvailability, SourceItem } from './session';
 
@@ -44,6 +45,13 @@ export type AssignmentDetailModel =
       plainWords: string | null;
       links: { instructions: string[]; doc: string | null; sources: SourceItem[] };
       correction: StudentCorrection;
+      /**
+       * The teacher's Google Doc embedded in the instructions. `ok`: Loomer read it
+       * (it counts as instructions). `needs-permission`: offer "Allow Google Docs"
+       * (permissions.request for DOCS_ORIGINS, then canvas:refresh). `no-access`:
+       * Google refused (signed out, or the teacher turned off download).
+       */
+      sheet: { url: string; state: EmbeddedSheet['state'] } | null;
       /** The student's own explanation, shown in context only. */
       note: string | null;
     };

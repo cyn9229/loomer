@@ -1,7 +1,7 @@
 // Work-session lifecycle. One session at a time. Only an active session reads
 // the linked Doc or accepts captured pages; pause and end stop both at once.
 import { readDocPaced, studentText, wordCount } from '../adapters/docs/reader';
-import type { LoomerDb, SessionEvent, WorkSession } from '../core/db';
+import { instructionText, type LoomerDb, type SessionEvent, type WorkSession } from '../core/db';
 import type { GateState } from '../core/gate';
 import { writeResumePacket } from './resume';
 
@@ -111,7 +111,7 @@ export async function tickSession(
   const result = await readDocPaced(db, gate, link.docId, now, fetchImpl);
   if (!result?.changed || !result.read.current || !result.read.previous) return true;
 
-  const instructions = (await db.assignments.get(s.assignmentId))?.detail?.text ?? '';
+  const instructions = instructionText((await db.assignments.get(s.assignmentId))?.detail);
   const words = (t: string) => wordCount(studentText(t, instructions));
   const wordsDelta = words(result.read.current.text) - words(result.read.previous.text);
   await log(db, s, now.toISOString(), 'doc-changed', { wordsDelta });

@@ -58,6 +58,7 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
       sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
     },
     correction: own?.correction ?? null,
+    sheet: a.detail?.sheet ? { url: `https://docs.google.com/document/d/${a.detail.sheet.docId}/edit`, state: a.detail.sheet.state } : null,
     note: own?.note ?? null,
   };
 }
