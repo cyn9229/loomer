@@ -1,15 +1,17 @@
-// Home: one focal point, then quiet lines, then the week as an agenda.
-// HomeView renders, in order: the focus (the next step, or why there isn't one
-// yet), "Why this" when asked, one-line notices (sync problem, current session,
-// keep going, older work), the week grouped by day, folded Later / No due date /
-// Past due / Hidden, and the sync footer. Views render only what the model says;
-// they never invent progress, time estimates, or checks.
+// Home: one focal point, then quiet lines, then the plan.
+// HomeView renders, in order: today's brief (once a day), the focus (the next
+// step, or why there isn't one yet), "Why this" when asked, one-line notices
+// (busy days, sync problem, current session, keep going, older work), the plan
+// (List by start day, or Week day by day), the sync footer, and the Ask bar.
+// Views render only what the model says; they never invent progress, time
+// estimates, or checks.
 import { useState, type ReactNode } from 'react';
-import type { HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
+import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
-import { calendarDaysUntil, checkProblem, dayHeading, dueWhen, observedAt } from './format';
+import { checkProblem, dueWhen, observedAt } from './format';
 import { Icon } from './Icon';
-import { EvidenceList, PolicyNote, SubjectTile, SyncFoot, WorkRow } from './parts';
+import { EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
+import { PlanSection, startWords, type PlanMode } from './planView';
 import type { ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
 
@@ -29,6 +31,8 @@ export type HomeActions = {
   /** Assignment whose item:hide is in flight. */
   hidingId: string | null;
   send: PanelApi['send'];
+  /** Opens Ask Loomer on a thread: "general" or an assignment id. */
+  openAsk: (threadKey: string) => void;
 };
 
 /** Start or Keep going for one assignment, depending on the current session. */
@@ -51,9 +55,12 @@ type HomeProps = {
   hintWaiting: boolean;
   onRefresh?: () => void;
   refreshing: boolean;
+  /** The plan's List | Week choice, kept by the panel across screens. */
+  planMode: PlanMode;
+  onPlanMode: (mode: PlanMode) => void;
 };
 
-export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing }: HomeProps) {
+export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode }: HomeProps) {
   const [whyOpen, setWhyOpen] = useState(false);
   if (model.status === 'not-connected') {
     return (
@@ -79,6 +86,13 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
   const resume = model.resume && !active ? model.resume : null;
 
   const notices: ReactNode[] = [];
+  if (model.crowded)
+    notices.push(
+      <p className="notice busy" role="note" key="crowded">
+        <Icon name="alert" />
+        <span className="grow">{model.crowded.text}</span>
+      </p>,
+    );
   if (problem && model.lastCheck)
     notices.push(
       <div className="notice" role="status" key="problem">
@@ -136,6 +150,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
 
   return (
     <>
+      {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
       <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
       {next && whyOpen && (
         <section className="why" aria-label="Why this one">
@@ -146,9 +161,39 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
         </section>
       )}
       {notices.length > 0 && <div className="notices">{notices}</div>}
-      <Agenda items={model.rest} now={now} actions={actions} />
+      <PlanSection items={next ? [next.item, ...model.rest] : model.rest} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
+      <AskBar onOpen={() => actions.openAsk('general')} />
     </>
+  );
+}
+
+/** One line about today, on the first open of the day, until dismissed (brief:dismiss). */
+function Brief({ brief, now, send }: { brief: NonNullable<DailyBrief>; now: Date; send: PanelApi['send'] }) {
+  const dismiss = useAction();
+  return (
+    <div className="brief" role="status">
+      <Icon name="sun" />
+      <p className="grow">
+        <b>{now.toLocaleDateString(undefined, { weekday: 'long' })}.</b> {brief.text}
+        {dismiss.error && <span className="notice-sub danger-text">{dismiss.error}</span>}
+      </p>
+      <button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" disabled={dismiss.busy} onClick={() => dismiss.run(() => send({ type: 'brief:dismiss' }))}>
+        <Icon name="x" size="sm" />
+      </button>
+    </div>
+  );
+}
+
+/** The way into Ask Loomer, pinned to the bottom of Home. */
+function AskBar({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="askbar-wrap">
+      <button type="button" className="askbar" onClick={onOpen}>
+        <Icon name="sparkle" />
+        Ask Loomer anything
+      </button>
+    </div>
   );
 }
 
@@ -235,9 +280,13 @@ function NextStep({
   const label = lastTime && start.label === 'Start working' ? 'Keep going' : start.label;
   const pick = next.chosenByStudent ? next.loomerPick : null;
   const limited = item.policy.state === 'blocked' || item.policy.state === 'limited' || item.policy.state === 'unresolved';
+  const when = startWords(item, now);
   return (
     <section className="focus" aria-label="Next step">
-      <div className="eyebrow">{next.chosenByStudent ? 'Your pick' : 'Next step'}</div>
+      <div className="eyebrow">
+        {next.chosenByStudent ? 'Your pick' : 'Next step'}
+        {when && <> · {when}</>}
+      </div>
       <h1 className={titleClass(next.action)}>{next.action}</h1>
       <div className="ctx">
         <SubjectTile courseName={item.courseName} size="lg" />
@@ -250,7 +299,12 @@ function NextStep({
           </span>
         </span>
       </div>
-      {item.due && <Countdown due={item.due.at} now={now} />}
+      {next.change && (
+        <p className="changed">
+          <Icon name="refresh" size="xs" />
+          {next.change}
+        </p>
+      )}
       {lastTime && lastTime.facts.length > 0 && <p className="focus-line ellipsis">Last time: {lastTime.facts.slice(0, 2).join(' · ')}</p>}
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
       <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
@@ -384,195 +438,4 @@ function OlderItem({ item, reason, now, actions }: { item: WorkItem; reason: str
       {act.error && <p className="status-line error">{act.error}</p>}
     </div>
   );
-}
-
-/**
- * The week as an agenda (bucket "soon", grouped by day), then Later, No due
- * date, Past due and Hidden as folded rows. A missing date does not mean
- * unimportant, so those stay one tap away.
- */
-function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions: HomeActions }) {
-  if (items.length === 0) return null;
-  const visible = items.filter((i) => !i.hidden);
-  const week = visible.filter((i) => i.bucket === 'soon' && i.due).sort(byDue);
-  const days = new Map<string, WorkItem[]>();
-  for (const item of week) {
-    const key = new Date(item.due!.at).toDateString();
-    days.set(key, [...(days.get(key) ?? []), item]);
-  }
-  const folds = [
-    { label: 'Later', icon: 'calendarRange', items: visible.filter((i) => i.bucket === 'later').sort(byDue) },
-    { label: 'No due date', icon: 'inbox', items: visible.filter((i) => i.bucket === 'no-date') },
-    { label: 'Past due', icon: 'alert', items: visible.filter((i) => i.bucket === 'past').sort((a, b) => byDue(b, a)) },
-  ] as const;
-  const hidden = items.filter((i) => i.hidden);
-
-  return (
-    <>
-      <div className="sec">
-        <h2>This week</h2>
-        <span className="aside">{week.length === 0 ? 'Nothing due' : `${week.length} due`}</span>
-      </div>
-      {week.length > 0 && <WeekChart items={week} now={now} />}
-      {[...days.values()].map((dayItems) => {
-        const first = dayItems[0]!;
-        const at = new Date(first.due!.at);
-        const head = dayHeading(first.due!.at, now);
-        const date = `${at.toLocaleDateString(undefined, { weekday: 'short' })} ${at.getDate()}`;
-        return (
-          <section key={at.toDateString()} id={dayId(at)} aria-label={head.label}>
-            <div className="day">
-              {head.soon ? (
-                <>
-                  <b>
-                    <Icon name="clock" size="xs" />
-                    {head.label}
-                  </b>{' '}
-                  · {date}
-                </>
-              ) : (
-                head.label
-              )}
-            </div>
-            {dayItems.map((item) => (
-              <WorkRow key={item.assignmentId} item={item} now={now} when="time" onOpen={actions.openItem} />
-            ))}
-          </section>
-        );
-      })}
-      {week.length === 0 && <p className="empty-line">Nothing due in the next seven days.</p>}
-      <div className="folds">
-        {folds
-          .filter((f) => f.items.length > 0)
-          .map((f) => (
-            <details className="fold" key={f.label}>
-              <summary>
-                <span className="fold-ic">
-                  <Icon name={f.icon} />
-                </span>
-                {f.label}
-                <span className="count">{f.items.length}</span>
-                <Icon name="chevronRight" />
-              </summary>
-              {f.items.map((item) => (
-                <WorkRow key={item.assignmentId} item={item} now={now} when="date" onOpen={actions.openItem} />
-              ))}
-            </details>
-          ))}
-        {hidden.length > 0 && (
-          <details className="fold">
-            <summary>
-              <span className="fold-ic">
-                <Icon name="eyeOff" />
-              </span>
-              Hidden
-              <span className="count">{hidden.length}</span>
-              <Icon name="chevronRight" />
-            </summary>
-            {hidden.map((item) => (
-              <div className="row-line" key={item.assignmentId}>
-                <span className="grow">
-                  <span className="row-title">{item.title}</span>
-                  <span className="row-sub">{item.courseName ?? 'No class'}</span>
-                </span>
-                <button
-                  type="button"
-                  className="btn sm"
-                  disabled={actions.hidingId === item.assignmentId}
-                  aria-busy={actions.hidingId === item.assignmentId}
-                  onClick={() => actions.setHidden(item.assignmentId, false)}
-                >
-                  Show again
-                </button>
-              </div>
-            ))}
-          </details>
-        )}
-      </div>
-    </>
-  );
-}
-
-function byDue(a: WorkItem, b: WorkItem): number {
-  return (a.due ? Date.parse(a.due.at) : Infinity) - (b.due ? Date.parse(b.due.at) : Infinity);
-}
-
-/** Stable id for a day's agenda group, so the week chart can jump to it. */
-function dayId(at: Date): string {
-  return `day-${at.getFullYear()}-${at.getMonth() + 1}-${at.getDate()}`;
-}
-
-/**
- * Today and the next six days as bars, one per day, sized by how many items are
- * due. Tapping a day jumps to its group below. Today and tomorrow use the
- * urgency color; the counts are the visible items in "This week".
- */
-function WeekChart({ items, now }: { items: WorkItem[]; now: Date }) {
-  const days = Array.from({ length: 7 }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
-  const counts = days.map(() => 0);
-  for (const item of items) {
-    const offset = calendarDaysUntil(new Date(item.due!.at), now);
-    if (offset >= 0 && offset < 7) counts[offset]! += 1;
-  }
-  const max = Math.max(1, ...counts);
-  return (
-    <div className="week" role="group" aria-label="Due this week">
-      {days.map((d, i) => {
-        const n = counts[i]!;
-        const name = d.toLocaleDateString(undefined, { weekday: 'short' });
-        return (
-          <button
-            key={i}
-            type="button"
-            className={['wk', i === 0 ? 'today' : '', i <= 1 && n > 0 ? 'soon' : ''].filter(Boolean).join(' ')}
-            disabled={n === 0}
-            aria-label={`${name} ${d.getDate()}: ${n} due`}
-            onClick={() => document.getElementById(dayId(d))?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' })}
-          >
-            <em>{n > 0 ? n : ''}</em>
-            <i style={{ height: n === 0 ? 4 : 10 + (n / max) * 34 }} />
-            <b>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</b>
-            <small>{d.getDate()}</small>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * Time from today to the next step's due date, as seven day segments: today,
- * the days in between, and the due day. Shown only when it falls this week.
- */
-function Countdown({ due, now }: { due: string; now: Date }) {
-  const at = new Date(due);
-  const days = calendarDaysUntil(at, now);
-  if (at.getTime() < now.getTime() || days > 6) return null;
-  const label = days === 0 ? 'Due today' : days === 1 ? '1 day left' : `${days} days left`;
-  return (
-    <div className="countdown" aria-label={`${label}, due ${at.toLocaleDateString(undefined, { weekday: 'long' })}`}>
-      <div className="countdown-k">
-        <b className={days <= 1 ? 'urgent' : undefined}>{label}</b>
-        <span>
-          Today → {days === 0 ? 'tonight' : at.toLocaleDateString(undefined, { weekday: 'long' })}
-        </span>
-      </div>
-      <div className="ticks" aria-hidden="true">
-        {Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-          const cls = i === days ? 'due' : i === 0 ? 'now' : i < days ? 'gap' : '';
-          return (
-            <span key={i} className={cls ? `tick ${cls}` : 'tick'}>
-              <i />
-              <b>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</b>
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function reduceMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

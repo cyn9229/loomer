@@ -20,6 +20,6 @@ const rules: [RegExp, IconName][] = [
 ];
 
 export function subjectIcon(courseName: string | null): IconName {
-  if (!courseName) return 'doc';
-  return rules.find(([pattern]) => pattern.test(courseName))?.[1] ?? 'doc';
+  if (!courseName) return 'subjectDoc';
+  return rules.find(([pattern]) => pattern.test(courseName))?.[1] ?? 'subjectDoc';
 }

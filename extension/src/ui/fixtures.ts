@@ -6,13 +6,15 @@
 // mistaken for live data.
 import type { ScreenshotDraft } from '../capture/screenshot';
 import type { AssignmentDetailModel } from '../model/detail';
-import type { CheckInfo, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
+import { LEAD_DAYS } from '../analysis/plan';
+import type { Checkpoint, CheckInfo, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
 import { dateTime } from './format';
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
-// Spread into each connected fixture: no resume briefing and no older-work review.
-const noResume = { resume: null, olderReview: null };
+// Spread into each connected fixture: no resume briefing, older-work review, busy-days note, or brief.
+const noResume = { resume: null, olderReview: null, crowded: null, brief: null };
 
 /** A local date `days` from now at hh:mm, as ISO. */
 function at(now: Date, days: number, hh: number, mm: number): string {
@@ -30,8 +32,20 @@ function bucketFor(due: WorkItem['due'], now: Date): WorkItem['bucket'] {
   return t <= WEEK ? 'soon' : 'later';
 }
 
+/**
+ * Start-by the way the planner sets it: the next checkpoint (or the due date)
+ * minus the lead days for the workload.
+ */
+function startByFor(due: WorkItem['due'], checkpoints: Checkpoint[], effort: WorkItem['effort']['label'], now: Date): WorkItem['startBy'] {
+  const checkpoint = checkpoints.find((c) => Date.parse(c.at) >= now.getTime());
+  const target = checkpoint?.at ?? due?.at;
+  if (!target) return null;
+  return { at: new Date(Date.parse(target) - LEAD_DAYS[effort] * DAY).toISOString(), basis: checkpoint ? 'checkpoint' : 'due' };
+}
+
 function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId' | 'title'>): WorkItem {
   const due = over.due ?? null;
+  const checkpoints = over.checkpoints ?? [];
   return {
     courseKey: `course:${over.courseName ?? 'none'}`,
     bucket: bucketFor(due, now),
@@ -45,6 +59,9 @@ function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId'
     policy: { state: 'none-found' },
     requirements: 'checked',
     replay: false,
+    startBy: startByFor(due, checkpoints, over.effort?.label ?? 'Unknown', now),
+    checkpoints,
+    rankReason: null,
     ...over,
   };
 }
@@ -60,6 +77,17 @@ export function buildFixtures(now: Date) {
     due: { at: essayDue, source: 'canvas' },
     effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.' },
     policy: { state: 'permitted', sourceLabel: 'Course syllabus' },
+    checkpoints: [{ text: 'Draft for peer review', at: new Date(Date.parse(essayDue) - DAY).toISOString(), quote: 'Bring a full draft for peer review the day before the final deadline.', derived: true }],
+    rankReason: `Start today: heavy workload, Draft for peer review by ${new Date(Date.parse(essayDue) - DAY).toLocaleDateString(undefined, { weekday: 'short' })}.`,
+  });
+  const photo = item(now, {
+    assignmentId: 'a-photo',
+    title: 'Photosynthesis short response',
+    courseName: 'Biology',
+    url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88310',
+    due: { at: at(now, 1, 19, 59), source: 'canvas' },
+    effort: { label: 'Short', reason: 'One paragraph answer.' },
+    rankReason: 'Start today: light workload, due tomorrow. Second because Heat islands comparison essay needs a start today.',
   });
   const vocab = item(now, {
     assignmentId: 'a-vocab',
@@ -68,6 +96,7 @@ export function buildFixtures(now: Date) {
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88301',
     due: { at: at(now, 2, 8, 0), source: 'canvas' },
     effort: { label: 'Short', reason: 'Twenty terms, one short quiz.' },
+    rankReason: 'Start tomorrow: light workload, due Mon.',
   });
   const reflection = item(now, {
     assignmentId: 'a-reflection',
@@ -167,7 +196,14 @@ export function buildFixtures(now: Date) {
     aiGenerated: true,
     chosenByStudent: false,
     loomerPick: null,
+    change: null,
   };
+  const weekday = (iso: string | undefined) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }) : '');
+  const crowded = {
+    text: `${weekday(essay.startBy?.at)} and ${weekday(reflection.startBy?.at)} are busy: ${essay.title} and ${reflection.title} both need a start. Plan time for both.`,
+    assignmentIds: [essay.assignmentId, reflection.assignmentId],
+  };
+  const brief = { date: now.toISOString().slice(0, 10), text: `1 due tomorrow; start ${essay.title} today (and 1 more).` };
 
   const essayResume = (recommendationChanged: boolean): ResumeBriefing => ({
     assignment: essay,
@@ -236,16 +272,10 @@ export function buildFixtures(now: Date) {
     ready: {
       status: 'ready',
       ...noResume,
-      next: {
-        item: essay,
-        action: 'Outline the comparison between your two sources',
-        reason: 'Connect the EPA findings to the city’s tree cover data. The rubric asks for a comparison, and the deadline is this week.',
-        evidence: essayEvidence,
-        aiGenerated: true,
-        chosenByStudent: false,
-        loomerPick: null,
-      },
-      rest: [vocab, replayItem, reflection, proposal, lab, reading, pastQuiz, hiddenItem],
+      crowded,
+      brief,
+      next: readyNext,
+      rest: [photo, vocab, replayItem, reflection, proposal, lab, reading, pastQuiz, hiddenItem],
       lastCheck,
     },
 
@@ -275,6 +305,7 @@ export function buildFixtures(now: Date) {
         aiGenerated: false,
         chosenByStudent: true,
         loomerPick: { item: essay, reason: 'The largest open requirement due this week.' },
+        change: null,
       },
       rest: [essay, vocab, lab],
       lastCheck,
@@ -299,6 +330,7 @@ export function buildFixtures(now: Date) {
         aiGenerated: true,
         chosenByStudent: false,
         loomerPick: null,
+        change: null,
       },
       rest: [{ ...essay, replay: true }],
       lastCheck: { ...lastCheck, replay: true, courses: 1 },
@@ -315,6 +347,7 @@ export function buildFixtures(now: Date) {
         aiGenerated: true,
         chosenByStudent: false,
         loomerPick: null,
+        change: null,
       },
       rest: [vocab, reflection],
       lastCheck: { ...lastCheck, outcome: 'auth-expired', at: new Date(now.getTime() - 26 * HOUR).toISOString() },
@@ -334,6 +367,8 @@ export function buildFixtures(now: Date) {
       lastCheck,
       resume: essayResume(false),
       olderReview: null,
+      crowded: null,
+      brief: null,
     },
 
     'resume-changed': {
@@ -354,11 +389,14 @@ export function buildFixtures(now: Date) {
         aiGenerated: true,
         chosenByStudent: false,
         loomerPick: null,
+        change: 'Moved up: the vocab check is due before the essay needs its start.',
       },
       rest: [essay, reflection, lab],
       lastCheck,
       resume: essayResume(true),
       olderReview: null,
+      crowded: null,
+      brief: null,
     },
 
     'your-pick': {
@@ -372,6 +410,7 @@ export function buildFixtures(now: Date) {
         aiGenerated: true,
         chosenByStudent: true,
         loomerPick: { item: vocab, reason: `It’s due ${dateTime(vocab.due?.at ?? checkedAt)} and it’s short.` },
+        change: null,
       },
       rest: [vocab, reflection, lab],
       lastCheck,
@@ -380,6 +419,8 @@ export function buildFixtures(now: Date) {
     'older-review': {
       status: 'ready',
       resume: null,
+      crowded: null,
+      brief: null,
       olderReview: {
         items: [
           { item: pastQuiz, reason: 'Canvas still shows it as not turned in.' },
@@ -404,6 +445,8 @@ export function buildFixtures(now: Date) {
     busy: {
       status: 'ready',
       resume: essayResume(false),
+      crowded,
+      brief,
       olderReview: {
         items: [
           { item: pastQuiz, reason: 'Canvas still shows it as not turned in.' },
@@ -426,6 +469,7 @@ export function buildFixtures(now: Date) {
         aiGenerated: true,
         chosenByStudent: true,
         loomerPick: { item: vocab, reason: 'It’s due soon and it’s short.' },
+        change: null,
       },
       rest: Array.from({ length: 55 }, (_, i) =>
         item(now, {
@@ -482,6 +526,9 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     checkAvailability: checked ? 'available' : item.policy.state === 'blocked' ? 'blocked' : 'no-doc',
     checkPending: false,
     effort: { label: item.effort.label, reason: item.effort.reason, quote: null },
+    plainWords: checked
+      ? 'Read two sources about city heat. Explain what each one says and where they agree or disagree. Then argue which explanation is stronger, using both sources.'
+      : null,
     links: {
       instructions: item.url ? [item.url] : [],
       doc: checked ? 'https://docs.google.com/document/d/1xEssayDraft/edit' : null,

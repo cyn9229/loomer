@@ -11,7 +11,6 @@ import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, Sessio
 import { useAction, type PanelApi } from './api';
 import { observedAt, timeOf } from './format';
 import { Icon } from './Icon';
-import { Mark } from './parts';
 import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
 export type ActiveSession = Extract<SessionModel, { status: 'active' | 'paused' }>;
@@ -73,12 +72,10 @@ export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onCh
 
 /**
  * Three facts at a glance: your words in the draft, saved sources, and the
- * checklist marks from the last draft check. Each one opens where it lives.
+ * next open checklist item from the last draft check. Each one opens where it lives.
  */
 function StatStrip({ session, detail, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; onSources: () => void; onChecklist: () => void }) {
   const words = session.doc.status === 'linked' ? session.doc.studentWords : null;
-  const check = detail?.status === 'ok' && detail.check ? detail.requirements : null;
-  const count = (state: RequirementItem['state']) => check?.filter((r) => r.state === state).length ?? 0;
   return (
     <div className="stats">
       <button type="button" className="stat" onClick={onSources}>
@@ -91,25 +88,59 @@ function StatStrip({ session, detail, onSources, onChecklist }: { session: Activ
         <b>{session.sources.length}</b>
         <span>{session.sources.length === 1 ? 'source' : 'sources'}</span>
       </button>
-      <button type="button" className="stat wide" onClick={onChecklist}>
-        <Icon name="listChecks" />
-        {check ? (
-          <span className="marks">
-            {(['observed', 'needs-review', 'unknown'] as const).map((state) =>
-              count(state) > 0 ? (
-                <span key={state} className="mark-n">
-                  <Mark state={state} />
-                  {count(state)}
-                </span>
-              ) : null,
-            )}
-          </span>
-        ) : (
-          <b className="soft">Not checked</b>
-        )}
-        <span>checklist</span>
+      <button type="button" className="stat wide next" onClick={onChecklist}>
+        <NextToFix requirements={detail?.status === 'ok' && detail.check ? detail.requirements : null} />
       </button>
     </div>
+  );
+}
+
+/**
+ * The checklist cell: the first thing to look at, else the first thing Loomer
+ * can't tell, with how many more are open. Before any check, says so.
+ */
+function NextToFix({ requirements }: { requirements: RequirementItem[] | null }) {
+  if (!requirements) {
+    return (
+      <>
+        <span className="nk">
+          <Icon name="listChecks" size="xs" />
+          Checklist
+        </span>
+        <b className="soft">Not checked</b>
+        <span>Tap to see it</span>
+      </>
+    );
+  }
+  const review = requirements.filter((r) => r.state === 'needs-review');
+  const unknown = requirements.filter((r) => r.state === 'unknown');
+  const first = review[0] ?? unknown[0];
+  if (!first) {
+    return (
+      <>
+        <span className="nk ok">
+          <Icon name="checkCircle" size="xs" />
+          Checklist
+        </span>
+        <b>All found</b>
+        <span>in your draft</span>
+      </>
+    );
+  }
+  const more = review.length + unknown.length - 1;
+  const note = first.evidence?.note ?? (first.state === 'needs-review' ? 'Take a look' : 'Can’t tell yet');
+  return (
+    <>
+      <span className="nk">
+        <Icon name="target" size="xs" />
+        {first.state === 'needs-review' ? 'Next to fix' : 'Next to check'}
+      </span>
+      <b className="sm">{first.text}</b>
+      <span>
+        {note}
+        {more > 0 && ` · ${more} more open`}
+      </span>
+    </>
   );
 }
 

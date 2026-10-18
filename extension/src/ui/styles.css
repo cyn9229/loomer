@@ -43,6 +43,7 @@
   --amber: #b86a00;
   --amber-dot: #e9a23b;
   --amber-tint: #fdf1e0;
+  --amber-ink: #5a3b00;
   --red: #d63a2f;
   --urgent: #c8102e;
   --urgent-tint: #f4c3c8;
@@ -139,11 +140,6 @@ blockquote {
   width: 20px;
   height: 20px;
   flex: none;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .icon.sm {
   width: 16px;
@@ -781,59 +777,6 @@ details.fold[open] {
 }
 .dl dd .warn {
   color: var(--amber);
-}
-.req {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
-  gap: 2px 10px;
-  align-items: center;
-  padding: 9px 18px;
-}
-.req-text {
-  font-size: 14.5px;
-}
-.req-note {
-  font-size: 12.5px;
-  color: var(--muted);
-  text-align: right;
-  max-width: 150px;
-}
-.req.needs-review .req-note {
-  color: var(--amber);
-}
-.req .quote {
-  grid-column: 2 / 4;
-  margin-top: 0;
-  font-size: 12.5px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mark {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.mark .icon {
-  width: 12px;
-  height: 12px;
-  stroke-width: 3;
-}
-.mark.observed {
-  background: var(--ink);
-  color: #fff;
-}
-.mark.needs-review {
-  background: var(--amber-tint);
-  color: var(--amber);
-}
-.mark.unknown {
-  box-shadow: inset 0 0 0 1.5px #d6d2ca;
 }
 .plain-list {
   margin: 8px 18px 0;
@@ -1973,8 +1916,8 @@ details > summary .icon {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--fill);
-  color: #3f3d38;
+  background: var(--acc-tint);
+  color: var(--acc-text);
   display: grid;
   place-items: center;
   flex: none;
@@ -1982,7 +1925,6 @@ details > summary .icon {
 .subject .icon {
   width: 16px;
   height: 16px;
-  stroke-width: 1.7;
 }
 .subject.lg {
   width: 38px;
@@ -2000,127 +1942,222 @@ details > summary .icon {
   margin-top: 14px;
 }
 
-/* Next step countdown: today, the days between, and the due day. */
-.countdown {
-  margin-top: 16px;
-  padding: 12px 12px 10px;
-  border-radius: var(--r);
-  background: var(--fill);
-}
-.countdown-k {
+/* ---------- Plan: brief, busy days, List | Week ---------- */
+.brief {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  font-size: 13px;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 18px 0;
+  padding: 8px 6px 8px 12px;
+  border-radius: var(--r);
+  background: var(--amber-tint);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--amber-ink);
 }
-.countdown-k b {
+.brief > .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--amber);
+}
+.brief b {
   font-weight: 600;
 }
-.countdown-k b.urgent {
-  color: var(--urgent);
+.brief .icon-btn {
+  color: var(--amber);
 }
-.countdown-k span {
+.brief .icon-btn:hover {
+  background: rgba(184, 106, 0, 0.1);
+  color: var(--amber-ink);
+}
+.notice.busy {
+  align-items: flex-start;
+  line-height: 1.4;
+}
+.notice.busy > .icon {
+  margin-top: 1px;
+  color: var(--amber-dot);
+}
+.changed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.changed .icon {
+  color: var(--acc);
+}
+.sec .vseg {
+  margin-left: auto;
+}
+.vseg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--fill);
+}
+.vseg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.vseg button[aria-pressed='true'] {
+  background: var(--page);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 16, 24, 0.08);
+}
+.vseg .icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* Week: each day with its starts, checkpoints and dues. */
+.wk-key {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 18px 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.wk-key .evk + * {
+  margin-right: 8px;
+}
+.wd {
+  margin: 10px 18px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.wdh {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-bottom: 4px;
   font-size: 12.5px;
   color: var(--muted);
 }
-.ticks {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
-  margin-top: 8px;
-}
-.tick {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.tick i {
-  display: block;
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--fill-2);
-}
-.tick b {
-  font-size: 10.5px;
+.wdh b {
+  font-size: 14px;
   font-weight: 600;
-  color: var(--muted);
-}
-.tick.now i {
-  background: var(--ink);
-}
-.tick.now b {
   color: var(--ink);
 }
-.tick.gap i {
-  background: var(--acc-soft);
+.wdh b.soon {
+  color: var(--urgent);
 }
-.tick.due i {
-  background: var(--acc);
+.wdh span:last-child {
+  font-size: 11.5px;
 }
-.tick.due b {
+.ev {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+  font-size: 13.5px;
+  text-align: left;
+}
+.ev:hover .evt {
   color: var(--acc-text);
 }
-
-/* This week as bars, one per day. Tapping a day jumps to it. */
-.week {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  align-items: end;
-  padding: 8px 18px 6px;
+.evk {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
 }
-.wk {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  border-radius: 8px;
-  padding: 2px 0 4px;
+.evk .icon {
+  width: 12px;
+  height: 12px;
 }
-.wk:hover:not(:disabled) {
-  background: var(--fill);
+.evk.start {
+  color: var(--acc);
 }
-.wk em {
-  font-style: normal;
+.evk.due::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.evk.checkpoint {
+  color: var(--amber);
+}
+.evl {
+  width: 34px;
+  flex: none;
   font-size: 11.5px;
   font-weight: 600;
   color: var(--muted);
-  height: 15px;
 }
-.wk i {
-  display: block;
-  width: 100%;
-  max-width: 30px;
-  border-radius: 6px;
-  background: var(--fill-2);
+.ev.start .evl {
+  color: var(--acc-text);
 }
-.wk b {
-  margin-top: 2px;
-  font-size: 11px;
-  font-weight: 600;
+.ev.checkpoint .evl {
+  color: var(--amber);
+}
+.evi {
+  display: inline-grid;
   color: var(--muted);
 }
-.wk small {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 6px;
+.evt {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.wk.today small {
-  background: var(--ink);
-  color: #fff;
+.evs {
+  color: var(--muted);
 }
-.wk.soon i {
-  background: var(--urgent-tint);
+.evw {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.wk.soon em {
-  color: var(--urgent);
+
+/* Ask Loomer, pinned to the bottom of Home. */
+.askbar-wrap {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 14px 14px;
+  background: linear-gradient(rgba(255, 255, 255, 0), var(--page) 14px);
 }
-.wk:disabled {
-  cursor: default;
+.askbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--page);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 8px 20px -12px rgba(17, 16, 24, 0.25);
+  font-size: 14.5px;
+  color: var(--muted);
+  transition: box-shadow var(--d-press) ease;
+}
+.askbar:hover {
+  box-shadow:
+    0 0 0 1px var(--faint),
+    0 8px 20px -12px rgba(17, 16, 24, 0.3);
+}
+.askbar .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--acc);
 }
 
 /* Working: words, sources, checklist at a glance. */
@@ -2164,29 +2201,30 @@ details > summary .icon {
   font-size: 12px;
   color: var(--muted);
 }
-.marks {
+.stat.next b.sm {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.stat .nk {
   display: flex;
-  gap: 8px;
-  height: 22px;
   align-items: center;
-}
-.mark-n {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 13px;
+  gap: 5px;
+  font-size: 11.5px;
   font-weight: 600;
+  color: var(--amber);
 }
-.mark-n .mark,
-.marks-line .mark {
-  width: 16px;
-  height: 16px;
-  font-size: 10px;
+.stat .nk.ok {
+  color: var(--green-ink);
 }
-.mark-n .mark .icon,
-.marks-line .mark .icon {
-  width: 10px;
-  height: 10px;
+.stat .nk .icon {
+  width: 13px;
+  height: 13px;
 }
 .hint-ic {
   width: 24px;
@@ -2213,7 +2251,7 @@ details > summary .icon {
   color: var(--muted);
 }
 
-/* Assignment: three fact tiles, a marks summary, icon links. */
+/* Assignment: plain words, three fact tiles, checkpoint track, checklist, icon links. */
 .d-head {
   display: flex;
   align-items: center;
@@ -2311,19 +2349,6 @@ details > summary .icon {
 .meter i.on {
   background: var(--ink);
 }
-.marks-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  padding: 2px 18px 6px;
-  font-size: 12.5px;
-  color: var(--text);
-}
-.marks-line > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
 .icon-links {
   display: flex;
   gap: 8px;
@@ -2341,11 +2366,763 @@ details > summary .icon {
   font-size: 12.5px;
   font-weight: 600;
 }
-.icon-links a:hover {
+.icon-links a:hover,
+.icon-links button:hover {
   background: var(--fill);
+}
+.icon-links button .icon {
+  color: var(--acc);
 }
 .icon-links .icon {
   width: 17px;
   height: 17px;
   color: var(--text);
+}
+
+/* Assignment: the instructions in plain words (AI reading, labeled). */
+.plain {
+  margin: 14px 18px 0;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--acc-tint);
+}
+.plain-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.plain-k .icon {
+  color: var(--acc);
+}
+.plain-k span:last-child {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--acc-text);
+  opacity: 0.8;
+}
+.plain p {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.fact.acc > .icon {
+  color: var(--acc);
+}
+.fact.acc b {
+  color: var(--acc-text);
+}
+
+/* Start, checkpoints, due on one line. */
+.cptrack {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 18px 18px 0;
+  padding: 4px 0 0;
+  list-style: none;
+}
+.cptrack::before {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--acc-soft);
+}
+.cp {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.cp i {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--page);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.cp.mid i {
+  box-shadow: 0 0 0 2px var(--amber-dot);
+  color: var(--amber);
+}
+.cp.mid i .icon {
+  width: 12px;
+  height: 12px;
+}
+.cp.due i {
+  background: var(--acc);
+  box-shadow: 0 0 0 2px var(--acc);
+}
+.cp b {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cp span {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--muted);
+}
+.quoteline {
+  margin: 10px 18px 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Checklist: open items first, found ones checked off. */
+.checklist {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rq {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 8px 18px;
+}
+.rq-text {
+  font-size: 14.5px;
+}
+.rq-note {
+  max-width: 140px;
+  font-size: 12.5px;
+  text-align: right;
+  color: var(--muted);
+}
+.rq-quote {
+  grid-column: 2 / 4;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cbx {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1.5px #c9c5bd;
+}
+.rq.needs-review .cbx {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.rq.needs-review .rq-note {
+  color: var(--amber);
+}
+.rq.observed .cbx {
+  background: var(--green);
+  box-shadow: none;
+  color: #fff;
+}
+.rq.observed .cbx .icon {
+  width: 12px;
+  height: 12px;
+}
+.rq.observed .rq-text {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: #c9c5bd;
+}
+.rq.observed .rq-note {
+  color: var(--green-ink);
+}
+
+/* ---------- Ask Loomer ---------- */
+.chathead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px 0;
+}
+.threads {
+  position: relative;
+  min-width: 0;
+}
+.threadbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 10px 0 6px;
+  border-radius: 10px;
+  background: var(--fill);
+  font-size: 14px;
+  font-weight: 600;
+}
+.threadbtn:hover {
+  background: var(--fill-2);
+}
+.threadbtn > .icon:first-child {
+  margin-left: 4px;
+  color: var(--acc);
+}
+.threadbtn .subject {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.threadbtn .subject .icon {
+  width: 14px;
+  height: 14px;
+}
+.threadbtn > .icon:last-child {
+  color: var(--muted);
+}
+.pop {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(340px, calc(100vw - 28px));
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--page);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 18px 40px -16px rgba(17, 16, 24, 0.35);
+  transform-origin: top left;
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.pop-k {
+  padding: 10px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pop-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.th {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+.th:hover,
+.th[aria-selected='true'] {
+  background: var(--fill);
+}
+.th > .icon {
+  color: var(--acc);
+}
+.th .item-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.subject.gen {
+  color: var(--acc);
+}
+.subject.gray {
+  background: var(--fill);
+  color: var(--muted);
+}
+.subject.amber {
+  background: var(--amber-tint);
+  color: var(--amber);
+}
+.quiet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  flex: none;
+}
+.quiet-btn:hover {
+  background: var(--fill);
+  color: var(--ink);
+}
+
+/* Empty thread: a line and three ready questions. */
+.starters {
+  padding: 22px 18px 0;
+}
+.starter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px 12px;
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 14px;
+  text-align: left;
+}
+.starter:first-of-type {
+  margin-top: 14px;
+}
+.starter .icon {
+  color: var(--faint);
+}
+.starter:hover:not(:disabled) {
+  background: var(--fill);
+}
+.starter:hover:not(:disabled) .icon {
+  color: var(--acc);
+}
+
+/* Not available here: centered, one reason, one way forward. */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 26px 0;
+  text-align: center;
+}
+.state h2 {
+  margin-top: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.state p {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.state .state-quote {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.state-quote span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.state .btn {
+  margin-top: 16px;
+}
+.state .btn .icon {
+  color: var(--acc);
+}
+
+/* A reply: logo mark, then its blocks. */
+.msg.reply .aib {
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.aib > * + * {
+  margin-top: 10px;
+}
+.thinking.inline {
+  padding: 0;
+}
+.md > * + * {
+  margin-top: 8px;
+}
+.md p,
+.md li {
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.md strong {
+  font-weight: 600;
+}
+.md ul,
+.md ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.md li + li {
+  margin-top: 4px;
+}
+.md h1,
+.md h2,
+.md h3 {
+  margin-top: 12px;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.md code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--fill);
+  font-size: 13px;
+}
+.md pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+.md pre code {
+  padding: 0;
+}
+.md a {
+  color: var(--acc-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md blockquote {
+  padding-left: 10px;
+  box-shadow: inset 2px 0 0 var(--line-strong);
+  color: var(--text);
+}
+.md .katex {
+  font-size: 1.05em;
+}
+.md .katex-display {
+  margin: 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.tool + .tool {
+  margin-top: 3px;
+}
+.tool.done .icon {
+  color: var(--green);
+}
+.tool.running .icon {
+  color: var(--acc);
+}
+.tool.error .icon {
+  color: var(--urgent);
+}
+.vis {
+  padding: 10px 10px 8px;
+  border-radius: var(--r);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.vis figcaption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.vis figcaption em {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.vis-svg svg,
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 6px;
+}
+.chart .axis {
+  stroke: var(--line-strong);
+}
+.chart text {
+  font-family: var(--font);
+}
+.chart .tick {
+  font-size: 9.5px;
+  fill: var(--muted);
+}
+.chart .val {
+  font-size: 10px;
+  fill: var(--ink);
+}
+.widget {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.made {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.made .icon {
+  width: 11px;
+  height: 11px;
+  color: var(--acc);
+}
+.openas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+}
+.openas:hover {
+  background: var(--fill);
+}
+.openas > .icon:first-child {
+  color: var(--acc);
+}
+.openas > .icon:last-child {
+  color: var(--faint);
+}
+.turn-note {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.turn-error {
+  display: flex;
+  gap: 6px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.turn-error .icon {
+  margin-top: 2px;
+  color: var(--amber);
+}
+.composer.writing {
+  align-items: center;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  transition: transform var(--d-press) var(--ease-out);
+}
+.stop-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.stop-btn .icon {
+  color: var(--urgent);
+}
+
+/* Quiz: one question at a time, checked here, never saved. */
+.quiz {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--fill);
+}
+.qk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.qk .icon {
+  color: var(--acc);
+}
+.qcount {
+  font-weight: 500;
+  color: var(--muted);
+}
+.qp {
+  margin: 8px 0 2px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: var(--page);
+  font-size: 13.5px;
+  text-align: left;
+  transition: box-shadow 150ms ease;
+}
+.choice:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.rad {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: inset 0 0 0 1.5px #c9c5bd;
+}
+.choice.sel {
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.choice.sel .rad {
+  box-shadow: inset 0 0 0 5px var(--acc);
+}
+.choice.right {
+  background: #eefaf2;
+  box-shadow: inset 0 0 0 1.5px var(--green);
+}
+.choice.right .icon {
+  color: var(--green-ink);
+}
+.choice.wrong {
+  box-shadow: inset 0 0 0 1.5px var(--urgent-tint);
+}
+.choice.wrong .icon {
+  color: var(--urgent);
+}
+.qx {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.qx.ok {
+  color: var(--green-ink);
+}
+.qx.bad {
+  color: var(--amber-ink);
+}
+.qact {
+  margin-top: 10px;
+}
+.qrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.qn.good .icon {
+  color: var(--green-ink);
+}
+.qn.bad .icon {
+  color: var(--urgent);
+}
+.qsum {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-strong);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.qsum b {
+  color: var(--ink);
+}
+
+/* Replies arrive once: blocks fade up, words fade in as they stream, diagram
+   parts rise in turn and their arrows draw, chart bars grow from the baseline.
+   One-shot only. Reduce Motion keeps the fades and drops all movement. */
+.enter {
+  transition:
+    opacity var(--d-enter) var(--ease-out),
+    transform 240ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.md.streaming .w {
+  animation: fade-in 320ms var(--ease-out) both;
+}
+.vis-svg .sv-in {
+  transform-box: fill-box;
+  animation: rise-in 350ms var(--ease-out) var(--d) both;
+}
+.vis-svg .sv-draw,
+.chart .line {
+  stroke-dasharray: 1;
+  animation: draw-in 400ms var(--ease-out) var(--d) both;
+}
+.chart .bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: grow-in 450ms var(--ease-out) var(--d) both;
+}
+.chart .val,
+.chart .dot {
+  animation: fade-in 200ms var(--ease-out) var(--d) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes draw-in {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes grow-in {
+  from {
+    transform: scaleY(0.04);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .pop {
+    transition: opacity 150ms ease;
+    @starting-style {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  .vis-svg .sv-in,
+  .vis-svg .sv-draw,
+  .chart .bar,
+  .chart .line {
+    animation: none;
+  }
 }

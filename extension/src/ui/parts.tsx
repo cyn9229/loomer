@@ -2,7 +2,7 @@
 // model data as given and adds no claims of its own.
 import type { ReactNode } from 'react';
 import type { CheckInfo, Evidence, WorkItem } from '../model/home';
-import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf } from './format';
+import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf, weekday } from './format';
 import { Icon, type IconName } from './Icon';
 import { subjectIcon } from './subject';
 
@@ -42,40 +42,36 @@ export function SubjectTile({ courseName, size }: { courseName: string | null; s
   );
 }
 
+/** "due 7:59 PM" today, "due Thu" this week, "due Oct 29" later. */
+function dueShort(iso: string, now: Date): string {
+  const days = calendarDaysUntil(new Date(iso), now);
+  return `due ${days === 0 ? timeOf(iso) : days > 0 && days < 7 ? weekday(iso) : monthDay(iso)}`;
+}
+
 /**
- * One agenda row: the class's subject icon, the title with the class under
- * it, and when it is due on the right. `when` picks the right side: the due
- * time (inside a day group) or the date (in Later, No due date, Past due).
+ * One plan row: the class's subject icon, the title with a short line under
+ * it, and the due date on the right (crimson when due today or tomorrow).
+ * `note` replaces the class line, for example with the planner's reason.
  */
-export function WorkRow({ item, now, when, onOpen }: { item: WorkItem; now: Date; when: 'time' | 'date'; onOpen: (id: string) => void }) {
+export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date; note?: string | null; onOpen: (id: string) => void }) {
   const flags = itemFlags(item);
   const soon = item.due ? isSoon(item.due.at, now) : false;
-  const right = !item.due ? '' : when === 'time' ? timeOf(item.due.at) : monthDay(item.due.at);
   return (
-    <button type="button" className="item" onClick={() => onOpen(item.assignmentId)}>
+    <button type="button" className="item" onClick={() => onOpen(item.assignmentId)} title={item.rankReason ?? undefined}>
       <SubjectTile courseName={item.courseName} />
       <span className="item-body">
         <span className="item-title">{item.title}</span>
         <span className="item-sub">
-          {item.courseName ?? 'No class'}
+          {note ?? item.courseName ?? 'No class'}
           {flags.length > 0 && <span className="flag"> · {flags.join(' · ')}</span>}
         </span>
       </span>
-      <span className={soon ? 'item-t soon' : 'item-t'}>{right}</span>
+      <span className={soon ? 'item-t soon' : 'item-t'}>{item.due ? dueShort(item.due.at, now) : ''}</span>
     </button>
   );
 }
 
-/** One of the three requirement marks: found, take a look, can't tell. */
-export function Mark({ state }: { state: 'observed' | 'needs-review' | 'unknown' }) {
-  return (
-    <span className={`mark ${state}`}>
-      {state === 'observed' ? <Icon name="check" label="Found in your draft" /> : state === 'needs-review' ? <span aria-label="Take a look">!</span> : <span aria-label="Can’t tell yet">?</span>}
-    </span>
-  );
-}
-
-/** Size as a three-step meter: Short 1, Moderate 2, Substantial 3, Unknown 0. */
+/** Workload as a three-step meter: Light 1, Medium 2, Heavy 3, Not sure 0. */
 export function SizeMeter({ label }: { label: WorkItem['effort']['label'] }) {
   const filled = { Short: 1, Moderate: 2, Substantial: 3, Unknown: 0 }[label];
   return (

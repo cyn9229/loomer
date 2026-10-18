@@ -96,13 +96,18 @@ export function dueBadge(iso: string, now: Date): string | null {
   return days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : null;
 }
 
-/** Effort in a student's words. Unknown says nothing rather than guessing. */
-export const effortText: Record<EffortLabel, string | null> = {
-  Short: 'Quick one',
+/** The workload tile's word. Matches the planner's reasons ("heavy workload"). */
+export const workloadWord: Record<EffortLabel, string> = {
+  Short: 'Light',
   Moderate: 'Medium',
-  Substantial: 'Big assignment',
-  Unknown: null,
+  Substantial: 'Heavy',
+  Unknown: 'Not sure',
 };
+
+/** "Thu" */
+export function weekday(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });
+}
 
 export function dueSourceLabel(item: WorkItem): string | null {
   if (!item.due) return null;

@@ -12,7 +12,7 @@ describe('subjectIcon', () => {
   });
 
   it('falls back to a plain document', () => {
-    expect(subjectIcon('Period 3')).toBe('doc');
-    expect(subjectIcon(null)).toBe('doc');
+    expect(subjectIcon('Period 3')).toBe('subjectDoc');
+    expect(subjectIcon(null)).toBe('subjectDoc');
   });
 });

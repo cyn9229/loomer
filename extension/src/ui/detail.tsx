@@ -1,40 +1,25 @@
-// Assignment detail: tap any assignment. Subject icon and class, title, then
-// three tiles (days left, size, AI help), what the assignment asks for, links
-// as icon buttons, and Start working at the bottom. Before any draft check the requirements are a plain
-// list; per-item marks (found / take a look / can't tell) appear only after a
-// check. Renders the AssignmentDetailModel when it has loaded, and the WorkItem
-// alone before.
+// Assignment detail: tap any assignment. Subject icon and class, title, the
+// instructions in plain words (AI, when allowed), three tiles (start by, due,
+// workload), the checkpoint track when the instructions set earlier dates, and
+// what the assignment asks for as a checklist with open items first. Links,
+// Ask Loomer, and Start working sit at the bottom. Renders the
+// AssignmentDetailModel when it has loaded, and the WorkItem alone before.
 import { useState } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { StudentCorrection, WorkItem } from '../model/home';
 import { useAction } from './api';
-import { calendarDaysUntil, dueWhen, observedAt } from './format';
+import { calendarDaysUntil, monthDay, observedAt, timeOf, weekday, workloadWord } from './format';
 import { type HomeActions, startControl } from './home';
 import { Icon } from './Icon';
-import { Mark, SizeMeter, SubjectTile } from './parts';
+import { PolicyNote, SizeMeter, SubjectTile } from './parts';
 import { DeleteAssignmentData } from './privacy';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
 
-/** One short word for the size tile. */
-const sizeWord: Record<WorkItem['effort']['label'], string> = {
-  Short: 'Quick',
-  Moderate: 'Medium',
-  Substantial: 'Big',
-  Unknown: 'Not sure',
-};
-
-const aiText: Record<WorkItem['policy']['state'], string> = {
-  permitted: 'Allowed',
-  'none-found': 'No rule found',
-  limited: 'Limited',
-  blocked: 'Not allowed',
-  unresolved: 'Not clear yet',
-};
-
 export function DetailView({ item, detail, now, actions }: { item: WorkItem; detail: AssignmentDetailModel | undefined; now: Date; actions: HomeActions }) {
   const start = startControl(item, actions);
   const ok = detail?.status === 'ok' ? detail : null;
+  const effortReason = ok?.effort.reason ?? item.effort.reason;
   return (
     <>
       <div className="d-head">
@@ -42,34 +27,46 @@ export function DetailView({ item, detail, now, actions }: { item: WorkItem; det
         <span className="d-class">{item.courseName ?? 'No class'}</span>
       </div>
       <h1 className="d-title">{item.title}</h1>
+      {ok?.plainWords && (
+        <section className="plain" aria-label="In plain words">
+          <div className="plain-k">
+            <Icon name="sparkle" size="xs" />
+            In plain words
+            <span className="grow" />
+            <span>Loomer’s reading</span>
+          </div>
+          <p>{ok.plainWords}</p>
+        </section>
+      )}
       <div className="facts">
+        <StartTile item={item} now={now} />
         <DueTile item={item} now={now} />
         <div className="fact">
           <SizeMeter label={item.effort.label} />
-          <b>{sizeWord[item.effort.label]}</b>
-          <span>Size</span>
-        </div>
-        <div className={item.policy.state === 'permitted' ? 'fact ok' : item.policy.state === 'blocked' || item.policy.state === 'limited' ? 'fact warn' : 'fact'}>
-          <Icon name={item.policy.state === 'permitted' ? 'shieldCheck' : 'shield'} />
-          <b>{aiText[item.policy.state]}</b>
-          <span>AI help</span>
+          <b>{workloadWord[item.effort.label]}</b>
+          <span>Workload</span>
         </div>
       </div>
+      {item.checkpoints.length > 0 && item.due && <CheckpointTrack item={item} due={item.due.at} now={now} />}
+      {item.effort.label !== 'Unknown' && effortReason && (
+        <p className="quoteline">
+          Why {workloadWord[item.effort.label].toLowerCase()}? {effortReason}
+        </p>
+      )}
       {item.dueConflict && (
         <p className="d-note warn">
           <Icon name="alert" size="xs" />
           Canvas and the instructions list different due dates. Check both.
         </p>
       )}
-      {(item.policy.state === 'blocked' || item.policy.state === 'limited') && item.policy.quote && (
-        <p className="d-note">
-          “{item.policy.quote}” {item.policy.sourceLabel && <span>{item.policy.sourceLabel}</span>}
-        </p>
+      {item.policy.state !== 'permitted' && item.policy.state !== 'none-found' && (
+        <div className="pad">
+          <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />
+        </div>
       )}
-      {ok?.effort.reason && <p className="d-note">{ok.effort.reason}</p>}
       {ok ? <Requirements detail={ok} now={now} actions={actions} /> : <p className="hint-line" style={{ paddingTop: 16 }}>Loading…</p>}
       <div className="end">
-        <Links item={item} detail={ok} />
+        <Links item={item} detail={ok} onAsk={() => actions.openAsk(item.assignmentId)} />
         <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
           {start.busy ? 'Starting…' : start.label}
           <Icon name="arrowRight" />
@@ -86,11 +83,90 @@ export function DetailView({ item, detail, now, actions }: { item: WorkItem; det
   );
 }
 
-const summaryWord: Record<RequirementItem['state'], string> = {
-  observed: 'found',
-  'needs-review': 'to look at',
-  unknown: 'can’t tell',
-};
+/** "Today", "Tomorrow", "Thu" this week, otherwise "Oct 29". */
+function dayWord(iso: string, now: Date): string {
+  const days = calendarDaysUntil(new Date(iso), now);
+  return days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days > 1 && days < 7 ? weekday(iso) : monthDay(iso);
+}
+
+/** When to begin. A start date that passed still reads Today: the work needs a start. */
+function StartTile({ item, now }: { item: WorkItem; now: Date }) {
+  const open = item.startBy && item.bucket !== 'past';
+  const at = open ? (Date.parse(item.startBy!.at) < now.getTime() ? now.toISOString() : item.startBy!.at) : null;
+  const soon = at !== null && calendarDaysUntil(new Date(at), now) <= 1;
+  return (
+    <div className={soon ? 'fact acc' : 'fact'}>
+      <Icon name="sandglass" />
+      <b>{at ? dayWord(at, now) : 'Not set'}</b>
+      <span>Start by</span>
+    </div>
+  );
+}
+
+/** The due day, with the time under it. Today and tomorrow use the urgency color. */
+function DueTile({ item, now }: { item: WorkItem; now: Date }) {
+  if (!item.due) {
+    return (
+      <div className="fact">
+        <Icon name="calendar" />
+        <b>No date</b>
+        <span>Due</span>
+      </div>
+    );
+  }
+  const at = new Date(item.due.at);
+  const past = at.getTime() < now.getTime();
+  const soon = !past && calendarDaysUntil(at, now) <= 1;
+  return (
+    <div className={soon ? 'fact urgent' : 'fact'}>
+      <Icon name={soon ? 'clock' : 'calendar'} />
+      <b>{past ? 'Past due' : dayWord(item.due.at, now)}</b>
+      <span>{past ? `Was due ${monthDay(item.due.at)}` : `Due ${timeOf(item.due.at)}`}</span>
+    </div>
+  );
+}
+
+/**
+ * Start, each checkpoint from the instructions, then the due date, on one
+ * line. Under it, each checkpoint's quote, so a date Loomer worked out (like
+ * "the day before the final deadline") shows where it came from.
+ */
+function CheckpointTrack({ item, due, now }: { item: WorkItem; due: string; now: Date }) {
+  const start = item.startBy && Date.parse(item.startBy.at) > now.getTime() ? item.startBy.at : now.toISOString();
+  return (
+    <>
+      <ol className="cptrack" aria-label="Checkpoints">
+        <li className="cp now">
+          <i />
+          <b>{dayWord(start, now)}</b>
+          <span>Start</span>
+        </li>
+        {item.checkpoints.map((c) => (
+          <li className="cp mid" key={c.at + c.text}>
+            <i>
+              <Icon name="flag" />
+            </i>
+            <b>{dayWord(c.at, now)}</b>
+            <span>{c.text}</span>
+          </li>
+        ))}
+        <li className="cp due">
+          <i />
+          <b>{dayWord(due, now)}</b>
+          <span>Due {timeOf(due)}</span>
+        </li>
+      </ol>
+      {item.checkpoints.map((c) => (
+        <p className="quoteline" key={c.at + c.quote}>
+          Why {dayWord(c.at, now)}? The instructions say “{c.quote}”
+        </p>
+      ))}
+    </>
+  );
+}
+
+/** Open items first: what to look at, then what Loomer can't tell, then what it found. */
+const order: Record<RequirementItem['state'], number> = { 'needs-review': 0, unknown: 1, observed: 2 };
 
 const fallbackNote: Record<RequirementItem['state'], string> = {
   observed: 'Found in your draft',
@@ -108,12 +184,13 @@ const notChecked: Record<Exclude<Detail['checkAvailability'], 'available'>, stri
   unresolved: 'Checking is on hold until the AI rule is clear.',
 };
 
-/** What the assignment asks for. Marks describe what was seen, never a grade or "done". */
+/** What the assignment asks for. Checks describe what was seen in the draft, never a grade. */
 function Requirements({ detail, now, actions }: { detail: Detail; now: Date; actions: HomeActions }) {
   const check = useAction();
   const canCheck = detail.checkAvailability === 'available';
   const checking = detail.checkPending || check.busy;
   const run = () => check.run(() => actions.send({ type: 'requirements:check', assignmentId: detail.item.assignmentId }));
+  const sorted = [...detail.requirements].sort((a, b) => order[a.state] - order[b.state]);
   return (
     <section aria-label="What it asks for">
       <div className="sec">
@@ -130,34 +207,30 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
           {(detail.check.scope === 'partial' || detail.check.stale) && (
             <p className="hint-line">{detail.check.stale ? 'Your draft changed since this check.' : 'Only part of your draft was readable.'}</p>
           )}
-          <p className="marks-line">
-            {(['observed', 'needs-review', 'unknown'] as const).map((state) => {
-              const n = detail.requirements.filter((r) => r.state === state).length;
-              return n > 0 ? (
-                <span key={state}>
-                  <Mark state={state} />
-                  {n} {summaryWord[state]}
+          <ul className="checklist">
+            {sorted.map((r, i) => (
+              <li className={`rq ${r.state}`} key={i}>
+                <span className="cbx" aria-label={fallbackNote[r.state]}>
+                  {r.state === 'observed' && <Icon name="check" />}
                 </span>
-              ) : null;
-            })}
-          </p>
-          {detail.requirements.map((r, i) => (
-            <div className={`req ${r.state}`} key={i}>
-              <Mark state={r.state} />
-              <span className="req-text">{r.text}</span>
-              <span className="req-note">{r.evidence?.note ?? fallbackNote[r.state]}</span>
-              {r.evidence?.quote && <span className="quote">“{r.evidence.quote}”</span>}
-            </div>
-          ))}
+                <span className="rq-text">{r.text}</span>
+                <span className="rq-note">{r.evidence?.note ?? fallbackNote[r.state]}</span>
+                {r.state === 'needs-review' && r.evidence?.quote && <span className="rq-quote">“{r.evidence.quote}”</span>}
+              </li>
+            ))}
+          </ul>
         </>
       ) : (
         <>
-          <ul className="plain-list">
+          <ul className="checklist">
             {detail.requirements.map((r, i) => (
-              <li key={i}>{r.text}</li>
+              <li className="rq" key={i}>
+                <span className="cbx" aria-hidden="true" />
+                <span className="rq-text">{r.text}</span>
+              </li>
             ))}
           </ul>
-          <p className="hint-line" style={{ paddingTop: 10 }}>
+          <p className="hint-line" style={{ paddingTop: 6 }}>
             {detail.checkAvailability === 'available' ? 'Loomer hasn’t checked your draft yet.' : notChecked[detail.checkAvailability]}
           </p>
         </>
@@ -174,11 +247,10 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   );
 }
 
-/** Where the work lives: Canvas, the draft, saved sources. */
-function Links({ item, detail }: { item: WorkItem; detail: Detail | null }) {
+/** Where the work lives (Canvas, the draft, saved sources), plus Ask Loomer about it. */
+function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null; onAsk: () => void }) {
   const instructions = detail?.links.instructions[0] ?? item.url;
   const sources = detail?.links.sources.length ?? 0;
-  if (!instructions && !detail?.links.doc && sources === 0) return null;
   return (
     <div className="icon-links">
       {instructions && (
@@ -199,30 +271,10 @@ function Links({ item, detail }: { item: WorkItem; detail: Detail | null }) {
           {sources === 1 ? '1 source' : `${sources} sources`}
         </span>
       )}
-    </div>
-  );
-}
-
-/** Days until due, as the first tile. Today and tomorrow use the urgency color. */
-function DueTile({ item, now }: { item: WorkItem; now: Date }) {
-  if (!item.due) {
-    return (
-      <div className="fact">
-        <Icon name="calendar" />
-        <b>No date</b>
-        <span>Due</span>
-      </div>
-    );
-  }
-  const at = new Date(item.due.at);
-  const past = at.getTime() < now.getTime();
-  const days = calendarDaysUntil(at, now);
-  const big = past ? 'Past due' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
-  return (
-    <div className={!past && days <= 1 ? 'fact urgent' : 'fact'}>
-      <Icon name={!past && days <= 1 ? 'clock' : 'calendar'} />
-      <b>{big}</b>
-      <span>{dueWhen(item.due.at, now)}</span>
+      <button type="button" onClick={onAsk}>
+        <Icon name="sparkle" />
+        Ask Loomer
+      </button>
     </div>
   );
 }

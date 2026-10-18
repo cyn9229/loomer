@@ -137,11 +137,11 @@ export function ChatView({
   );
 }
 
-/** Shown while a reply is in flight: a plain seconds counter, no spinner. */
-function Thinking() {
+/** Shown while a reply is in flight: a plain seconds counter, no spinner. `inline` sits inside a reply. */
+export function Thinking({ inline }: { inline?: boolean }) {
   const seconds = useElapsedSeconds(true);
   return (
-    <p className="thinking" role="status">
+    <p className={inline ? 'thinking inline' : 'thinking'} role="status">
       Loomer is thinking…<span aria-hidden="true">{seconds > 0 ? ` ${seconds} s` : ''}</span>
     </p>
   );
@@ -165,7 +165,7 @@ function composerPlaceholder(help: HelpState): string {
 }
 
 /** The one-time question when no AI rule was found. */
-function PolicyStep({ n, assignmentId, api }: { n?: number; assignmentId: string; api: PanelApi }) {
+export function PolicyStep({ n, assignmentId, api }: { n?: number; assignmentId: string; api: PanelApi }) {
   const answer = useAction();
   const [saving, setSaving] = useState<string | null>(null);
   const choices = [

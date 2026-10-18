@@ -1,19 +1,22 @@
 // The side panel shell. No tabs: Home is the start, starting work opens the
-// Working screen (Help | Sources), tapping an assignment opens its detail, and a
-// waiting screenshot takes over until it is saved or discarded. Each screen has
-// a slim top bar. Takes the models from outside (live hooks or fixtures) and
+// Working screen (Help | Sources), tapping an assignment opens its detail, the
+// Ask bar opens Ask Loomer, and a waiting screenshot takes over until it is
+// saved or discarded. Each screen has a slim top bar. Takes the models from outside (live hooks or fixtures) and
 // acts only through PanelApi, so it renders the same in both modes.
 import { useState, type ReactNode } from 'react';
 import type { ScreenshotDraft } from '../capture/screenshot';
+import { GENERAL_THREAD, type ChatModel } from '../model/chat';
 import type { AssignmentDetailModel } from '../model/detail';
 import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel } from '../model/session';
 import { useAction, type PanelApi } from './api';
+import { AskView } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
 import { type HomeActions, HomeView } from './home';
 import { Icon } from './Icon';
 import { Logo } from './Logo';
+import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
 import { HintCard, sessionClock, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
@@ -23,6 +26,8 @@ export type PanelProps = {
   session: SessionModel | undefined;
   /** Loads the detail model for the open assignment (a hook in the live panel). */
   useDetail: (assignmentId: string | null) => AssignmentDetailModel | undefined;
+  /** Loads one Ask Loomer thread: "general" or an assignment id (a hook in the live panel). */
+  useChat: (threadKey: string) => ChatModel | undefined;
   /** A screenshot waiting to be cropped and saved, held in memory only. */
   screenshot: ScreenshotDraft | undefined;
   now: Date;
@@ -35,8 +40,10 @@ export type PanelProps = {
   paused: boolean;
 };
 
-export function Panel({ home, session, useDetail, screenshot, now, api, onRefresh, previewLabel, paused }: PanelProps) {
-  const [view, setView] = useState<'home' | 'work'>('home');
+export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused }: PanelProps) {
+  const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
+  const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
+  const [planMode, setPlanMode] = useState<PlanMode>('list');
   const [workTab, setWorkTab] = useState<WorkTab>('help');
   const [openId, setOpenId] = useState<string | null>(null);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
@@ -49,6 +56,7 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
   const active: ActiveSession | null = session && session.status !== 'none' ? session : null;
   // One detail model at a time: the open assignment, or the session's own (for the stat strip).
   const detail = useDetail(openId ?? (view === 'work' ? (active?.assignment.assignmentId ?? null) : null));
+  const chat = useChat(askThread);
   const hint = active?.hint ?? null;
   // Keep a vanished hint briefly so it fades out instead of disappearing.
   const shownHint = useLingering(hint, 200);
@@ -83,6 +91,11 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
       });
     },
     continueSession: goWork,
+    openAsk: (threadKey) => {
+      setOpenId(null);
+      setAskThread(threadKey);
+      setView('ask');
+    },
     sessionAssignmentId: active?.assignment.assignmentId ?? null,
     startingId,
     hidingId,
@@ -139,6 +152,18 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
       </>
     );
     body = <DetailView item={openItem} detail={detail} now={now} actions={actions} />;
+  } else if (view === 'ask') {
+    bar = (
+      <>
+        <button type="button" className="back" onClick={() => setView('home')}>
+          <Icon name="chevronLeft" />
+          Home
+        </button>
+        <span className="grow" />
+        {settings}
+      </>
+    );
+    body = <AskView model={chat} threadKey={askThread} onThread={setAskThread} threads={home ? askThreads(home) : []} now={now} api={api} onOpenItem={setOpenId} />;
   } else if (view === 'work' && active) {
     const clock = sessionClock(active, now);
     bar = (
@@ -201,7 +226,17 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
       </>
     );
     body = home ? (
-      <HomeView model={home} now={now} actions={actions} active={active} hintWaiting={hint !== null} onRefresh={refresh} refreshing={refreshing} />
+      <HomeView
+        model={home}
+        now={now}
+        actions={actions}
+        active={active}
+        hintWaiting={hint !== null}
+        onRefresh={refresh}
+        refreshing={refreshing}
+        planMode={planMode}
+        onPlanMode={setPlanMode}
+      />
     ) : (
       <p className="caption">Loading…</p>
     );
@@ -232,6 +267,14 @@ function allItems(model: HomeModel): WorkItem[] {
   if (model.status === 'not-connected') return [];
   const older = model.olderReview?.items.map((i) => i.item) ?? [];
   return [...(model.status === 'ready' ? [model.next.item] : []), ...model.rest, ...older];
+}
+
+/** Assignments Ask Loomer can talk about: visible and not past due, earliest start first. */
+function askThreads(model: HomeModel): WorkItem[] {
+  const at = (i: WorkItem) => Date.parse(i.startBy?.at ?? i.due?.at ?? '') || Infinity;
+  return allItems(model)
+    .filter((i) => !i.hidden && i.bucket !== 'past')
+    .sort((a, b) => at(a) - at(b));
 }
 
 function findItem(model: HomeModel, id: string): WorkItem | null {

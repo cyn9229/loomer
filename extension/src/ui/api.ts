@@ -12,6 +12,8 @@ export type PanelApi = {
    */
   requestOrigins: (origins: string[]) => Promise<boolean>;
   openSettings: () => void;
+  /** The sandboxed page that runs AI-made interactive widgets. */
+  widgetUrl: string;
 };
 
 /** Runs one action at a time and keeps its error for display next to the control. */
