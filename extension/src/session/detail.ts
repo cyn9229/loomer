@@ -51,6 +51,7 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
     checkAvailability: !link ? 'no-doc' : availability(decision).availability,
     checkPending: check?.status === 'pending' && now.getTime() - Date.parse(check.startedAt) < PENDING_STALE_MS,
     effort: { label: item.effort.label, reason: ok?.effortReason.text ?? null, quote: ok?.effortReason.quote || null },
+    plainWords: ok?.plainWords || null,
     links: {
       instructions: a.detail?.links ?? [],
       doc: link?.url ?? null,

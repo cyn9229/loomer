@@ -11,7 +11,10 @@ import { checkRequirements } from '../src/session/requirements';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiSettingsItem, choiceItem, discoveryItem, loadGateState, notifyItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { localDay } from '../src/analysis/plan';
+import { nextPlanSnapshot } from '../src/analysis/recommend';
+import { loadHomeData } from '../src/model/homeData';
 import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
@@ -176,6 +179,14 @@ async function cropImage(dataUrl: string, crop: Crop): Promise<string> {
  * afterwards, empty every table and Loomer's settings, remove the typing script,
  * and give back the site and tab access Loomer was granted. Returns to setup.
  */
+/** Recomputes the plan snapshot so Home's top stays steady and can say what moved. */
+async function updatePlan() {
+  const [settings, ai, choice, prev] = await Promise.all([settingsItem.getValue(), aiSettingsItem.getValue(), choiceItem.getValue(), planSnapshotItem.getValue()]);
+  const data = await loadHomeData(db);
+  const next = nextPlanSnapshot({ ...data, connected: Boolean(settings.canvasOrigin), ai, choice, snapshot: prev, briefDismissedOn: null, now: new Date() }, prev);
+  if (JSON.stringify(next) !== JSON.stringify(prev)) await planSnapshotItem.setValue(next);
+}
+
 async function rememberChoice(assignmentId: string) {
   const a = await db.assignments.get(assignmentId);
   if (a) await choiceItem.setValue({ assignmentId, dueAt: a.dueAt, detailHash: a.detail?.hash ?? null, at: new Date().toISOString() });
@@ -287,6 +298,7 @@ function refresh(): Promise<void> {
       await runRefresh();
       // Analysis failures are stored per assignment; this only catches bugs.
       await analyze().catch((error: unknown) => console.error('loomer: analysis failed', error));
+      await updatePlan().catch((error: unknown) => console.error('loomer: plan update failed', error));
     } while (rerun);
   })().finally(() => {
     running = null;
@@ -364,6 +376,7 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     case 'item:hide':
       await db.studentContext.put({ ...(await db.studentContext.get(message.assignmentId)), key: message.assignmentId, hidden: message.hidden });
+      await updatePlan();
       return { ok: true };
     case 'session:start': {
       if ((await settingsItem.getValue()).paused) return { ok: false, error: 'Loomer is paused. Resume it in settings first.' };
@@ -462,6 +475,7 @@ async function handle(message: Message): Promise<Reply> {
         correction: message.correction ?? undefined,
         note: message.note ?? ctx?.note,
       });
+      await updatePlan();
       return { ok: true };
     }
     case 'choice:set':
@@ -487,6 +501,9 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     case 'screenshot:save':
       return saveScreenshot(db, await loadGateState(), message.crop, new Date(), cropImage).then((r) => (r.ok ? { ok: true } : { ok: false, error: r.error ?? 'Not saved.' }));
+    case 'brief:dismiss':
+      await briefDismissedItem.setValue(localDay(new Date()));
+      return { ok: true };
     case 'screenshot:cancel':
       // The raw capture is discarded; nothing was stored.
       await screenshotDraftItem.setValue(null);

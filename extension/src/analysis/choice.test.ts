@@ -53,6 +53,8 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   docUrls: new Map(),
   activeSession: false,
   choice: null,
+  snapshot: null,
+  briefDismissedOn: null,
   ...over,
 });
 const ctx = (key: string, c: Omit<StudentContext, 'key'>): StudentContext => ({ key, ...c });
@@ -99,5 +101,19 @@ describe('older-work review', () => {
     const missing = { ...old, submission: { submitted: false, excused: false, missing: true, late: true } };
     const m = buildHomeModel(input({ assignments: [missing], context: [reviewed] }));
     expect(m.status !== 'not-connected' && m.olderReview?.items[0]?.reason).toBe('Canvas now marks this missing.');
+  });
+});
+
+describe('plan snapshot', () => {
+  it('says why the top moved and shows it on Home', async () => {
+    const { nextPlanSnapshot } = await import('./recommend');
+    const soon = assignment('soon', 1);
+    const essay = assignment('essay', 5);
+    const first = nextPlanSnapshot(input({ assignments: [soon, essay] }), null);
+    expect(first).toMatchObject({ topId: 'soon', change: null });
+    const second = nextPlanSnapshot(input({ assignments: [soon, essay], context: [ctx('soon', { correction: 'done-offline' })] }), first);
+    expect(second).toMatchObject({ topId: 'essay', change: { text: 'soon is off your list now, so essay is next.' } });
+    const m = buildHomeModel(input({ assignments: [soon, essay], context: [ctx('soon', { correction: 'done-offline' })], snapshot: second }));
+    expect(m.status === 'ready' && m.next.change).toBe('soon is off your list now, so essay is next.');
   });
 });

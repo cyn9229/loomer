@@ -35,6 +35,19 @@ export type RequirementsState = 'checked' | 'checking' | 'unreadable' | 'not-che
  */
 export type WorkBucket = 'soon' | 'later' | 'no-date' | 'past';
 
+/**
+ * An earlier date inside an assignment, taken from its instructions (for example
+ * a draft due for peer review). `derived` means Loomer computed the date from a
+ * relative phrase such as "the day before the final deadline"; quote shows it.
+ */
+export type Checkpoint = { text: string; at: string; quote: string; derived: boolean };
+
+/**
+ * When to begin, not just when it's due: the checkpoint (or due date) minus the
+ * lead time for the requirement-based effort. A starting rule, not a time estimate.
+ */
+export type StartBy = { at: string; basis: 'due' | 'checkpoint' };
+
 /** What the student told Loomer about this item. Shown in context, never as a progress status. */
 export type StudentCorrection = 'done-offline' | 'kept-active' | null;
 
@@ -59,6 +72,10 @@ export type WorkItem = {
   hidden: boolean;
   /** "I did this offline" leaves the queue; "Keep this active" keeps it ranked. */
   correction: StudentCorrection;
+  startBy: StartBy | null;
+  checkpoints: Checkpoint[];
+  /** Plain-words reason for this item's place in the plan, e.g. "Second: start by Wed; the essay needs a start by Tue." */
+  rankReason: string | null;
 };
 
 export type NextAction = {
@@ -75,7 +92,15 @@ export type NextAction = {
   chosenByStudent: boolean;
   /** When the student's choice differs from Loomer's own pick, Loomer's pick and why. */
   loomerPick: { item: WorkItem; reason: string } | null;
+  /** One line when the top of the plan moved since the last check, and why. Null when nothing moved. */
+  change: string | null;
 };
+
+/** Two or more bigger assignments need a start within two days of each other. */
+export type CrowdedWeek = { text: string; assignmentIds: string[] } | null;
+
+/** One sentence about today, shown on the first open each day until dismissed (brief:dismiss). */
+export type DailyBrief = { date: string; text: string } | null;
 
 /**
  * One quiet review of unresolved past-due work. Shown until the student acts on
@@ -124,6 +149,8 @@ export type HomeModel =
       lastCheck: CheckInfo | null;
       resume: ResumeBriefing | null;
       olderReview: OlderReview;
+      crowded: CrowdedWeek;
+      brief: DailyBrief;
     }
   /** Unreadable or unchecked work could change the order, so no confident top pick. */
   | {
@@ -133,7 +160,26 @@ export type HomeModel =
       lastCheck: CheckInfo | null;
       resume: ResumeBriefing | null;
       olderReview: OlderReview;
+      crowded: CrowdedWeek;
+      brief: DailyBrief;
     }
-  | { status: 'ready'; next: NextAction; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null; olderReview: OlderReview }
+  | {
+      status: 'ready';
+      next: NextAction;
+      rest: WorkItem[];
+      lastCheck: CheckInfo | null;
+      resume: ResumeBriefing | null;
+      olderReview: OlderReview;
+      crowded: CrowdedWeek;
+      brief: DailyBrief;
+    }
   /** Connected and checked, nothing open in the decision window. */
-  | { status: 'empty'; rest: WorkItem[]; lastCheck: CheckInfo | null; resume: ResumeBriefing | null; olderReview: OlderReview };
+  | {
+      status: 'empty';
+      rest: WorkItem[];
+      lastCheck: CheckInfo | null;
+      resume: ResumeBriefing | null;
+      olderReview: OlderReview;
+      crowded: CrowdedWeek;
+      brief: DailyBrief;
+    };

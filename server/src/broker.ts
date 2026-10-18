@@ -61,7 +61,8 @@ Return JSON matching the schema:
 - effort: Short (one sitting, little planning), Moderate (several steps or a few sittings), Substantial (research, multiple sources, drafting and revising), or Unknown (the text does not say enough).
 - effortReason.text: one plain sentence naming the requirements that drive the effort. effortReason.quote: an exact passage copied from the instructions or rubric.
 - deliverables: what must be handed in, each with an exact supporting quote.
-- milestones: earlier checkpoints the text states (for example a draft due before the final), each with an exact quote. Empty if none.
+- milestones: earlier checkpoints the text states (for example a draft due before the final), each with an exact quote. date: the stated date as YYYY-MM-DD, or null. daysBeforeDue: when the text states it relative to the final deadline ("the day before the final deadline" is 1), else null. Never guess a date the text does not give. Empty if none.
+- plainWords: what the assignment asks, in 2 or 3 short plain sentences a tired student can follow. Explain the task and what success looks like; never start it, never suggest a thesis or answer.
 - firstStep: one concrete action, at most 9 words, that starts with a verb and helps the student begin, such as "Note each source's main claim". It is shown as a headline, so keep it short. Never write a thesis, an answer, or any part of the work.
 Every quote must be copied character for character from the given text. If you cannot quote support, use effort Unknown and leave lists empty.`,
   user: (req) =>

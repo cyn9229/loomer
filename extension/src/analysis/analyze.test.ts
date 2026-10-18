@@ -20,6 +20,7 @@ describe('groundInSource', () => {
           { text: 'A slideshow', quote: 'Present a slideshow to the class.' },
         ],
         milestones: [],
+        plainWords: 'Compare two sources.',
         firstStep: 'Read both sources and note each main claim',
       },
       request,
@@ -30,7 +31,7 @@ describe('groundInSource', () => {
 
   it('turns an unsupported effort reason into Unknown', () => {
     const r = groundInSource(
-      { effort: 'Short', effortReason: { text: 'Quick', quote: 'This takes ten minutes.' }, deliverables: [], milestones: [], firstStep: 'Begin' },
+      { effort: 'Short', effortReason: { text: 'Quick', quote: 'This takes ten minutes.' }, deliverables: [], milestones: [], plainWords: '', firstStep: 'Begin' },
       request,
     );
     expect(r.effort).toBe('Unknown');

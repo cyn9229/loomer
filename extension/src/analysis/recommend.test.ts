@@ -69,6 +69,8 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   docUrls: new Map(),
   activeSession: false,
   choice: null,
+  snapshot: null,
+  briefDismissedOn: null,
   ...over,
 });
 
@@ -87,7 +89,7 @@ describe('buildHomeModel', () => {
     expect(m.status).toBe('ready');
     if (m.status !== 'ready') return;
     expect(m.next.item.assignmentId).toBe('essay');
-    expect(m.next.reason).toContain('short is due sooner');
+    expect(m.next.reason).toContain('short is due sooner, but this needs the earlier start');
     expect(m.next).toMatchObject({ action: 'Start essay', aiGenerated: true });
   });
 

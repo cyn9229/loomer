@@ -106,7 +106,13 @@ export function groundInSource(r: RequirementsResponse, req: RequirementsRequest
     effort: effortOk ? r.effort : 'Unknown',
     effortReason: effortOk ? r.effortReason : { text: 'The instructions do not say enough to judge the effort.', quote: '' },
     deliverables: r.deliverables.filter(supported),
-    milestones: r.milestones.filter(supported),
+    milestones: r.milestones.filter(supported).map((m) => ({
+      text: m.text,
+      quote: m.quote,
+      date: m.date && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : null,
+      daysBeforeDue: m.daysBeforeDue !== null && m.daysBeforeDue >= 0 && m.daysBeforeDue <= 90 ? m.daysBeforeDue : null,
+    })),
+    plainWords: r.plainWords.trim().slice(0, 600),
     firstStep: headline(r.firstStep),
   };
 }

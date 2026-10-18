@@ -21,11 +21,25 @@ const quoted = z.strictObject({
   quote: z.string(),
 });
 
+/**
+ * An earlier checkpoint. The model reports only what the text states: an explicit
+ * date (YYYY-MM-DD) or a number of days before the final deadline. Loomer computes
+ * the actual date.
+ */
+const milestone = z.strictObject({
+  text: z.string(),
+  quote: z.string(),
+  date: z.string().nullable(),
+  daysBeforeDue: z.number().int().nullable(),
+});
+
 export const requirementsResponseSchema = z.strictObject({
   effort: z.enum(['Short', 'Moderate', 'Substantial', 'Unknown']),
   effortReason: quoted,
   deliverables: z.array(quoted),
-  milestones: z.array(quoted),
+  milestones: z.array(milestone),
+  /** What the assignment asks, in 2 or 3 plain sentences. Explains the task; never starts it. */
+  plainWords: z.string(),
   /** One concrete first step, at most about 9 words, that starts with a verb and does not do the work. */
   firstStep: z.string(),
 });

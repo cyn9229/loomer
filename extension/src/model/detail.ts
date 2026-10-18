@@ -40,6 +40,8 @@ export type AssignmentDetailModel =
       checkAvailability: HelpAvailability | 'no-doc';
       checkPending: boolean;
       effort: { label: WorkItem['effort']['label']; reason: string | null; quote: string | null };
+      /** The instructions rewritten simply (AI interpretation; explains the task, never does it). Null when AI is off or blocked. */
+      plainWords: string | null;
       links: { instructions: string[]; doc: string | null; sources: SourceItem[] };
       correction: StudentCorrection;
       /** The student's own explanation, shown in context only. */

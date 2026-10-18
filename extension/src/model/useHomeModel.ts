@@ -4,7 +4,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { buildHomeModel } from '../analysis/recommend';
 import { db } from '../core/db';
-import { aiSettingsItem, choiceItem, settingsItem } from '../core/settings';
+import { aiSettingsItem, briefDismissedItem, choiceItem, planSnapshotItem, settingsItem } from '../core/settings';
+import { loadHomeData } from './homeData';
 import type { HomeModel } from './home';
 import { useStorageItem } from './useStorageItem';
 
@@ -15,6 +16,8 @@ export function useHomeModel(): HomeModel | undefined {
   const settings = useStorageItem(settingsItem);
   const ai = useStorageItem(aiSettingsItem);
   const choice = useStorageItem(choiceItem);
+  const snapshot = useStorageItem(planSnapshotItem);
+  const briefDismissedOn = useStorageItem(briefDismissedItem);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
@@ -23,32 +26,8 @@ export function useHomeModel(): HomeModel | undefined {
 
   // Dexie reads only: a non-Dexie await here would stop live updates from the worker.
   return useLiveQuery(async () => {
-    if (!settings || !ai || choice === undefined) return undefined;
-    const [lastRun, assignments, courses, analyses, context, packets, sources, links, active] = await Promise.all([
-      db.runs.orderBy('startedAt').last(),
-      db.assignments.toArray(),
-      db.courses.toArray(),
-      db.analyses.toArray(),
-      db.studentContext.toArray(),
-      db.resumePackets.toArray(),
-      db.sources.toArray(),
-      db.docLinks.toArray(),
-      db.sessions.where('state').equals('active').count(),
-    ]);
-    return buildHomeModel({
-      connected: Boolean(settings.canvasOrigin),
-      assignments,
-      courses,
-      analyses,
-      context,
-      ai,
-      lastRun,
-      now: new Date(),
-      packets,
-      sources,
-      docUrls: new Map(links.map((l) => [l.assignmentId, l.url])),
-      activeSession: active > 0,
-      choice,
-    });
-  }, [settings, ai, choice, tick]);
+    if (!settings || !ai || choice === undefined || snapshot === undefined || briefDismissedOn === undefined) return undefined;
+    const data = await loadHomeData(db);
+    return buildHomeModel({ ...data, connected: Boolean(settings.canvasOrigin), ai, choice, snapshot, briefDismissedOn, now: new Date() });
+  }, [settings, ai, choice, snapshot, briefDismissedOn, tick]);
 }

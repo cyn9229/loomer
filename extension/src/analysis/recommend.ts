@@ -1,17 +1,31 @@
-// Builds the HomeModel from stored evidence with inspectable rules. AI output
-// only supplies effort labels and first-step wording; the order is computed here.
+// Builds the HomeModel from stored evidence. The order comes from the planner
+// (plan.ts); AI output only supplies effort labels, checkpoints read from the
+// instructions, and first-step wording.
 import type { Analysis, Assignment, CollectionRun, Course, ResumePacket, Source, StudentContext } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
-import type { CheckInfo, EffortLabel, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
+import type { CheckInfo, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
+import { crowdedWeek, dailyBrief, keepPreviousTop, localDay, plan, rankReasons, type PlanEntry, type Planned } from './plan';
 import type { PolicyResult } from './policy';
 
 const DAY_MS = 86_400_000;
-/** Days of lead time per effort label. A starting rule, not a duration estimate. */
-const LEAD_DAYS: Record<EffortLabel, number> = { Short: 0.5, Moderate: 2, Substantial: 4, Unknown: 2 };
 /** How long Home waits for running AI analysis before ranking without it. */
 const ANALYSIS_WAIT_MS = 20_000;
+/** An unchecked item whose start-by is within this many days of the top could come first. */
+const COMPARE_WINDOW_DAYS = 2;
+/** How long a "what moved" line stays on Home. */
+const CHANGE_SHOWN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The last plan the worker saw: the top item and each ranked item's dates and
+ * title. It keeps the top steady between checks and explains why it moved.
+ */
+export type PlanSnapshot = {
+  topId: string | null;
+  entries: Record<string, { title: string; due: string | null; startBy: string | null }>;
+  change: { text: string; at: string } | null;
+} | null;
 
 export type RecommendInput = {
   connected: boolean;
@@ -30,40 +44,113 @@ export type RecommendInput = {
   activeSession: boolean;
   /** The student's remembered choice, if any. */
   choice: Choice;
+  snapshot: PlanSnapshot;
+  /** Local date (YYYY-MM-DD) the student dismissed the daily brief, if any. */
+  briefDismissedOn: string | null;
 };
 
-type Candidate = { a: Assignment; item: WorkItem; due: EffectiveDue; policy: PolicyResult; analysis: Extract<Analysis, { status: 'ok' }> | null };
+type Candidate = {
+  a: Assignment;
+  item: WorkItem;
+  due: EffectiveDue;
+  policy: PolicyResult;
+  analysis: Extract<Analysis, { status: 'ok' }> | null;
+  planned: Planned | null;
+};
 
-type CoreModel = DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview'> | { status: 'not-connected' };
+type CoreModel =
+  | DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview' | 'crowded' | 'brief'>
+  | { status: 'not-connected' };
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 export function buildHomeModel(input: RecommendInput): HomeModel {
-  const core = buildCore(input);
+  if (!input.connected) return { status: 'not-connected' };
+  const ranking = rank(input);
+  const core = buildCore(input, ranking);
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
-  return { ...core, resume: resumeBriefing(input, next), olderReview: olderReview(input) };
+  const today = localDay(input.now);
+  const plannedOpen = ranking.ranked.flatMap((c) => (c.planned ? [c.planned] : []));
+  return {
+    ...core,
+    resume: resumeBriefing(input, next),
+    olderReview: olderReview(input),
+    crowded: crowdedWeek(plannedOpen, input.now),
+    brief: input.briefDismissedOn !== today && plannedOpen.length > 0 ? { date: today, text: dailyBrief(plannedOpen, input.now) } : null,
+  };
 }
 
-function buildCore(input: RecommendInput): CoreModel {
-  const { connected, lastRun, now } = input;
-  if (!connected) return { status: 'not-connected' };
-  const lastCheck = lastRun ? checkInfo(lastRun) : null;
+type Ranking = {
+  open: Candidate[];
+  ranked: Candidate[];
+  limitations: Evidence[];
+  loomerTop: Candidate | undefined;
+  chosen: Candidate | undefined;
+  analysisPending: Candidate[];
+  decisionCount: number;
+};
 
+/** Plans every open item, ranks the decision set, and applies calm re-ranking. */
+function rank(input: RecommendInput): Ranking {
+  const { lastRun, now } = input;
   const courseById = new Map(input.courses.map((c) => [c.id, c]));
   const contextByKey = new Map(input.context.map((c) => [c.key, c]));
   const analysisById = new Map(input.analyses.map((a) => [a.assignmentId, a]));
-  const sourceKey = lastRun?.sourceKey;
 
-  const open: Candidate[] = input.assignments
-    .filter((a) => a.sourceKey === sourceKey && isOpen(a))
+  const base = input.assignments
+    .filter((a) => a.sourceKey === lastRun?.sourceKey && isOpen(a))
     .map((a) => candidateFor(a, { course: courseById.get(courseKey(a)), analysis: analysisById.get(a.id), context: contextByKey }, now));
 
-  // Hidden and done-offline items leave ranking; kept-active items join it even outside the window.
-  const decision = open.filter(
-    (c) => !c.item.hidden && c.item.correction !== 'done-offline' && (inDecisionSet(c.a, c.due, now) || c.item.correction === 'kept-active'),
+  // Start-by dates and checkpoints for every visible item; only the decision set is ranked.
+  const entry = (c: Candidate): PlanEntry => ({
+    id: c.a.id,
+    title: c.a.title,
+    due: c.due.at,
+    effort: c.analysis?.effort ?? 'Unknown',
+    milestones: c.analysis?.milestones ?? [],
+    keptActive: c.item.correction === 'kept-active',
+  });
+  const plannedById = new Map(plan(base.filter((c) => !c.item.hidden && c.item.correction !== 'done-offline').map(entry), now).map((p) => [p.id, p]));
+  const inDecision = (c: Candidate) =>
+    !c.item.hidden && c.item.correction !== 'done-offline' && (inDecisionSet(c.a, c.due, now) || c.item.correction === 'kept-active');
+  const rankedPlans = keepPreviousTop(
+    plan(base.filter(inDecision).map(entry), now),
+    input.snapshot?.topId ?? null,
   );
-  const rankDue = (c: Candidate) => (c.due.at ? Date.parse(c.due.at) : now.getTime() + HORIZON_DAYS * DAY_MS);
-  const latestStart = (c: Candidate) => rankDue(c) - LEAD_DAYS[c.analysis?.effort ?? 'Unknown'] * DAY_MS;
+  const reasons = rankReasons(rankedPlans);
+
+  const open = base.map((c) => {
+    const planned = plannedById.get(c.a.id) ?? null;
+    const item: WorkItem = { ...c.item, startBy: planned?.startBy ?? null, checkpoints: planned?.checkpoints ?? [], rankReason: reasons.get(c.a.id) ?? null };
+    return { ...c, item, planned };
+  });
+  const byId = new Map(open.map((c) => [c.a.id, c]));
+  const ranked = rankedPlans.flatMap((p) => {
+    const c = byId.get(p.id);
+    return c ? [{ ...c, planned: p }] : [];
+  });
+
+  const analysisPending = lastRun
+    ? ranked.filter(
+        (c) =>
+          c.a.detail &&
+          !analysisById.has(c.a.id) &&
+          now.getTime() - Date.parse(lastRun.finishedAt) < ANALYSIS_WAIT_MS &&
+          checkAiDispatch({ aiEnabled: input.ai.enabled, policy: c.policy, answer: policyAnswer(c.a, contextByKey), purpose: 'requirements-analysis' })
+            .allowed,
+      )
+    : [];
+
+  // Anything unchecked that could come first blocks a confident pick.
+  const top = ranked[0];
+  const startAt = (c: Candidate) => (c.planned?.startBy ? Date.parse(c.planned.startBy.at) : Number.POSITIVE_INFINITY);
+  const limitations: Evidence[] = top
+    ? [
+        ...(top.item.requirements !== 'checked' ? limitationFor(top) : []),
+        ...ranked.filter((c) => c !== top && startAt(c) <= startAt(top) + COMPARE_WINDOW_DAYS * DAY_MS).flatMap((c) => limitationFor(c)),
+      ]
+    : [];
+
   // The student's choice stands until its due date or requirement text changes.
   const chosen = open.find(
     (c) =>
@@ -73,50 +160,64 @@ function buildCore(input: RecommendInput): CoreModel {
       input.choice.dueAt === c.a.dueAt &&
       input.choice.detailHash === (c.a.detail?.hash ?? null),
   );
-  const rest = (exclude?: Candidate) => open.filter((c) => c !== exclude).map((c) => c.item).sort(byDue);
 
-  if (!lastRun) {
-    return { status: 'checking', progress: { checked: 0, total: 0 }, pending: [], rest: rest(), lastCheck };
-  }
+  return { open, ranked, limitations, loomerTop: top && limitations.length === 0 ? top : undefined, chosen, analysisPending, decisionCount: ranked.length };
+}
 
-  // Wait briefly for analysis that is allowed and running, then rank without it.
-  const analysisPending = decision.filter(
-    (c) =>
-      c.a.detail &&
-      !analysisById.has(c.a.id) &&
-      now.getTime() - Date.parse(lastRun.finishedAt) < ANALYSIS_WAIT_MS &&
-      checkAiDispatch({ aiEnabled: input.ai.enabled, policy: c.policy, answer: policyAnswer(c.a, contextByKey), purpose: 'requirements-analysis' })
-        .allowed,
-  );
-  if (analysisPending.length > 0) {
+function buildCore(input: RecommendInput, r: Ranking): CoreModel {
+  const { lastRun, now } = input;
+  const lastCheck = lastRun ? checkInfo(lastRun) : null;
+  const rest = (exclude?: Candidate) => r.open.filter((c) => c.a.id !== exclude?.a.id).map((c) => c.item).sort(byDue);
+
+  if (!lastRun) return { status: 'checking', progress: { checked: 0, total: 0 }, pending: [], rest: rest(), lastCheck };
+  if (r.analysisPending.length > 0) {
     return {
       status: 'checking',
-      progress: { checked: decision.length - analysisPending.length, total: decision.length },
-      pending: analysisPending.map((c) => ({ title: c.a.title, detail: 'Reading requirements' })),
+      progress: { checked: r.decisionCount - r.analysisPending.length, total: r.decisionCount },
+      pending: r.analysisPending.map((c) => ({ title: c.a.title, detail: 'Reading requirements' })),
       rest: rest(),
       lastCheck,
     };
   }
 
-  const ranked = [...decision].sort((x, y) => latestStart(x) - latestStart(y) || rankDue(x) - rankDue(y));
-  const top = ranked[0];
+  const change =
+    input.snapshot?.change && input.snapshot.topId === r.loomerTop?.a.id && now.getTime() - Date.parse(input.snapshot.change.at) < CHANGE_SHOWN_MS
+      ? input.snapshot.change.text
+      : null;
 
-  // Anything that could come first but was not checked blocks a confident pick.
-  const limitations: Evidence[] = top
-    ? [
-        ...(top.item.requirements !== 'checked' ? limitationFor(top) : []),
-        ...decision.filter((c) => c !== top && rankDue(c) <= rankDue(top) + LEAD_DAYS.Substantial * DAY_MS).flatMap((c) => limitationFor(c)),
-      ]
-    : [];
-  const loomerTop = top && limitations.length === 0 ? top : undefined;
-
-  if (chosen) {
-    const loomerPick = loomerTop && loomerTop !== chosen ? { item: loomerTop.item, reason: pickReason(loomerTop, ranked[1]) } : null;
-    return { status: 'ready', next: nextAction(chosen, undefined, { chosenByStudent: true, loomerPick }), rest: rest(chosen), lastCheck };
+  if (r.chosen) {
+    const loomerPick = r.loomerTop && r.loomerTop.a.id !== r.chosen.a.id ? { item: r.loomerTop.item, reason: r.loomerTop.item.rankReason ?? '' } : null;
+    return { status: 'ready', next: nextAction(r.chosen, { chosenByStudent: true, loomerPick, change: null }), rest: rest(r.chosen), lastCheck };
   }
-  if (!top) return { status: 'empty', rest: rest(), lastCheck };
-  if (!loomerTop) return { status: 'cannot-compare', limitations, rest: rest(), lastCheck };
-  return { status: 'ready', next: nextAction(top, ranked[1], { chosenByStudent: false, loomerPick: null }), rest: rest(top), lastCheck };
+  if (!r.ranked[0]) return { status: 'empty', rest: rest(), lastCheck };
+  if (!r.loomerTop) return { status: 'cannot-compare', limitations: r.limitations, rest: rest(), lastCheck };
+  return { status: 'ready', next: nextAction(r.loomerTop, { chosenByStudent: false, loomerPick: null, change }), rest: rest(r.loomerTop), lastCheck };
+}
+
+/**
+ * The worker's view of the plan after each check: the current top plus a
+ * plain-words line when the top moved, saying why.
+ */
+export function nextPlanSnapshot(input: RecommendInput, prev: PlanSnapshot): PlanSnapshot {
+  if (!input.connected) return prev;
+  const r = rank({ ...input, snapshot: prev });
+  const top = r.loomerTop;
+  const entries: NonNullable<PlanSnapshot>['entries'] = {};
+  for (const c of r.ranked) entries[c.a.id] = { title: c.a.title, due: c.due.at, startBy: c.planned?.startBy?.at ?? null };
+  const topId = top?.a.id ?? null;
+  const moved = prev?.topId && topId && prev.topId !== topId;
+  return { topId, entries, change: moved ? { text: describeMove(prev, topId, entries), at: input.now.toISOString() } : (prev?.change ?? null) };
+}
+
+function describeMove(prev: NonNullable<PlanSnapshot>, topId: string, entries: NonNullable<PlanSnapshot>['entries']): string {
+  const was = prev.entries[prev.topId!];
+  const now = entries[topId]!;
+  const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }) : 'no date');
+  if (!entries[prev.topId!]) return `${was?.title ?? 'Your last top item'} is off your list now, so ${now.title} is next.`;
+  if (!prev.entries[topId]) return `New from Canvas: ${now.title}.`;
+  if (prev.entries[topId]!.due !== now.due) return `${now.title} is now due ${day(now.due)}.`;
+  if (was && was.due !== entries[prev.topId!]!.due) return `${was.title} moved to ${day(entries[prev.topId!]!.due)}, so ${now.title} is next.`;
+  return `${now.title} now needs a start sooner.`;
 }
 
 type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext> };
@@ -128,7 +229,7 @@ function candidateFor(a: Assignment, { course, analysis: stored, context }: Cand
   // Only a current, successful analysis counts; never AI content for a blocked assignment.
   const analysis = stored?.status === 'ok' && stored.detailHash === a.detail?.hash && !blocked ? stored : null;
   const ctx = context.get(a.id);
-  return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, ctx, now) };
+  return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, ctx, now), planned: null };
 }
 
 /** The WorkItem for one assignment, built with the same rules Home uses. */
@@ -207,24 +308,11 @@ function limitationFor(c: Candidate): Evidence[] {
   return out;
 }
 
-/** Why Loomer ranks this first, in one source-backed sentence. */
-function pickReason(top: Candidate, runnerUp: Candidate | undefined): string {
-  if (!top.due.at) return 'You kept this active.';
-  const dueText = formatDue(top.due.at);
-  const effort = top.analysis?.effort ?? 'Unknown';
-  return runnerUp?.due.at && Date.parse(runnerUp.due.at) < Date.parse(top.due.at)
-    ? `${runnerUp.a.title} is due sooner, but this needs more lead time (${effort.toLowerCase()} effort, ${dueText}).`
-    : `Due ${dueText}, the soonest of your checked work.`;
-}
-
-function nextAction(
-  top: Candidate,
-  runnerUp: Candidate | undefined,
-  choice: Pick<NextAction, 'chosenByStudent' | 'loomerPick'>,
-): NextAction {
+function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 'loomerPick' | 'change'>): NextAction {
   const { a, item, analysis, due } = top;
   const dueText = due.at ? formatDue(due.at) : 'no due date';
-  const reason = choice.chosenByStudent ? `You chose this. ${due.at ? `Due ${dueText}.` : 'No due date found.'}` : pickReason(top, runnerUp);
+  const reason = extra.chosenByStudent ? `You chose this. ${due.at ? `Due ${dueText}.` : 'No due date found.'}` : (item.rankReason ?? `Due ${dueText}.`);
+  const choice = extra;
 
   const evidence: Evidence[] = [
     !due.at
@@ -236,12 +324,16 @@ function nextAction(
   if (analysis) {
     evidence.push({ kind: 'ai-interpretation', text: `${analysis.effort}: ${analysis.effortReason.text}`, quote: analysis.effortReason.quote || undefined, sourceLabel: 'Canvas assignment' });
     for (const d of analysis.deliverables) evidence.push({ kind: 'ai-interpretation', text: d.text, quote: d.quote, sourceLabel: 'Canvas assignment' });
-    for (const m of analysis.milestones) evidence.push({ kind: 'ai-interpretation', text: m.text, quote: m.quote, sourceLabel: 'Canvas assignment' });
   } else {
     evidence.push({ kind: 'limitation', text: 'Effort is unknown. AI analysis is off or unavailable for this assignment.', sourceLabel: 'Loomer' });
   }
-  if (runnerUp?.due.at) {
-    evidence.push({ kind: 'school-fact', text: `Next: ${runnerUp.a.title}, due ${formatDue(runnerUp.due.at)}.`, sourceLabel: 'Canvas assignment', sourceUrl: runnerUp.a.url ?? undefined });
+  for (const c of item.checkpoints) {
+    evidence.push({
+      kind: 'ai-interpretation',
+      text: `${c.text}: ${formatDue(c.at)}${c.derived ? ' (worked out from the instructions)' : ''}.`,
+      quote: c.quote,
+      sourceLabel: 'Canvas assignment',
+    });
   }
 
   return analysis
@@ -277,6 +369,10 @@ function toWorkItem(
     bucket: bucketFor(due, now),
     hidden: ctx?.hidden === true,
     correction: ctx?.correction ?? null,
+    // Filled in by the planner for visible items.
+    startBy: null,
+    checkpoints: [],
+    rankReason: null,
   };
 }
 

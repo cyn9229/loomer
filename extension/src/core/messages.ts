@@ -74,6 +74,8 @@ export const messageSchema = z.discriminatedUnion('type', [
     crop: z.object({ x: z.number().min(0), y: z.number().min(0), width: z.number().positive(), height: z.number().positive() }),
   }),
   z.object({ type: z.literal('screenshot:cancel') }),
+  /** Hide today's brief; it returns tomorrow. */
+  z.object({ type: z.literal('brief:dismiss') }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
   z.object({ type: z.literal('item:hide'), assignmentId: z.string(), hidden: z.boolean() }),
 ]);

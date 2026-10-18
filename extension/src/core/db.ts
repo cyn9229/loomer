@@ -84,6 +84,9 @@ export type Course = {
 
 export type Quoted = { text: string; quote: string };
 
+/** A checkpoint as the model read it. Date fields are absent on analyses stored before they existed. */
+export type Milestone = Quoted & { date?: string | null; daysBeforeDue?: number | null };
+
 /**
  * One AI interpretation of an assignment's requirements. Valid only while the
  * assignment's detail.hash still equals detailHash; otherwise it is stale.
@@ -98,8 +101,10 @@ export type Analysis =
       effort: EffortLabel;
       effortReason: Quoted;
       deliverables: Quoted[];
-      milestones: Quoted[];
+      milestones: Milestone[];
       firstStep: string;
+      /** Instructions in plain words; absent on older analyses. */
+      plainWords?: string;
     }
   | { assignmentId: string; detailHash: string; status: 'failed'; createdAt: string; error: string };
 

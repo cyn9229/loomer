@@ -2,6 +2,7 @@
 // context (worker, panel, options) reads the same values and can watch changes.
 import { storage } from 'wxt/utils/storage';
 import { db } from './db';
+import type { PlanSnapshot } from '../analysis/recommend';
 import type { Exclusion, GateState, Grant } from './gate';
 
 export type Settings = {
@@ -64,3 +65,9 @@ export const notifyItem = storage.defineItem<{ enabled: boolean }>('local:notify
  */
 export type Choice = { assignmentId: string; dueAt: string | null; detailHash: string | null; at: string } | null;
 export const choiceItem = storage.defineItem<Choice>('local:choice', { fallback: null });
+
+/** The worker's last plan (top item and dates); keeps Home's top steady and explains moves. */
+export const planSnapshotItem = storage.defineItem<PlanSnapshot>('local:planSnapshot', { fallback: null });
+
+/** Local date (YYYY-MM-DD) the student last dismissed the daily brief. */
+export const briefDismissedItem = storage.defineItem<string | null>('local:briefDismissed', { fallback: null });
