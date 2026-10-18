@@ -6,9 +6,7 @@
 // what the assignment asks for as a checklist with open items first. Links,
 // Ask Loomer, and Start working sit at the bottom. Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
-import type { TeacherSheet } from '../model/session';
 import { useState, type ReactNode } from 'react';
-import { DOCS_ORIGINS } from '../core/messages';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { StudentCorrection, WorkItem } from '../model/home';
 import { useAction } from './api';
@@ -17,6 +15,7 @@ import { type HomeActions, startControl } from './home';
 import { Icon } from './Icon';
 import { PolicyNote, SizeMeter, SubjectTile } from './parts';
 import { DeleteAssignmentData } from './privacy';
+import { SheetList } from './sheets';
 import { TypeMenu } from './workType';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
@@ -213,9 +212,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
         <h2>What it asks for</h2>
         {detail.check && <span className="aside">Checked {observedAt(detail.check.at, now)}</span>}
       </div>
-      {detail.sheets.map((s) => (
-        <SheetLine key={s.docId} sheet={s} actions={actions} />
-      ))}
+      <SheetList sheets={detail.sheets} label="Sheets in the instructions" requestOrigins={actions.requestOrigins} send={actions.send} />
       {detail.requirements.length === 0 ? (
         <>
           <p className="hint-line">We haven’t pulled out the requirements yet.</p>
@@ -268,60 +265,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   );
 }
 
-const sheetText: Record<Exclude<TeacherSheet['state'], 'ok' | 'needs-permission'>, string> = {
-  'no-access': 'Google didn’t let Loomer read the sheet (signed out, or download is turned off).',
-  unreadable: 'Loomer couldn’t read the sheet in the instructions. It tries again on the next check.',
-  'rate-limited': 'Google asked Loomer to slow down. It reads the sheet on the next check.',
-};
-
-/**
- * The teacher's Google Doc embedded in the instructions, when Loomer couldn't
- * read it (a read sheet is a link in the row below instead). needs-permission
- * asks Chrome for Google Docs inside the click, then refreshes so the worker
- * reads it right away.
- */
-function SheetLine({ sheet, actions }: { sheet: TeacherSheet; actions: HomeActions }) {
-  const allow = useAction();
-  if (sheet.state === 'ok') return null;
-  if (sheet.state === 'needs-permission') {
-    return (
-      <div className="d-note sheet">
-        <Icon name="doc" size="xs" />
-        <span className="grow">Allow Google Docs so Loomer can read the sheet in the instructions.</span>
-        <button
-          type="button"
-          className="link"
-          disabled={allow.busy}
-          aria-busy={allow.busy}
-          onClick={() =>
-            allow.run(() =>
-              // requestOrigins runs synchronously inside this click, before any await.
-              actions
-                .requestOrigins(DOCS_ORIGINS)
-                .then((granted) =>
-                  granted ? actions.send({ type: 'canvas:refresh' }) : { ok: false as const, error: 'Chrome didn’t allow Google Docs, so Loomer can’t read the sheet.' },
-                ),
-            )
-          }
-        >
-          {allow.busy ? 'Allowing…' : 'Allow'}
-        </button>
-        {allow.error && <p className="status-line error">{allow.error}</p>}
-      </div>
-    );
-  }
-  return (
-    <p className="d-note sheet warn">
-      <Icon name="alert" size="xs" />
-      <span className="grow">{sheetText[sheet.state]}</span>
-      <a className="link" href={sheet.url} target="_blank" rel="noreferrer">
-        Open it
-      </a>
-    </p>
-  );
-}
-
-/** Where the work lives (Canvas, the teacher's sheet, the draft, saved sources), plus Ask Loomer about it. */
+/** Where the work lives (Canvas, the draft, saved sources), plus Ask Loomer about it. The teacher's sheets are listed under What it asks for. */
 function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null; onAsk: () => void }) {
   const instructions = detail?.links.instructions[0] ?? item.url;
   const sources = detail?.links.sources.length ?? 0;
@@ -333,14 +277,6 @@ function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null;
           {item.replay ? 'Replay page' : 'Canvas'}
         </a>
       )}
-      {detail?.sheets
-        .filter((s) => s.state === 'ok')
-        .map((s) => (
-          <a key={s.docId} href={s.url} target="_blank" rel="noreferrer" title={s.title ?? 'Sheet in the instructions'}>
-            <Icon name="doc" />
-            Sheet
-          </a>
-        ))}
       {detail?.links.doc && (
         <a href={detail.links.doc} target="_blank" rel="noreferrer">
           <Icon name="doc" />

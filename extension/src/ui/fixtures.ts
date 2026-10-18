@@ -596,7 +596,10 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     // The practice sheet's instructions embed a Doc Loomer may not read yet; the reading's embedded Doc was read.
     sheets:
       item.assignmentId === 'a-sheet'
-        ? [{ docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: null, state: 'needs-permission', topics: null }]
+        ? [
+            { docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 },
+            { docId: '3fSetB', url: 'https://docs.google.com/document/d/3fSetB/edit', title: 'Practice set B', state: 'needs-permission', topics: null },
+          ]
         : item.assignmentId === 'a-lectura'
           ? [{ docId: '4dLectura', url: 'https://docs.google.com/document/d/4dLectura/edit', title: 'Lectura: El viaje', state: 'ok', topics: null }]
           : [],

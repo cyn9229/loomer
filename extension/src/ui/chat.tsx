@@ -1,7 +1,7 @@
 // Help, inside the Working screen: help for the session's assignment, shaped by
 // its kind of work. Writing is hint-first with draft follow-ups; practice,
-// study and reading get their own ready questions and an optional sheet link
-// (practice and study) instead of a draft.
+// study and reading get their own ready questions and no draft step (practice
+// and study offer "your own copy" in the Working header).
 // When a session is new, up to two numbered steps come first (which Doc is your
 // draft, and the one-time AI rule question). Then the proactive hint, the
 // conversation, quick follow-ups, and a docked composer with the research
@@ -46,7 +46,6 @@ export function ChatView({
 }) {
   const { help, assignment, doc } = session;
   const ask = useAction();
-  const [sheetSkipped, setSheetSkipped] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const canAsk = help.availability === 'available' && !help.pending && !ask.busy;
   const thinking = help.pending || ask.busy;
@@ -67,26 +66,16 @@ export function ChatView({
     send(draft);
   };
 
-  // Writing needs its draft linked. Practice and study may link the teacher's sheet (optional). Reading links nothing.
+  // Writing needs its draft linked. Practice and study offer "your own copy" in the header instead; reading links nothing.
   const type = assignment.workType.type;
-  const sheet = type === 'practice' || type === 'study';
-  const needsDoc = doc.status === 'not-linked' && (type === 'writing' || (sheet && !sheetSkipped));
+  const needsDoc = doc.status === 'not-linked' && type === 'writing';
   const needsPolicy = help.availability === 'needs-policy-answer';
   const steps = Number(needsDoc) + Number(needsPolicy);
   const last = help.messages.at(-1);
 
   return (
     <div className="chat">
-      {needsDoc && (
-        <LinkDocStep
-          n={steps > 1 ? 1 : undefined}
-          assignmentId={assignment.assignmentId}
-          candidates={doc.candidates}
-          api={api}
-          purpose={sheet ? 'sheet' : 'draft'}
-          onSkip={sheet ? () => setSheetSkipped(true) : undefined}
-        />
-      )}
+      {needsDoc && <LinkDocStep n={steps > 1 ? 1 : undefined} assignmentId={assignment.assignmentId} candidates={doc.candidates} api={api} />}
       {needsPolicy && <PolicyStep n={steps > 1 ? 2 : undefined} assignmentId={assignment.assignmentId} api={api} />}
       {steps > 0 && (
         <p className="note">

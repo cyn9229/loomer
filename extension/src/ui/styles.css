@@ -3757,22 +3757,110 @@ details > summary .icon {
 .end .nudge {
   margin-bottom: 12px;
 }
-/* The teacher's sheet in the instructions: allow Google Docs, or why it couldn't be read. */
-.d-note.sheet {
+
+/* ---------- The teacher's sheets, by name ---------- */
+/* One read sheet: a single line. */
+.readline {
+  display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  padding-bottom: 6px;
-}
-.d-note.sheet .grow {
+  gap: 6px;
+  margin: 12px 18px 0;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--text);
 }
-.d-note.sheet.warn .grow {
+.readline > .icon {
+  align-self: center;
+  color: var(--green);
+}
+.readline b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.readline .link {
+  flex: none;
+  font-size: 12.5px;
+}
+/* Two or three sheets, or any that couldn't be read: a short list. */
+.sheets {
+  margin: 12px 18px 0;
+}
+.sheets-k {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.sheet-row:last-child {
+  border-bottom: 0;
+}
+.sheet-row > .icon {
+  color: var(--muted);
+}
+.sheet-t {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+.sheet-s {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sheet-s .ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+  color: var(--green-ink);
+}
+.sheet-s .warn {
   color: var(--amber);
 }
-.d-note.sheet .link {
+.sheet-row .link {
   flex: none;
   font-size: 13px;
 }
-.d-note.sheet .status-line {
-  flex-basis: 100%;
+.sheet-row .btn-primary.sm {
+  width: auto;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+/* Topics grouped by sheet. */
+.topic-group + .topic-group {
+  margin-top: 6px;
+}
+.topic-group-k {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* "Working in your own copy?" */
+.ownline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 18px 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.ownline > .icon {
+  color: var(--muted);
+}
+.ownline .link {
+  font-size: 13px;
+}
+.pick-k {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
 }

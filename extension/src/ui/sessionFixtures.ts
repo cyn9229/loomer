@@ -2,8 +2,8 @@
 // They reuse the Home fixture assignments so both previews tell one story.
 // Covered: no session, Doc not linked (with candidates), reading normally with a
 // hint, paused, Google rate limit, no access, policy question, blocked policy,
-// AI turned off, and the other kinds of work: practice (with and without a
-// linked sheet, and while its topics are read), reading, and a quiz.
+// AI turned off, and the other kinds of work: practice (two teacher sheets with
+// grouped topics, one sheet, and sheets Loomer couldn't read), reading, and a quiz.
 import type { ChatMessage, SessionModel } from '../model/session';
 import { buildFixtures } from './fixtures';
 
@@ -160,27 +160,36 @@ export function buildSessionFixtures(now: Date) {
 
     'no-access': { ...base, doc: { ...linkedDoc, readState: 'no-access', lastReadAt: null, studentWords: null } },
 
-    // Practice with the teacher's sheet linked: topics to tick, no word count.
+    // Practice with two teacher sheets read from the instructions: topics grouped by sheet, no word count, own copy not linked.
     practice: {
       ...base,
       assignment: sheet,
       startedAt: ago(12),
-      doc: { ...linkedDoc, docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', studentWords: null },
+      doc: {
+        status: 'not-linked',
+        candidates: [{ docId: '5eCopy', url: 'https://docs.google.com/document/d/5eCopy/edit', label: 'Answer sheet (make a copy)' }],
+      },
       sources: [],
       activity: [],
       help: { availability: 'available' as const, messages: [], pending: false },
+      teacherSheets: [
+        { docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 },
+        { docId: '3dForm', url: 'https://docs.google.com/document/d/3dForm/edit', title: 'Formula sheet', state: 'ok', topics: 2 },
+      ],
       topics: {
         status: 'ok',
         items: [
-          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', done: true, sheet: null },
-          { text: 'Complete the square', quote: 'Rewrite by completing the square.', done: true, sheet: null },
-          { text: 'Quadratic formula', quote: 'Solve using the quadratic formula.', done: false, sheet: null },
-          { text: 'Vertex form', quote: 'Write each function in vertex form.', done: false, sheet: null },
-          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', done: false, sheet: null },
+          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', done: true, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Complete the square', quote: 'Rewrite by completing the square.', done: true, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Vertex form', quote: 'Write each function in vertex form.', done: false, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', done: false, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Quadratic formula', quote: 'x = (−b ± √(b² − 4ac)) / 2a', done: false, sheet: 'Formula sheet' },
+          { text: 'Discriminant', quote: 'b² − 4ac tells you how many solutions.', done: false, sheet: 'Formula sheet' },
         ],
       },
     },
-    'practice-no-sheet': {
+    // One sheet read: a single line, flat topics, and the own-copy line.
+    'practice-one-sheet': {
       ...base,
       assignment: sheet,
       startedAt: ago(1),
@@ -188,15 +197,31 @@ export function buildSessionFixtures(now: Date) {
       sources: [],
       activity: [],
       help: { availability: 'available' as const, messages: [], pending: false },
+      teacherSheets: [{ docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 }],
+      topics: {
+        status: 'ok',
+        items: [
+          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', done: false, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Complete the square', quote: 'Rewrite by completing the square.', done: false, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Vertex form', quote: 'Write each function in vertex form.', done: false, sheet: 'Unit 6 Review: Quadratics' },
+          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', done: false, sheet: 'Unit 6 Review: Quadratics' },
+        ],
+      },
     },
-    'practice-reading-sheet': {
+    // Three sheets, three states: read, needs Google Docs, and Google refused.
+    'practice-sheet-states': {
       ...base,
       assignment: sheet,
-      startedAt: ago(1),
-      doc: { ...linkedDoc, docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', studentWords: null, lastReadAt: null, readState: 'waiting' },
+      startedAt: ago(4),
+      doc: { status: 'not-linked', candidates: [] },
       sources: [],
       activity: [],
       help: { availability: 'available' as const, messages: [], pending: false },
+      teacherSheets: [
+        { docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 },
+        { docId: '3fSetB', url: 'https://docs.google.com/document/d/3fSetB/edit', title: 'Practice set B', state: 'needs-permission', topics: null },
+        { docId: '3gKey', url: 'https://docs.google.com/document/d/3gKey/edit', title: 'Answer key (teacher view)', state: 'no-access', topics: null },
+      ],
       topics: { status: 'reading', items: [] },
     },
     'reading-work': {
