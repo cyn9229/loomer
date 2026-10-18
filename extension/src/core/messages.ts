@@ -74,6 +74,12 @@ export const messageSchema = z.discriminatedUnion('type', [
     crop: z.object({ x: z.number().min(0), y: z.number().min(0), width: z.number().positive(), height: z.number().positive() }),
   }),
   z.object({ type: z.literal('screenshot:cancel') }),
+  /** Ask Loomer: send a message in a thread ("general" or an assignment id). The reply streams into the store. */
+  z.object({ type: z.literal('chat:send'), threadKey: z.string().min(1), text: z.string().min(1).max(4_000) }),
+  /** Stop the reply being written in this thread. */
+  z.object({ type: z.literal('chat:stop'), threadKey: z.string().min(1) }),
+  /** Delete this thread's messages from this computer. */
+  z.object({ type: z.literal('chat:clear'), threadKey: z.string().min(1) }),
   /** Hide today's brief; it returns tomorrow. */
   z.object({ type: z.literal('brief:dismiss') }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */
