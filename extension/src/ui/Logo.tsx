@@ -1,10 +1,19 @@
-// The loomer mark (three overlapping circles) and wordmark, plus the filled
-// document glyph used inside assignment tiles.
+// The loomer mark (three overlapping circles) and the wordmark.
 import { useId } from 'react';
 
-export function LogoMark({ size = 32 }: { size?: number }) {
+/** `light` draws the mark in white for the violet band. */
+export function LogoMark({ size = 32, light }: { size?: number; light?: boolean }) {
   // Gradient ids must be unique per instance: several marks can share a page.
   const id = useId();
+  if (light) {
+    return (
+      <svg className="logo" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="9.6" r="7.4" fill="#fff" fillOpacity=".95" />
+        <circle cx="8.9" cy="21.8" r="7.4" fill="#fff" fillOpacity=".75" />
+        <circle cx="23.1" cy="21.8" r="7.4" fill="#fff" fillOpacity=".55" />
+      </svg>
+    );
+  }
   return (
     <svg className="logo" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
       <defs>
@@ -27,19 +36,7 @@ export function LogoMark({ size = 32 }: { size?: number }) {
 export function Wordmark({ size }: { size?: number }) {
   return (
     <span className="wordmark" style={size ? { fontSize: size } : undefined}>
-      loomer<i>.</i>
+      loomer
     </span>
-  );
-}
-
-export function DocGlyph({ size = 30 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M9 4h10l6 6v16a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff" fillOpacity=".93" />
-      <path d="M19 4v6h6" fill="#c9c4ff" />
-      <rect x="11" y="14" width="10" height="2" rx="1" fill="#6a5df5" />
-      <rect x="11" y="18" width="10" height="2" rx="1" fill="#6a5df5" />
-      <rect x="11" y="22" width="6" height="2" rx="1" fill="#6a5df5" />
-    </svg>
   );
 }

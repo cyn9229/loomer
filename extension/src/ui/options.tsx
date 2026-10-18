@@ -22,11 +22,12 @@ export type OptionsProps = {
   ai: AiSettings | null;
   proactive: ProactiveSettings | null;
   discovery: { enabled: boolean } | null;
+  notify: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
 };
 
-export function OptionsPage({ settings, ai, proactive, discovery, lastCheck, now }: OptionsProps) {
+export function OptionsPage({ settings, ai, proactive, discovery, notify, lastCheck, now }: OptionsProps) {
   const connected = Boolean(settings?.canvasOrigin);
   const [view, setView] = useState<View | null>(null);
   const current: View = view ?? (connected ? 'privacy' : 'start');
@@ -53,6 +54,7 @@ export function OptionsPage({ settings, ai, proactive, discovery, lastCheck, now
               ai={ai}
               proactive={proactive}
               discovery={discovery}
+              notify={notify}
               lastCheck={lastCheck}
               now={now}
               onCleared={() => setView('start')}
@@ -193,6 +195,7 @@ function Privacy({
   ai,
   proactive,
   discovery,
+  notify,
   lastCheck,
   now,
   onCleared,
@@ -201,6 +204,7 @@ function Privacy({
   ai: AiSettings | null;
   proactive: ProactiveSettings | null;
   discovery: { enabled: boolean } | null;
+  notify: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
   onCleared: () => void;
@@ -264,6 +268,7 @@ function Privacy({
         </section>
         {ai && <AiHelpCard ai={ai} />}
         {proactive && <ProactiveCard proactive={proactive} />}
+        {notify && <NotificationsCard enabled={notify.enabled} />}
         {discovery && <DiscoveryCard enabled={discovery.enabled} />}
         {settings && <PauseCard paused={settings.paused} />}
         {settings && <NeverReadCard exclusions={settings.exclusions} />}
@@ -423,10 +428,78 @@ function DiscoveryCard({ enabled }: { enabled: boolean }) {
         </span>
         <p className="callout-body">
           Chrome will call this “Read your browsing history”. Loomer only looks at the title and address of the tab in
-          front, only during an active session, on this device, without AI. It never reads a page until you choose Add,
+          front, only during an active session, on this device, without AI. It never reads a page until you choose Save,
           and it keeps no list of sites you visit. Turning this off gives the access back.
         </p>
       </div>
+      {error && (
+        <p className="status-line error" role="status">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Desktop notifications: off by default. Turning on asks Chrome for the
+ * notifications permission inside the click, then tells the worker; turning
+ * off gives the permission back.
+ */
+function NotificationsCard({ enabled }: { enabled: boolean }) {
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const toggle = () => {
+    setError(null);
+    setWorking(true);
+    const done = () => setWorking(false);
+    if (enabled) {
+      sendMessage({ type: 'notify:set', enabled: false })
+        .then((reply) => !reply.ok && setError(reply.error))
+        .catch((e: unknown) => setError(String(e)))
+        .finally(done);
+      return;
+    }
+    browser.permissions
+      .request({ permissions: ['notifications'] })
+      .then(async (granted) => {
+        if (!granted) {
+          setError('Chrome didn’t allow notifications. They stay off.');
+          return;
+        }
+        const reply = await sendMessage({ type: 'notify:set', enabled: true });
+        if (!reply.ok) setError(reply.error);
+      })
+      .catch((e: unknown) => setError(String(e)))
+      .finally(done);
+  };
+
+  return (
+    <section className="ocard" aria-label="Notifications">
+      <div className="ocard-head">
+        <span className="tile lg">
+          <Icon name="bell" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">Notifications</h2>
+          <p className="ocard-desc">Off by default. You choose.</p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title" id="notify-switch-label">
+            Ping me about due dates
+          </span>
+          <span className="setting-sub" aria-live="polite">
+            {working ? (enabled ? 'Turning off…' : 'Turning on…') : 'When a teacher moves a due date in Canvas, and at most one research reminder per session.'}
+          </span>
+        </span>
+        <button type="button" role="switch" className="switch" aria-checked={enabled} aria-labelledby="notify-switch-label" disabled={working} onClick={toggle} />
+      </div>
+      <p className="ocard-desc" style={{ marginTop: 8 }}>
+        Hints never send notifications. Your computer might mute these.
+      </p>
       {error && (
         <p className="status-line error" role="status">
           {error}

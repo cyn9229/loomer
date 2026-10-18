@@ -4,6 +4,8 @@
 // relative to `now` so the fixtures never expire. Opened in the side panel with
 // ?fixture=<name>; the panel labels them "Fixture preview" so they are never
 // mistaken for live data.
+import type { ScreenshotDraft } from '../capture/screenshot';
+import type { AssignmentDetailModel } from '../model/detail';
 import type { CheckInfo, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
 import { dateTime } from './format';
 
@@ -252,7 +254,7 @@ export function buildFixtures(now: Date) {
       ...noResume,
       next: {
         item: reflection,
-        action: `Open the instructions for ${reflection.title}`,
+        action: 'Open the instructions',
         reason: 'You chose this one. AI help is off for it, so Loomer only keeps its deadline and links.',
         evidence: [
           {
@@ -358,7 +360,104 @@ export function buildFixtures(now: Date) {
       resume: essayResume(true),
       olderReview: null,
     },
+
+    'your-pick': {
+      status: 'ready',
+      ...noResume,
+      next: {
+        item: essay,
+        action: 'Outline the comparison between your two sources',
+        reason: 'You picked this one. Loomer keeps it until something changes.',
+        evidence: essayEvidence.slice(0, 2),
+        aiGenerated: true,
+        chosenByStudent: true,
+        loomerPick: { item: vocab, reason: `It’s due ${dateTime(vocab.due?.at ?? checkedAt)} and it’s short.` },
+      },
+      rest: [vocab, reflection, lab],
+      lastCheck,
+    },
+
+    'older-review': {
+      status: 'ready',
+      resume: null,
+      olderReview: {
+        items: [
+          { item: pastQuiz, reason: 'Canvas still shows it as not turned in.' },
+          {
+            item: item(now, {
+              assignmentId: 'a-old-lab',
+              title: 'Lab 2.1 Density of Common Liquids: Data and Conclusion',
+              courseName: 'Chemistry',
+              due: { at: at(now, -9, 23, 59), source: 'canvas' },
+            }),
+            reason: 'Canvas marks it missing.',
+          },
+        ],
+      },
+      next: readyNext,
+      rest: [vocab, reflection, lab, pastQuiz],
+      lastCheck,
+    },
   } satisfies Record<string, HomeModel>;
 }
 
 export type FixtureName = keyof ReturnType<typeof buildFixtures>;
+
+/**
+ * Detail fixture for any item: the essay gets a checked draft with all three
+ * requirement states; everything else has requirements but no draft check yet.
+ */
+export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
+  const checked = item.assignmentId === 'a-essay';
+  return {
+    status: 'ok',
+    item,
+    descriptionExcerpt: 'Compare how two sources explain urban heat islands. Use at least three sources and cite them in MLA format.',
+    requirements: [
+      {
+        text: 'Compare the two sources',
+        source: { quote: 'Compare how two sources explain urban heat islands.', label: 'Assignment instructions' },
+        state: checked ? 'observed' : 'unknown',
+        evidence: checked ? { quote: 'The EPA says cities can be 7°F warmer. The city report says shaded blocks are cooler.', note: 'Found in paragraph 3' } : null,
+      },
+      {
+        text: 'Use at least 3 sources',
+        source: { quote: 'Use at least three sources.', label: 'Assignment instructions' },
+        state: checked ? 'needs-review' : 'unknown',
+        evidence: checked ? { quote: 'According to the EPA…', note: 'You cite 2 so far' } : null,
+      },
+      {
+        text: 'Cite in MLA format',
+        source: { quote: 'cite them in MLA format', label: 'Assignment instructions' },
+        state: 'unknown',
+        evidence: null,
+      },
+    ],
+    check: checked ? { at: new Date(now.getTime() - 0.3 * HOUR).toISOString(), scope: 'full', stale: false } : null,
+    checkAvailability: checked ? 'available' : item.policy.state === 'blocked' ? 'blocked' : 'no-doc',
+    checkPending: false,
+    effort: { label: item.effort.label, reason: item.effort.reason, quote: null },
+    links: {
+      instructions: item.url ? [item.url] : [],
+      doc: checked ? 'https://docs.google.com/document/d/1xEssayDraft/edit' : null,
+      sources: [],
+    },
+    correction: item.correction,
+    note: null,
+  };
+}
+
+/** A captured page waiting to be cropped. The image is a drawn stand-in, not a real capture. */
+export function buildScreenshotDraft(now: Date): ScreenshotDraft {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800"><rect width="1280" height="800" fill="#fff"/><rect x="80" y="60" width="700" height="34" rx="6" fill="#cfcde0"/>${[140, 180, 220].map((y) => `<rect x="80" y="${y}" width="1000" height="14" rx="7" fill="#e2e1ea"/>`).join('')}<rect x="80" y="270" width="1120" height="260" rx="12" fill="#d9d6f0"/>${[570, 610, 650, 690].map((y) => `<rect x="80" y="${y}" width="${y % 80 ? 1040 : 820}" height="14" rx="7" fill="#e2e1ea"/>`).join('')}</svg>`;
+  return {
+    sessionId: 1,
+    assignmentId: 'a-essay',
+    url: 'https://www.epa.gov/heatislands/learn-about-heat-islands',
+    title: 'Learn About Heat Islands',
+    dataUrl: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    width: 1280,
+    height: 800,
+    at: new Date(now.getTime() - 60_000).toISOString(),
+  };
+}

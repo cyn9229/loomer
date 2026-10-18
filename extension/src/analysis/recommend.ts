@@ -246,7 +246,7 @@ function nextAction(
 
   return analysis
     ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, ...choice }
-    : { item, action: `Open the instructions for ${a.title}`, reason, evidence, aiGenerated: false, ...choice };
+    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, ...choice };
 }
 
 function toWorkItem(

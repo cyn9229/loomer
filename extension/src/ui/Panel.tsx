@@ -1,26 +1,24 @@
-// The side panel shell: header, Home/Chat/Sources tabs, and routing. Takes the
-// Home and Session models from outside (live hooks or fixtures) and acts only
-// through PanelApi, so it renders the same in both modes.
-import { useState } from 'react';
+// The side panel shell: a violet band (logo, tabs or Back, and the screen's
+// main message) over a white sheet. Takes the models from outside (live hooks
+// or fixtures) and acts only through PanelApi, so it renders the same in both
+// modes. Screens: Home, assignment detail, Chat, Sources, and the screenshot
+// crop, which takes over while a capture is waiting.
+import { useState, type ReactNode } from 'react';
+import type { ScreenshotDraft } from '../capture/screenshot';
+import type { AssignmentDetailModel } from '../model/detail';
 import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { ChatView } from './chat';
-import {
-  AssignmentDetail,
-  CannotCompareView,
-  CheckingView,
-  EmptyView,
-  type HomeActions,
-  NotConnectedView,
-  ReadyView,
-} from './home';
+import { DetailBody, DetailHero } from './detail';
+import { type HomeActions, HomeBody, HomeHero } from './home';
 import { Icon, type IconName } from './Icon';
 import { LogoMark, Wordmark } from './Logo';
-import { Card, CheckBar } from './parts';
+import { SyncFoot } from './parts';
 import { ResumeCard } from './resume';
+import { ScreenshotBody, ScreenshotHero } from './screenshot';
+import { HintCard, SessionHero, sessionPill, SourcesBody, SuggestionRow, type ActiveSession } from './session';
 import { useLingering } from './useLingering';
-import { ActivityCard, DocCard, HintCard, SessionCard, SourcesCard, SuggestionRow, type ActiveSession } from './session';
 
 type Tab = 'home' | 'chat' | 'sources';
 
@@ -33,6 +31,10 @@ const tabs: { id: Tab; label: string; icon: IconName }[] = [
 export type PanelProps = {
   home: HomeModel | undefined;
   session: SessionModel | undefined;
+  /** Loads the detail model for the open assignment (a hook in the live panel). */
+  useDetail: (assignmentId: string | null) => AssignmentDetailModel | undefined;
+  /** A screenshot waiting to be cropped and saved, held in memory only. */
+  screenshot: ScreenshotDraft | undefined;
   now: Date;
   api: PanelApi;
   /** Absent in fixture previews. */
@@ -43,15 +45,17 @@ export type PanelProps = {
   paused: boolean;
 };
 
-export function Panel({ home, session, now, api, onRefresh, previewLabel, paused }: PanelProps) {
+export function Panel({ home, session, useDetail, screenshot, now, api, onRefresh, previewLabel, paused }: PanelProps) {
   const [tab, setTab] = useState<Tab>('home');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [whyOpen, setWhyOpen] = useState(false);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
   const [chatDraft, setChatDraft] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [hidingId, setHidingId] = useState<string | null>(null);
   const start = useAction();
+  const detail = useDetail(openId);
 
   const active: ActiveSession | null = session && session.status !== 'none' ? session : null;
   const hint = active?.hint ?? null;
@@ -66,6 +70,11 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel, paused
       }
     : undefined;
 
+  const goTab = (t: Tab) => {
+    setOpenId(null);
+    setTab(t);
+  };
+
   const actions: HomeActions = {
     openSettings: api.openSettings,
     openItem: setOpenId,
@@ -74,20 +83,14 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel, paused
       start.run(async () => {
         try {
           const reply = await api.send({ type: 'session:start', assignmentId });
-          if (reply.ok) {
-            setOpenId(null);
-            setTab('sources');
-          }
+          if (reply.ok) goTab('chat');
           return reply;
         } finally {
           setStartingId(null);
         }
       });
     },
-    continueSession: () => {
-      setOpenId(null);
-      setTab('sources');
-    },
+    continueSession: () => goTab('chat'),
     sessionAssignmentId: active?.assignment.assignmentId ?? null,
     startingId,
     hidingId,
@@ -107,196 +110,192 @@ export function Panel({ home, session, now, api, onRefresh, previewLabel, paused
   };
 
   const openItem = home && openId ? findItem(home, openId) : null;
+  const pill = paused ? { text: 'Loomer paused', paused: true } : active ? sessionPill(active, now) : null;
+
+  // Each screen is a band message (hero) plus the sheet's content (body).
+  let nav: ReactNode = <Tabs tab={tab} hintWaiting={hint !== null} onTab={goTab} />;
+  let hero: ReactNode = null;
+  let body: ReactNode;
+
+  if (screenshot) {
+    nav = null;
+    hero = <ScreenshotHero />;
+    body = <ScreenshotBody draft={screenshot} now={now} api={api} />;
+  } else if (tab === 'home' && openItem) {
+    nav = null;
+    hero = <DetailHero item={openItem} now={now} onBack={() => setOpenId(null)} />;
+    body = <DetailBody item={openItem} detail={detail} now={now} actions={actions} />;
+  } else if (tab === 'home') {
+    hero = home ? <HomeHero model={home} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} /> : null;
+    body = !home ? (
+      <p className="caption">Loading…</p>
+    ) : home.status === 'not-connected' ? (
+      <p className="mini">
+        <Icon name="lock" />
+        Loomer only reads. It never turns anything in or changes Canvas.
+      </p>
+    ) : (
+      <>
+        {active ? (
+          <button type="button" className="keep" onClick={actions.continueSession}>
+            <span className="keep-icon">
+              <Icon name={active.status === 'paused' ? 'pause' : 'doc'} />
+            </span>
+            <span className="grow">
+              <span className="keep-k">
+                {active.status === 'paused' ? 'Paused session' : 'Working on'}
+              </span>
+              <span className="keep-t">
+                {active.assignment.title}
+              </span>
+            </span>
+            <span className="go">
+              <Icon name="arrowRight" />
+            </span>
+          </button>
+        ) : (
+          home.resume && <ResumeCard resume={home.resume} now={now} api={api} actions={actions} />
+        )}
+        <HomeBody model={home} now={now} actions={actions} whyOpen={whyOpen} />
+        <SyncFoot lastCheck={home.lastCheck} now={now} onRefresh={refresh} refreshing={refreshing} />
+      </>
+    );
+  } else if (!active) {
+    hero = <h1 className="hero-title md">No session yet</h1>;
+    body = (
+      <div className="block">
+        <p className="block-text" style={{ marginTop: 0 }}>
+          {tab === 'chat' ? 'Start a session from Home to get hints on an assignment.' : 'Start a session from Home. Your draft and saved pages show up here.'}
+        </p>
+        <div className="block-act">
+          <button type="button" className="btn sm on-tint" onClick={() => goTab('home')}>
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  } else if (tab === 'chat') {
+    hero = <SessionHero session={active} now={now} />;
+    body = (
+      <ChatView
+        session={active}
+        api={api}
+        draft={chatDraft}
+        setDraft={setChatDraft}
+        hint={
+          shownHint.value && (
+            <HintCard
+              key={shownHint.value.id}
+              hint={shownHint.value}
+              leaving={shownHint.leaving}
+              hidden={hiddenHintId === shownHint.value.id}
+              onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
+              onShow={() => setHiddenHintId(null)}
+              onMoreHelp={() => setChatDraft('Can you help me more with this hint?')}
+              api={api}
+            />
+          )
+        }
+        suggestion={
+          shownSuggestion.value && (
+            <SuggestionRow key={shownSuggestion.value.tabId} suggestion={shownSuggestion.value} leaving={shownSuggestion.leaving} api={api} />
+          )
+        }
+      />
+    );
+  } else {
+    hero = <SessionHero session={active} now={now} />;
+    body = <SourcesBody session={active} now={now} api={api} />;
+  }
 
   return (
     <div className="panel">
-      <header className="panel-head">
-        <LogoMark size={32} />
-        <Wordmark />
-        <span className="grow" />
-        {paused ? (
-          <span className="state-pill paused">Loomer paused</span>
-        ) : (
-          active && (
-            <span className={active.status === 'paused' ? 'state-pill paused' : 'state-pill'}>
-              {active.status === 'paused' ? 'Paused' : 'Session'}
-            </span>
-          )
-        )}
-        <button type="button" className="icon-btn" onClick={api.openSettings} aria-label="Settings">
-          <Icon name="settings" />
-        </button>
-      </header>
-      <nav className="tabs" role="tablist" aria-label="Loomer">
-        {tabs.map((t) => {
-          // Quiet indicator: a waiting hint marks the Sources tab when another tab is open.
-          const marked = t.id === 'sources' && hint !== null && tab !== 'sources';
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              className="tab"
-              aria-selected={tab === t.id}
-              aria-label={marked ? `${t.label}, 1 hint ready` : undefined}
-              onClick={() => setTab(t.id)}
-            >
-              <Icon name={t.icon} />
-              {t.label}
-              {marked && <span className="tab-dot" aria-hidden="true" />}
-            </button>
-          );
-        })}
-      </nav>
       {previewLabel && (
         <p className="preview-banner" role="note">
           {previewLabel}
         </p>
       )}
-      <main className="panel-body" role="tabpanel" key={`${tab}:${openId ?? ''}`}>
+      <header className="band">
+        <div className="band-top">
+          <LogoMark size={22} light />
+          <Wordmark />
+          <span className="grow" />
+          {pill && <span className={pill.paused ? 'live-pill paused' : 'live-pill'}>{pill.text}</span>}
+          <button type="button" className="band-btn" onClick={api.openSettings} aria-label="Settings">
+            <Icon name="settings" size="sm" />
+          </button>
+        </div>
+        {nav}
+        {hero}
+      </header>
+      <main className="sheet" key={screenshot ? 'shot' : `${tab}:${openId ?? ''}`}>
         {paused && <PausedStrip api={api} />}
         {start.error && (
           <p className="status-line error" role="status">
             {start.error}
           </p>
         )}
-        {tab === 'chat' ? (
-          active ? (
-            <ChatView session={active} api={api} draft={chatDraft} setDraft={setChatDraft} />
-          ) : (
-            <NoSession text="Start a session from Home to ask for help with an assignment." onHome={() => setTab('home')} />
-          )
-        ) : tab === 'sources' ? (
-          active ? (
-            <>
-              {shownHint.value && (
-                <HintCard
-                  key={shownHint.value.id}
-                  hint={shownHint.value}
-                  leaving={shownHint.leaving}
-                  hidden={hiddenHintId === shownHint.value.id}
-                  onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
-                  onShow={() => setHiddenHintId(null)}
-                  onMoreHelp={() => {
-                    setChatDraft('Can you help me more with this hint?');
-                    setTab('chat');
-                  }}
-                  api={api}
-                />
-              )}
-              {shownSuggestion.value && (
-                <SuggestionRow
-                  key={shownSuggestion.value.tabId}
-                  suggestion={shownSuggestion.value}
-                  leaving={shownSuggestion.leaving}
-                  api={api}
-                />
-              )}
-              <SessionCard session={active} now={now} api={api} />
-              <DocCard session={active} now={now} api={api} />
-              <SourcesCard sources={active.sources} now={now} api={api} />
-              <ActivityCard session={active} now={now} />
-            </>
-          ) : (
-            <NoSession
-              text="Start a session from Home. Your draft and the pages you save show up here."
-              onHome={() => setTab('home')}
-            />
-          )
-        ) : !home ? (
-          <p className="caption">Loading</p>
-        ) : openItem ? (
-          <AssignmentDetail item={openItem} now={now} onBack={() => setOpenId(null)} actions={actions} />
-        ) : (
-          <>
-            {active && (
-              <button type="button" className="session-strip" onClick={actions.continueSession}>
-                <span className={active.status === 'paused' ? 'tile amber' : 'tile green'}>
-                  <Icon name={active.status === 'paused' ? 'pause' : 'doc'} size="sm" />
-                </span>
-                <span className="row-body">
-                  <span className="row-sub">{active.status === 'paused' ? 'Paused session' : 'Current session'}</span>
-                  <span className="row-title">{active.assignment.title}</span>
-                </span>
-                <Icon name="chevronRight" size="sm" />
-              </button>
-            )}
-            {home.status !== 'not-connected' && home.resume && (
-              <>
-                <p className="hello">Welcome back</p>
-                <ResumeCard resume={home.resume} now={now} api={api} actions={actions} />
-              </>
-            )}
-            <HomeView model={home} now={now} actions={actions} />
-            {home.status !== 'not-connected' && (
-              <CheckBar lastCheck={home.lastCheck} now={now} onRefresh={refresh} refreshing={refreshing} />
-            )}
-          </>
-        )}
+        {body}
       </main>
     </div>
   );
 }
 
-function HomeView({ model, now, actions }: { model: HomeModel; now: Date; actions: HomeActions }) {
-  switch (model.status) {
-    case 'not-connected':
-      return <NotConnectedView actions={actions} />;
-    case 'checking':
-      return <CheckingView model={model} now={now} actions={actions} />;
-    case 'cannot-compare':
-      return <CannotCompareView model={model} now={now} actions={actions} />;
-    case 'ready':
-      return <ReadyView model={model} now={now} actions={actions} />;
-    case 'empty':
-      return <EmptyView model={model} now={now} actions={actions} />;
-  }
+function Tabs({ tab, hintWaiting, onTab }: { tab: Tab; hintWaiting: boolean; onTab: (t: Tab) => void }) {
+  return (
+    <nav className="tabs" role="tablist" aria-label="Loomer">
+      {tabs.map((t) => {
+        // Quiet indicator: a waiting hint marks the Chat tab when another tab is open.
+        const marked = t.id === 'chat' && hintWaiting && tab !== 'chat';
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            className="tab"
+            aria-selected={tab === t.id}
+            aria-label={marked ? `${t.label}, 1 hint ready` : undefined}
+            onClick={() => onTab(t.id)}
+          >
+            <Icon name={t.icon} />
+            {t.label}
+            {marked && <span className="tab-dot" aria-hidden="true" />}
+          </button>
+        );
+      })}
+    </nav>
+  );
 }
 
 function findItem(model: HomeModel, id: string): WorkItem | null {
   if (model.status === 'not-connected') return null;
   const items = model.status === 'ready' ? [model.next.item, ...model.rest] : model.rest;
-  return items.find((i) => i.assignmentId === id) ?? null;
+  const older = model.olderReview?.items.map((i) => i.item) ?? [];
+  return [...items, ...older].find((i) => i.assignmentId === id) ?? null;
 }
 
 /** Loomer is paused: say what stops, and offer to resume. Resuming does not resume a session. */
 function PausedStrip({ api }: { api: PanelApi }) {
   const resume = useAction();
   return (
-    <div className="callout amber" role="status">
-      <span className="tile amber">
-        <Icon name="pause" size="sm" />
-      </span>
-      <div className="callout-body">
-        <strong className="callout-title">Loomer is paused.</strong>
-        It is not checking Canvas, reading your Doc, adding pages, or suggesting pages.
-        <div style={{ marginTop: 8 }}>
-          <button
-            type="button"
-            className="btn sm"
-            disabled={resume.busy}
-            aria-busy={resume.busy}
-            onClick={() => resume.run(() => api.send({ type: 'privacy:pause', paused: false }))}
-          >
-            {resume.busy ? 'Resuming…' : 'Resume Loomer'}
-          </button>
-        </div>
-        {resume.error && <p className="status-line error">{resume.error}</p>}
+    <div className="block amber" role="status">
+      <div className="block-k">
+        <Icon name="pause" />
+        Loomer is paused
       </div>
+      <p className="block-text">It isn’t syncing Canvas, reading your Doc, or saving pages.</p>
+      <div className="block-act">
+        <button
+          type="button"
+          className="btn sm on-tint"
+          disabled={resume.busy}
+          aria-busy={resume.busy}
+          onClick={() => resume.run(() => api.send({ type: 'privacy:pause', paused: false }))}
+        >
+          {resume.busy ? 'Turning back on…' : 'Turn Loomer back on'}
+        </button>
+      </div>
+      {resume.error && <p className="status-line error">{resume.error}</p>}
     </div>
-  );
-}
-
-function NoSession({ text, onHome }: { text: string; onHome: () => void }) {
-  return (
-    <Card>
-      <p className="card-title">No session yet</p>
-      <p className="lede" style={{ marginTop: 4 }}>
-        {text}
-      </p>
-      <button type="button" className="btn sm" style={{ marginTop: 12 }} onClick={onHome}>
-        Go to Home
-      </button>
-    </Card>
   );
 }

@@ -1,28 +1,9 @@
 // Shared building blocks for the side panel and options page. Each part renders
 // model data as given and adds no claims of its own.
 import type { ReactNode } from 'react';
-import type { CheckInfo, Evidence, RequirementsState, WorkItem } from '../model/home';
-import {
-  checkProblem,
-  dateTime,
-  deadlineLabel,
-  dueSourceLabel,
-  evidenceKindLabel,
-  observedAt,
-  policyNotice,
-  requirementsLabel,
-  shortDate,
-} from './format';
+import type { CheckInfo, Evidence, WorkItem } from '../model/home';
+import { checkProblem, dueBadge, dueWhen, evidenceKindLabel, observedAt, policyNotice } from './format';
 import { Icon, type IconName } from './Icon';
-import { DocGlyph } from './Logo';
-
-export function Card({ children, tinted, label }: { children: ReactNode; tinted?: boolean; label?: string }) {
-  return (
-    <section className={tinted ? 'card tinted' : 'card'} aria-label={label}>
-      {children}
-    </section>
-  );
-}
 
 type Tone = 'accent' | 'green' | 'red' | 'amber' | 'replay' | 'gray';
 
@@ -40,177 +21,86 @@ export function ReplayPill() {
   return <Pill tone="replay">Replay</Pill>;
 }
 
-const requirementIcon: Record<RequirementsState, { name: IconName; className: string }> = {
-  checked: { name: 'checkCircle', className: 'ok' },
-  checking: { name: 'halfCircle', className: 'run' },
-  unreadable: { name: 'xCircle', className: 'no' },
-  'not-checked': { name: 'emptyCircle', className: 'idle' },
-};
-
-/** Icon plus a hidden text label, so the state never depends on color alone. */
-export function RequirementState({ state }: { state: RequirementsState }) {
-  const { name, className } = requirementIcon[state];
-  return (
-    <span className={`state-icon ${className}`}>
-      <Icon name={name} label={requirementsLabel[state]} />
-    </span>
-  );
-}
-
-export function AssignmentTile({ small, tone }: { small?: boolean; tone?: 'amber' }) {
-  const cls = ['asg-tile', small ? 'sm' : '', tone ?? ''].filter(Boolean).join(' ');
-  return (
-    <span className={cls} aria-hidden="true">
-      {tone === 'amber' ? <Icon name="alert" /> : <DocGlyph size={small ? 26 : 32} />}
-    </span>
-  );
-}
-
-/** Due line with the relative deadline. Shows both sides when the sources disagree. */
-export function DueText({ item, now }: { item: WorkItem; now: Date }) {
-  if (!item.due) return <>No due date found</>;
-  const rel = deadlineLabel(item.due.at, now);
-  const from = dueSourceLabel(item);
-  return (
-    <>
-      Due {dateTime(item.due.at)}
-      {from && ` (${from})`} · <span className={rel.soon ? 'danger-text' : undefined}>{rel.text}</span>
-    </>
-  );
+/** The class an item belongs to, as a neutral tag. */
+export function ClassTag({ item }: { item: WorkItem }) {
+  return <span className="tag">{item.courseName ?? 'No class'}</span>;
 }
 
 /** Pills that flag what the student must not miss about an item. */
-export function itemFlags(item: WorkItem): ReactNode[] {
+export function itemFlags(item: WorkItem, now: Date): ReactNode[] {
   const flags: ReactNode[] = [];
+  const badge = item.due ? dueBadge(item.due.at, now) : null;
+  if (badge)
+    flags.push(
+      <Pill key="due" tone="red">
+        {badge}
+      </Pill>,
+    );
   if (item.replay) flags.push(<ReplayPill key="replay" />);
   if (item.dueConflict)
     flags.push(
-      <Pill key="conflict" tone="amber" icon="alert">
+      <Pill key="conflict" tone="amber">
         Two due dates
       </Pill>,
     );
-  if (item.policy.state === 'blocked')
+  if (item.policy.state === 'blocked') flags.push(<Pill key="ai">No AI</Pill>);
+  if (item.requirements === 'unreadable') flags.push(<Pill key="unread">Can’t read</Pill>);
+  if (item.correction === 'kept-active')
     flags.push(
-      <Pill key="ai" tone="amber" icon="shield">
-        AI off
-      </Pill>,
-    );
-  if (item.requirements === 'unreadable')
-    flags.push(
-      <Pill key="unread" tone="red">
-        Instructions unreadable
+      <Pill key="kept" tone="accent">
+        Kept on list
       </Pill>,
     );
   return flags;
 }
 
-/** One assignment in a list. Clicking opens its detail in the panel. */
-export function WorkRow({
-  item,
-  onOpen,
-  start,
-  onHide,
-  hiding,
-  inClassGroup,
-}: {
-  item: WorkItem;
-  now: Date;
-  onOpen?: (id: string) => void;
-  /** Start or Continue control, rendered beside the row's open button. */
-  start?: { label: 'Start' | 'Continue'; onClick: () => void; disabled: boolean; busy: boolean };
-  /** Hides the item from lists and ranking. Not destructive; Restore brings it back. */
-  onHide?: () => void;
-  /** The hide request for this row is in flight. */
-  hiding?: boolean;
-  /** Leave the class out of the subline when the row already sits under its class. */
-  inClassGroup?: boolean;
-}) {
-  const flags = itemFlags(item);
-  const sub = [inClassGroup ? null : item.courseName, item.due ? shortDate(item.due.at) : 'No due date', item.effort.label]
-    .filter(Boolean)
-    .join(' · ');
+/** One assignment in a list: class tag, flags, when it is due, then the title. */
+export function WorkRow({ item, now, onOpen }: { item: WorkItem; now: Date; onOpen?: (id: string) => void }) {
   const content = (
     <>
-      <span className="row-body">
-        <span className="row-title">{item.title}</span>
-        <span className="row-sub">{sub}</span>
-        {flags.length > 0 && <span className="row-pills">{flags}</span>}
+      <span className="row-k">
+        <ClassTag item={item} />
+        {itemFlags(item, now)}
+        <span className="grow" />
+        <span className="when">{item.due ? dueWhen(item.due.at, now) : 'No due date'}</span>
       </span>
-      {onOpen && !start && (
-        <span className="row-end">
-          <Icon name="chevronRight" size="sm" />
-        </span>
-      )}
+      <span className="row-title clamp">{item.title}</span>
     </>
   );
   if (!onOpen) return <div className="row">{content}</div>;
-  if (!start) {
-    return (
-      <button type="button" className="row" onClick={() => onOpen(item.assignmentId)}>
-        {content}
-      </button>
-    );
-  }
   return (
-    <div className="row">
-      <button type="button" className="row-main" onClick={() => onOpen(item.assignmentId)}>
-        {content}
-      </button>
-      <button
-        type="button"
-        className="btn sm"
-        disabled={start.disabled}
-        onClick={start.onClick}
-        aria-label={`${start.label} ${item.title}`}
-        aria-busy={start.busy}
-      >
-        {start.busy ? 'Starting…' : start.label}
-      </button>
-      {onHide && (
-        <button
-          type="button"
-          className="icon-btn sm"
-          onClick={onHide}
-          disabled={hiding}
-          aria-busy={hiding}
-          aria-label={hiding ? `Hiding ${item.title}` : `Hide ${item.title}`}
-          title="Hide"
-        >
-          <Icon name="eyeOff" size="sm" />
-        </button>
+    <button type="button" className="row" onClick={() => onOpen(item.assignmentId)}>
+      {content}
+    </button>
+  );
+}
+
+/** A teacher's AI rule: what it means, quoted, with where it came from. */
+export function PolicyBlock({ state, quote, source }: { state: WorkItem['policy']['state']; quote?: string; source?: string }) {
+  const notice = policyNotice[state];
+  if (!notice) return null;
+  return (
+    <div className={notice.tone === 'amber' ? 'block amber' : 'block violet'} role="note">
+      <div className="block-k">
+        <Icon name="shield" />
+        {notice.title}
+      </div>
+      {quote && <span className="quote">“{quote}”</span>}
+      {source && (
+        <span className="source">
+          <Icon name="doc" size="xs" />
+          {source}
+        </span>
       )}
     </div>
   );
 }
 
-/** The pick 6A notice: the rule, quoted, with where it came from. */
-export function PolicyNotice({ item }: { item: WorkItem }) {
-  const notice = policyNotice[item.policy.state];
-  if (!notice) return null;
-  return (
-    <div className={`callout ${notice.tone}`} role="note">
-      <span className={notice.tone === 'amber' ? 'tile amber' : 'tile'}>
-        <Icon name="shield" />
-      </span>
-      <div className="callout-body">
-        <strong className="callout-title">{notice.title}</strong>
-        {item.policy.quote && <span className="quote">“{item.policy.quote}”</span>}
-        {item.policy.sourceLabel && (
-          <span className="source">
-            <Icon name="doc" size="xs" />
-            {item.policy.sourceLabel}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const evidenceIcon: Record<Evidence['kind'], { name: IconName; tone: string }> = {
-  'school-fact': { name: 'list', tone: 'tile' },
-  'ai-interpretation': { name: 'sparkle', tone: 'tile' },
-  'student-context': { name: 'user', tone: 'tile green' },
-  limitation: { name: 'alert', tone: 'tile amber' },
+const evidenceIcon: Record<Evidence['kind'], { name: IconName; amber?: boolean }> = {
+  'school-fact': { name: 'calendar' },
+  'ai-interpretation': { name: 'sparkle' },
+  'student-context': { name: 'user' },
+  limitation: { name: 'alert', amber: true },
 };
 
 /** "Why this?" rows. Quotes appear only when the model supplies one. */
@@ -218,16 +108,15 @@ export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Dat
   return (
     <>
       {evidence.map((e, i) => {
-        const { name, tone } = evidenceIcon[e.kind];
+        const { name, amber } = evidenceIcon[e.kind];
         return (
           <div className="evidence" key={i}>
-            <span className={tone}>
-              <Icon name={name} size="sm" />
+            <span className={amber ? 'evidence-dot amber' : 'evidence-dot'}>
+              <Icon name={name} />
             </span>
-            <div className="row-body">
+            <div className="grow">
               <span className="evidence-kind">{evidenceKindLabel[e.kind]}</span>
               <div className="evidence-text">{e.text}</div>
-              {e.quote && e.kind === 'ai-interpretation' && <span className="quote-label">From the assignment</span>}
               {e.quote && <span className="quote">“{e.quote}”</span>}
               <span className="source">
                 {e.sourceUrl ? (
@@ -237,7 +126,7 @@ export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Dat
                 ) : (
                   e.sourceLabel
                 )}
-                {e.observedAt && <> · checked {observedAt(e.observedAt, now)}</>}
+                {e.observedAt && <> · {observedAt(e.observedAt, now)}</>}
               </span>
             </div>
           </div>
@@ -247,21 +136,8 @@ export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Dat
   );
 }
 
-/**
- * A bar for real, counted progress (checked of total). It steps when the count
- * changes; it never moves on its own.
- */
-export function ProgressBar({ value, max, label }: { value: number; max: number; label: string }) {
-  const ratio = max > 0 ? Math.min(1, value / max) : 0;
-  return (
-    <div className="progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
-      <span style={{ transform: `scaleX(${ratio})` }} />
-    </div>
-  );
-}
-
-/** Last Canvas check, with partial coverage and failures stated plainly. */
-export function CheckBar({
+/** Last Canvas sync at the bottom of Home, with partial coverage and failures stated plainly. */
+export function SyncFoot({
   lastCheck,
   now,
   onRefresh,
@@ -274,25 +150,23 @@ export function CheckBar({
 }) {
   const problem = lastCheck ? checkProblem(lastCheck.partial && lastCheck.outcome === 'ok' ? 'partial' : lastCheck.outcome) : null;
   return (
-    <div className="checkbar" role="status">
-      <span className={problem ? 'tile amber' : 'tile'}>
-        <Icon name={problem ? 'alert' : 'refresh'} size="sm" />
-      </span>
+    <div className="foot" role="status">
       <span className="grow">
         {lastCheck ? (
           <>
-            <strong>Canvas</strong> · {lastCheck.courses} {lastCheck.courses === 1 ? 'course' : 'courses'} ·{' '}
-            {problem ? 'tried' : 'checked'} {observedAt(lastCheck.at, now)}
-            {problem && <span className="checkbar-problem">{problem}</span>}
+            {problem ? 'Tried' : 'Synced with'} Canvas at {observedAt(lastCheck.at, now)} · {lastCheck.courses}{' '}
+            {lastCheck.courses === 1 ? 'class' : 'classes'}
+            {problem && <span className="foot-problem">{problem}</span>}
           </>
         ) : (
-          'No check has finished yet'
+          'Hasn’t synced with Canvas yet'
         )}
       </span>
       {lastCheck?.replay && <ReplayPill />}
       {onRefresh && (
-        <button type="button" className="btn sm" onClick={onRefresh} disabled={refreshing}>
-          {refreshing ? 'Checking…' : 'Refresh'}
+        <button type="button" className="link" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>
+          <Icon name="refresh" size="xs" />
+          {refreshing ? 'Syncing…' : 'Refresh'}
         </button>
       )}
     </div>

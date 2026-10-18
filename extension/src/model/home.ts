@@ -63,7 +63,7 @@ export type WorkItem = {
 
 export type NextAction = {
   item: WorkItem;
-  /** Specific verb and unit of work, e.g. "Outline the comparison between your two sources". */
+  /** Specific verb and unit of work, e.g. "Outline the comparison between your two sources". The UI shows item.title under it, so the action never repeats the title. */
   action: string;
   /** One short, source-backed sentence for choosing it now. */
   reason: string;

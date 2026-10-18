@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarDaysUntil, deadlineLabel } from './format';
+import { calendarDaysUntil, deadlineLabel, dueBadge } from './format';
 
 const now = new Date(2026, 9, 17, 16, 12); // Sat Oct 17, 4:12 PM local
 
@@ -18,5 +18,14 @@ describe('deadlineLabel', () => {
 
   it('never calls a passed deadline missing', () => {
     expect(deadlineLabel(new Date(2026, 9, 17, 9, 0).toISOString(), now).text).toBe('Deadline passed');
+  });
+});
+
+describe('dueBadge', () => {
+  it('is red only for today and tomorrow', () => {
+    expect(dueBadge(new Date(2026, 9, 17, 23, 59).toISOString(), now)).toBe('Due today');
+    expect(dueBadge(new Date(2026, 9, 18, 8, 0).toISOString(), now)).toBe('Due tomorrow');
+    expect(dueBadge(new Date(2026, 9, 19, 8, 0).toISOString(), now)).toBeNull();
+    expect(dueBadge(new Date(2026, 9, 17, 9, 0).toISOString(), now)).toBeNull();
   });
 });

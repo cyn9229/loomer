@@ -1,6 +1,6 @@
 // Display formatting for dates and model states. Pure functions; `now` is passed
 // in so fixtures and tests are deterministic. Dates render in the viewer's zone.
-import type { EvidenceKind, PolicyState, RequirementsState, WorkItem } from '../model/home';
+import type { EffortLabel, EvidenceKind, PolicyState, RequirementsState, WorkItem } from '../model/home';
 import type { RunOutcome } from '../core/db';
 
 const DAY_MS = 86_400_000;
@@ -53,6 +53,34 @@ export function deadlineLabel(iso: string, now: Date): { text: string; soon: boo
   return { text: `${days} days left`, soon: days <= 2 };
 }
 
+/** Short due line for rows: "Mon 8:00 AM" this week, "Oct 29" later, "Was due Oct 9" when passed. */
+export function dueWhen(iso: string, now: Date): string {
+  const at = new Date(iso);
+  const time = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const day = at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (at.getTime() < now.getTime()) return `Was due ${day}`;
+  const days = calendarDaysUntil(at, now);
+  if (days === 0) return `Today ${time}`;
+  if (days < 7) return `${at.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+  return day;
+}
+
+/** The red badge, only for work due today or tomorrow. */
+export function dueBadge(iso: string, now: Date): string | null {
+  const at = new Date(iso);
+  if (at.getTime() < now.getTime()) return null;
+  const days = calendarDaysUntil(at, now);
+  return days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : null;
+}
+
+/** Effort in a student's words. Unknown says nothing rather than guessing. */
+export const effortText: Record<EffortLabel, string | null> = {
+  Short: 'Quick one',
+  Moderate: 'Medium',
+  Substantial: 'Big assignment',
+  Unknown: null,
+};
+
 export function dueSourceLabel(item: WorkItem): string | null {
   if (!item.due) return null;
   return item.due.source === 'instructions' ? 'from instructions' : null;
@@ -60,25 +88,25 @@ export function dueSourceLabel(item: WorkItem): string | null {
 
 export const requirementsLabel: Record<RequirementsState, string> = {
   checked: 'Read',
-  checking: 'Reading',
-  unreadable: "Can't read",
-  'not-checked': 'Not checked',
+  checking: 'Reading…',
+  unreadable: "Couldn't read it",
+  'not-checked': 'Not read yet',
 };
 
 /** Short notice for a policy that limits AI help, or null when nothing needs saying. */
 export const policyNotice: Record<PolicyState, { title: string; tone: 'amber' | 'accent' } | null> = {
-  blocked: { title: 'AI help is off for this assignment.', tone: 'amber' },
-  limited: { title: 'AI help is limited for this assignment.', tone: 'amber' },
-  unresolved: { title: 'AI help is paused until the AI policy is clear.', tone: 'accent' },
+  blocked: { title: 'No AI on this one', tone: 'amber' },
+  limited: { title: 'Only some AI help on this one', tone: 'amber' },
+  unresolved: { title: 'AI help is on hold until the rule is clear', tone: 'accent' },
   'none-found': null,
   permitted: null,
 };
 
 export const evidenceKindLabel: Record<EvidenceKind, string> = {
   'school-fact': 'From your school',
-  'ai-interpretation': "Loomer's reading",
+  'ai-interpretation': 'How Loomer read it',
   'student-context': 'From you',
-  limitation: 'Not checked',
+  limitation: 'Couldn’t check',
 };
 
 /** What went wrong with the last Canvas check, or null when it was fine. */
@@ -87,16 +115,16 @@ export function checkProblem(outcome: RunOutcome): string | null {
     case 'ok':
       return null;
     case 'partial':
-      return 'Some courses could not be read.';
+      return 'Some classes didn’t load.';
     case 'auth-expired':
-      return 'Canvas sign-in expired. Sign in to Canvas, then refresh.';
+      return 'Canvas signed you out. Sign in, then refresh.';
     case 'paused':
-      return 'Paused. Loomer is not reading anything.';
+      return 'Loomer is paused, so it isn’t reading anything.';
     case 'no-permission':
-      return 'Chrome access to Canvas was removed. Reconnect in settings.';
+      return 'Chrome took away access to Canvas. Reconnect in settings.';
     case 'not-connected':
-      return 'Canvas is not connected.';
+      return 'Canvas isn’t connected.';
     case 'failed':
-      return 'The check failed. Showing what Loomer had before.';
+      return 'The sync didn’t work. Showing what we had before.';
   }
 }

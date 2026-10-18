@@ -1,6 +1,6 @@
 // Live options page: settings from chrome.storage (via useStorageItem, never a
 // live query) and the last check from the Home model.
-import { aiSettingsItem, discoveryItem, proactiveItem, settingsItem } from '../../src/core/settings';
+import { aiSettingsItem, discoveryItem, notifyItem, proactiveItem, settingsItem } from '../../src/core/settings';
 import { useHomeModel } from '../../src/model/useHomeModel';
 import { useStorageItem } from '../../src/model/useStorageItem';
 import { OptionsPage } from '../../src/ui/options';
@@ -11,6 +11,7 @@ export function LiveOptions() {
   const ai = useStorageItem(aiSettingsItem);
   const proactive = useStorageItem(proactiveItem);
   const discovery = useStorageItem(discoveryItem);
+  const notify = useStorageItem(notifyItem);
   const model = useHomeModel();
   const lastCheck = model && model.status !== 'not-connected' ? model.lastCheck : null;
   return (
@@ -19,6 +20,7 @@ export function LiveOptions() {
       ai={ai ?? null}
       proactive={proactive ?? null}
       discovery={discovery ?? null}
+      notify={notify ?? null}
       lastCheck={lastCheck}
       now={useNow()}
     />

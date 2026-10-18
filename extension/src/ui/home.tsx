@@ -1,490 +1,414 @@
-// Home tab views, one per HomeModel status, plus the assignment detail (pick 6A).
-// Picks: 1A for checking, 2B for the next action. Views render only what the
-// model says; they never invent progress, time estimates, or checks.
-import { useState, type ReactNode } from 'react';
-import { useElapsedSeconds } from './useNow';
-import type { HomeModel, NextAction, WorkItem } from '../model/home';
-import { groupByClass } from './group';
-import type { PanelApi } from './api';
-import { DeleteAssignmentData } from './privacy';
-import { deadlineLabel, requirementsLabel, shortDate } from './format';
+// Home tab. HomeHero is the band's main message for each HomeModel status (the
+// next step, first sync, all caught up, ...); HomeBody is the sheet below it
+// (older-work review, why this, your work). Views render only what the model
+// says; they never invent progress, time estimates, or checks.
+import { useState } from 'react';
+import type { HomeModel, NextAction, OlderReview, WorkItem } from '../model/home';
+import { useAction, type PanelApi } from './api';
+import { calendarDaysUntil, checkProblem, dueWhen, observedAt } from './format';
 import { Icon } from './Icon';
-import {
-  AssignmentTile,
-  Card,
-  DueText,
-  EvidenceList,
-  itemFlags,
-  Pill,
-  PolicyNotice,
-  ProgressBar,
-  RequirementState,
-  WorkRow,
-} from './parts';
+import { LogoMark } from './Logo';
+import { ClassTag, EvidenceList, PolicyBlock, WorkRow } from './parts';
+import { useElapsedSeconds } from './useNow';
 
 export type HomeActions = {
   openSettings: () => void;
   openItem: (id: string) => void;
   /** Starts a work session; replaces any other session. */
   startSession: (assignmentId: string) => void;
-  /** Goes to the running session (Sources tab). */
+  /** Goes to the running session (Chat tab). */
   continueSession: () => void;
   /** Assignment of the running or paused session, if any. */
   sessionAssignmentId: string | null;
   /** Assignment whose session:start is in flight. */
   startingId: string | null;
-  /** Assignment whose item:hide is in flight. */
-  hidingId: string | null;
   /** Hides an item from lists and ranking, or restores it. */
   setHidden: (assignmentId: string, hidden: boolean) => void;
-  /** Raw message sender for privacy actions (delete data). */
-  send?: PanelApi['send'];
+  /** Assignment whose item:hide is in flight. */
+  hidingId: string | null;
+  send: PanelApi['send'];
 };
 
 /** Start or Continue for one assignment, depending on the current session. */
 export function startControl(item: WorkItem, actions: HomeActions) {
   const current = actions.sessionAssignmentId === item.assignmentId;
   return {
-    label: current ? ('Continue' as const) : ('Start' as const),
+    label: current ? 'Keep going' : 'Start session',
     onClick: () => (current ? actions.continueSession() : actions.startSession(item.assignmentId)),
     disabled: actions.startingId !== null,
     busy: actions.startingId === item.assignmentId,
   };
 }
 
-type ViewProps<S extends HomeModel['status']> = {
-  model: Extract<HomeModel, { status: S }>;
+type HeroProps = {
+  model: HomeModel;
   now: Date;
   actions: HomeActions;
+  whyOpen: boolean;
+  onWhy: () => void;
 };
 
-export function NotConnectedView({ actions }: { actions: HomeActions }) {
-  return (
-    <Card>
-      <div className="asg">
-        <span className="tile lg">
-          <Icon name="link" />
-        </span>
-        <div className="asg-body">
-          <h2 className="asg-title">Connect your Canvas</h2>
-          <p className="asg-meta">Loomer reads your assignments after you approve your school’s Canvas.</p>
-        </div>
-      </div>
-      <button type="button" className="cta block" style={{ marginTop: 16 }} onClick={actions.openSettings}>
-        Open settings
-        <Icon name="arrowRight" />
-      </button>
-      <p className="caption" style={{ marginTop: 10 }}>
-        No passwords or school API keys.
-      </p>
-    </Card>
-  );
-}
-
-/** Pick 1A: one row per assignment with its requirement state, then known work. */
-export function CheckingView({ model, now, actions }: ViewProps<'checking'>) {
-  if (model.rest.length === 0 && model.pending.length === 0) return <FindingAssignments />;
-  const matched = new Set(model.rest.map((i) => i.title));
-  const orphanPending = model.pending.filter((p) => !matched.has(p.title));
-  return (
-    <>
-      <Card label="Reading requirements">
-        <p className="card-label">
-          <span className="card-title">Reading requirements</span>
-          {model.progress.total > 0 && (
-            <span className="aside" aria-live="polite">
-              {model.progress.checked} of {model.progress.total}
-            </span>
-          )}
-        </p>
-        {model.progress.total > 0 && (
-          <ProgressBar value={model.progress.checked} max={model.progress.total} label="Requirements read" />
-        )}
-        {model.rest.filter((i) => !i.hidden).map((item) => {
-          const pending = model.pending.find((p) => p.title === item.title);
-          return (
-            <div className="row" key={item.assignmentId}>
-              <RequirementState state={item.requirements} />
-              <span className="row-body">
-                <span className="row-title">{item.title}</span>
-                <span className="row-sub">
-                  {pending?.detail ?? requirementsLabel[item.requirements]}
-                  {item.courseName && ` · ${item.courseName}`}
-                </span>
-              </span>
-              {item.requirements === 'unreadable' && item.url ? (
-                <a className="btn sm" href={item.url} target="_blank" rel="noreferrer">
-                  Open
-                </a>
-              ) : item.replay ? (
-                <Pill tone="replay">Replay</Pill>
-              ) : null}
-            </div>
-          );
-        })}
-        {orphanPending.map((p) => (
-          <div className="row" key={p.title}>
-            <RequirementState state="checking" />
-            <span className="row-body">
-              <span className="row-title">{p.title}</span>
-              <span className="row-sub">{p.detail}</span>
-            </span>
+/** The band's message: what to do next, or why there is no next step yet. */
+export function HomeHero({ model, now, actions, whyOpen, onWhy }: HeroProps) {
+  switch (model.status) {
+    case 'not-connected':
+      return (
+        <>
+          <div className="hero-mark">
+            <LogoMark size={52} light />
           </div>
-        ))}
-        <div className="callout accent" style={{ marginTop: 14 }}>
-          <span className="tile">
-            <Icon name="info" size="sm" />
-          </span>
-          <p className="callout-body">No top pick until these finish. You can open any assignment now.</p>
-        </div>
-      </Card>
-      <WorkList title="Known work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
-    </>
-  );
+          <h1 className="hero-title">Less managing. More learning.</h1>
+          <p className="hero-sub">Connect Canvas and Loomer finds what to work on next.</p>
+          <div className="hero-act">
+            <button type="button" className="hero-btn" onClick={actions.openSettings}>
+              Connect Canvas
+              <Icon name="arrowRight" />
+            </button>
+          </div>
+        </>
+      );
+    case 'checking':
+      return model.progress.total > 0 ? (
+        <>
+          <h1 className="hero-title md">Reading your assignments…</h1>
+          <p className="hero-sub" aria-live="polite">
+            {model.progress.checked} of {model.progress.total} done. Your next step shows up when we finish.
+          </p>
+          <div
+            className="hero-progress"
+            role="progressbar"
+            aria-label="Assignments read"
+            aria-valuemin={0}
+            aria-valuemax={model.progress.total}
+            aria-valuenow={model.progress.checked}
+          >
+            <span style={{ transform: `scaleX(${Math.min(1, model.progress.checked / model.progress.total)})` }} />
+          </div>
+        </>
+      ) : (
+        <FindingHero />
+      );
+    case 'cannot-compare':
+      return (
+        <>
+          <h1 className="hero-title md">Pick one yourself for now</h1>
+          <p className="hero-sub">Something we couldn’t read might change what comes first.</p>
+        </>
+      );
+    case 'empty':
+      return (
+        <>
+          <h1 className="hero-title md">You’re all caught up</h1>
+          <p className="hero-sub">Nothing due soon. New work shows up after the next sync.</p>
+        </>
+      );
+    case 'ready':
+      return <NextHero next={model.next} now={now} actions={actions} whyOpen={whyOpen} onWhy={onWhy} />;
+  }
 }
 
-/** First check, before any assignment is known. Counts seconds so the wait is visible. */
-function FindingAssignments() {
+/** First sync, before any assignment is known. Counts seconds so the wait is visible. */
+function FindingHero() {
   const seconds = useElapsedSeconds(true);
   return (
-    <Card>
-      <div className="asg">
-        <RequirementState state="checking" />
-        <div className="asg-body">
-          <h2 className="card-title">Looking for your assignments</h2>
-          <p className="asg-meta" aria-live="off">
-            Reading your Canvas courses{seconds > 0 ? ` · ${seconds} s` : ''}
-          </p>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-export function CannotCompareView({ model, now, actions }: ViewProps<'cannot-compare'>) {
-  return (
     <>
-      <Card>
-        <div className="asg">
-          <AssignmentTile tone="amber" />
-          <div className="asg-body">
-            <h2 className="asg-title">Can’t compare reliably yet</h2>
-            <p className="asg-meta">Something Loomer could not read could change what comes first.</p>
-          </div>
-        </div>
-        <EvidenceList evidence={model.limitations} now={now} />
-      </Card>
-      <WorkList title="Pick one yourself" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
+      <h1 className="hero-title md">Looking for your assignments…</h1>
+      <p className="hero-sub" aria-live="off">
+        Reading your Canvas classes{seconds > 0 ? ` · ${seconds} s` : ''}
+      </p>
     </>
   );
 }
 
-/** Pick 2B: action headline, chips, two buttons, then "Why this?". */
-export function ReadyView({ model, now, actions }: ViewProps<'ready'>) {
-  return (
-    <>
-      <NextActionCard next={model.next} now={now} actions={actions} />
-      <Card label="Why this?">
-        <details className="disclosure" open>
-          <summary>
-            Why this?
-            <Icon name="chevronUp" size="sm" />
-          </summary>
-          <EvidenceList evidence={model.next.evidence} now={now} />
-        </details>
-      </Card>
-      <WorkList id="other-work" title="Other work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />
-    </>
-  );
-}
-
-function NextActionCard({ next, now, actions }: { next: NextAction; now: Date; actions: HomeActions }) {
+function NextHero({ next, now, actions, whyOpen, onWhy }: { next: NextAction; now: Date; actions: HomeActions; whyOpen: boolean; onWhy: () => void }) {
   const { item } = next;
   const start = startControl(item, actions);
-  const rel = item.due ? deadlineLabel(item.due.at, now) : null;
+  const clear = useAction();
   return (
-    <Card label="Next action">
-      {next.aiGenerated ? (
-        <p className="card-label accent">
-          <Icon name="sparkle" size="sm" />
-          Recommended next
-        </p>
-      ) : (
-        <p className="card-label">Your next step</p>
-      )}
-      <div className="asg">
-        <AssignmentTile small />
-        <h2 className="asg-title lg">{next.action}</h2>
+    <>
+      <div className="kick">
+        <span>{next.chosenByStudent ? 'Your pick' : 'Up next'}</span>
+        <span className="grow" />
+        <span className="band-pill">{item.due ? `Due ${dueWhen(item.due.at, now)}` : 'No due date'}</span>
       </div>
-      <p className="asg-meta" style={{ margin: '10px 0 0' }}>
+      <h1 className="hero-title clamp">{next.action}</h1>
+      <button type="button" className="hero-item clamp" onClick={() => actions.openItem(item.assignmentId)}>
         {item.title}
-        {item.courseName && ` · ${item.courseName}`}
-      </p>
-      <div className="chips" style={{ marginTop: 12 }}>
-        <Pill icon="calendar">{item.due ? `Due ${shortDate(item.due.at)}` : 'No due date'}</Pill>
-        {rel && <Pill tone={rel.soon ? 'red' : 'accent'}>{rel.text}</Pill>}
-        <Pill tone="accent">{item.effort.label}</Pill>
-        {itemFlags(item)}
-      </div>
-      <p className="lede" style={{ marginTop: 12 }}>
-        {next.reason}
-      </p>
-      {item.policy.state !== 'permitted' && item.policy.state !== 'none-found' && (
-        <div style={{ marginTop: 12 }}>
-          <PolicyNotice item={item} />
-        </div>
-      )}
-      <button type="button" className="cta block" style={{ marginTop: 16 }} onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
-        {start.busy ? 'Starting session…' : start.label === 'Continue' ? 'Continue session' : 'Start session'}
-        <Icon name="arrowRight" />
       </button>
-      <div className="btn-row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
-        <OpenInCanvasLink item={item} />
-        <a className="link" href="#other-work">
-          Pick another
-        </a>
+      <p className="hero-sub">{[item.courseName, item.replay ? 'Replay data' : null].filter(Boolean).join(' · ')}</p>
+      <div className="hero-act">
+        <button type="button" className="hero-btn" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
+          {start.busy ? 'Starting…' : start.label}
+          <Icon name="arrowRight" />
+        </button>
+        {next.chosenByStudent ? (
+          <button type="button" className="hero-link" disabled={clear.busy} onClick={() => clear.run(() => actions.send({ type: 'choice:clear' }))}>
+            {clear.busy ? 'Asking…' : 'Ask Loomer again'}
+          </button>
+        ) : (
+          <button type="button" className="hero-link" aria-expanded={whyOpen} onClick={onWhy}>
+            {whyOpen ? 'Hide why' : 'Why this?'}
+          </button>
+        )}
       </div>
-    </Card>
+      {clear.error && <p className="hero-sub">{clear.error}</p>}
+    </>
   );
 }
 
-export function EmptyView({ model, now, actions }: ViewProps<'empty'>) {
+type BodyProps = {
+  model: Exclude<HomeModel, { status: 'not-connected' }>;
+  now: Date;
+  actions: HomeActions;
+  whyOpen: boolean;
+};
+
+/** The sheet under the band: anything needing an answer first, then your work. */
+export function HomeBody({ model, now, actions, whyOpen }: BodyProps) {
+  const problem = model.lastCheck && model.lastCheck.outcome !== 'ok' && model.lastCheck.outcome !== 'partial' ? checkProblem(model.lastCheck.outcome) : null;
   return (
     <>
-      <Card>
-        <div className="asg">
-          <span className="tile lg green">
-            <Icon name="check" />
+      {problem && model.lastCheck && (
+        <div className="mini amber" role="status">
+          <Icon name="alert" />
+          <span>
+            {problem} Showing what we saw {observedAt(model.lastCheck.at, now)}.
           </span>
-          <div className="asg-body">
-            <h2 className="asg-title">Nothing open right now</h2>
-            <p className="asg-meta">Loomer found no open assignments to plan. New ones appear after the next check.</p>
-          </div>
         </div>
-      </Card>
-      {model.rest.length > 0 && <WorkList title="Other known work" items={model.rest} now={now} onOpen={actions.openItem} actions={actions} />}
+      )}
+      {model.olderReview && model.olderReview.items.length > 0 && <OlderReviewBlock review={model.olderReview} now={now} actions={actions} />}
+      {model.status === 'ready' && <NextDetails next={model.next} now={now} actions={actions} whyOpen={whyOpen} />}
+      {model.status === 'checking' && model.pending.length > 0 && (
+        <div className="block">
+          <div className="block-k">Still reading</div>
+          {model.pending.map((p) => (
+            <div className="row-line" key={p.title}>
+              <span className="grow">
+                <span className="row-title clamp">{p.title}</span>
+                <span className="row-sub">{p.detail}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {model.status === 'cannot-compare' && model.limitations.length > 0 && (
+        <div className="block amber">
+          <div className="block-k">
+            <Icon name="alert" />
+            What we couldn’t check
+          </div>
+          <EvidenceList evidence={model.limitations} now={now} />
+        </div>
+      )}
+      <WorkList items={model.rest} now={now} actions={actions} />
+    </>
+  );
+}
+
+/** Why this step, the teacher's AI rule, and Loomer's own pick when the student chose differently. */
+function NextDetails({ next, now, actions, whyOpen }: { next: NextAction; now: Date; actions: HomeActions; whyOpen: boolean }) {
+  const switchTo = useAction();
+  const { item } = next;
+  return (
+    <>
+      {(item.policy.state === 'blocked' || item.policy.state === 'limited' || item.policy.state === 'unresolved') && (
+        <PolicyBlock state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />
+      )}
+      {whyOpen && (
+        <div className="block violet" aria-label="Why this?">
+          <div className="block-k">
+            <Icon name="sparkle" />
+            Why this
+          </div>
+          <p className="block-text">{next.reason}</p>
+          <EvidenceList evidence={next.evidence} now={now} />
+        </div>
+      )}
+      {next.chosenByStudent && next.loomerPick && (
+        <div className="block">
+          <div className="block-k">Loomer would start with</div>
+          <p className="row-title clamp">{next.loomerPick.item.title}</p>
+          <p className="row-sub">{next.loomerPick.reason}</p>
+          <div className="block-act">
+            <button
+              type="button"
+              className="btn sm on-tint"
+              disabled={switchTo.busy}
+              aria-busy={switchTo.busy}
+              onClick={() => switchTo.run(() => actions.send({ type: 'choice:set', assignmentId: next.loomerPick!.item.assignmentId }))}
+            >
+              {switchTo.busy ? 'Switching…' : 'Switch to this'}
+            </button>
+          </div>
+          {switchTo.error && <p className="status-line error">{switchTo.error}</p>}
+        </div>
+      )}
     </>
   );
 }
 
 /**
- * Known work, grouped by class with a class filter. Inside a class: Due soon,
- * Later, then folded "No due date (N)" and "Past due (N)", which stay one tap
- * away because a missing date does not mean unimportant. Hidden items sit in a
- * folded group at the end with Restore.
+ * One quiet review of older past-due work. Each item gets three answers; "Done
+ * for now" marks the whole review seen (older:reviewed) so it only comes back
+ * on new evidence.
  */
-function WorkList({
-  id,
-  title,
-  items,
-  now,
-  onOpen,
-  actions,
-}: {
-  id?: string;
-  title: string;
-  items: WorkItem[];
-  now: Date;
-  onOpen: (id: string) => void;
-  /** When given, rows get Start or Continue and Hide. */
-  actions?: HomeActions;
-}) {
-  const [filter, setFilter] = useState<string | null>(null);
-  if (items.length === 0) return null;
-  const classes = groupByClass(items);
-  const shown = filter ? classes.filter((c) => c.courseKey === filter) : classes;
-  const hidden = items.filter((i) => i.hidden && (!filter || i.courseKey === filter));
-  const visibleCount = classes.reduce((n, c) => n + c.count, 0);
-
-  const row = (item: WorkItem) => (
-    <WorkRow
-      key={item.assignmentId}
-      item={item}
-      now={now}
-      onOpen={onOpen}
-      start={actions ? startControl(item, actions) : undefined}
-      onHide={actions ? () => actions.setHidden(item.assignmentId, true) : undefined}
-      hiding={actions?.hidingId === item.assignmentId}
-      inClassGroup
-    />
-  );
-
+function OlderReviewBlock({ review, now, actions }: { review: NonNullable<OlderReview>; now: Date; actions: HomeActions }) {
+  const done = useAction();
   return (
-    <section className="card" id={id} tabIndex={id ? -1 : undefined} aria-label={title}>
-      <p className="card-label">
-        <span className="card-title">{title}</span>
-        <span className="aside">
-          {visibleCount} {visibleCount === 1 ? 'item' : 'items'}
-        </span>
-      </p>
-      {classes.length > 1 && (
-        <div className="filter-chips" role="group" aria-label="Filter by class">
-          <button type="button" className="filter-chip" aria-pressed={filter === null} onClick={() => setFilter(null)}>
-            All classes
-          </button>
-          {classes.map((c) => (
-            <button
-              key={c.courseKey}
-              type="button"
-              className="filter-chip"
-              aria-pressed={filter === c.courseKey}
-              onClick={() => setFilter(c.courseKey)}
-            >
-              {c.label} <span>{c.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {shown.map((c) => (
-        <div className="class-group" key={c.courseKey}>
-          {(classes.length > 1 || filter) && (
-            <p className="class-title">
-              {c.label}
-              <span>{c.count}</span>
-            </p>
-          )}
-          {c.soon.length > 0 && <Sub label="Due soon">{c.soon.map(row)}</Sub>}
-          {c.later.length > 0 && <Sub label="Later">{c.later.map(row)}</Sub>}
-          {c.noDate.length > 0 && <Folded label="No due date" count={c.noDate.length}>{c.noDate.map(row)}</Folded>}
-          {c.past.length > 0 && <Folded label="Past due" count={c.past.length}>{c.past.map(row)}</Folded>}
-        </div>
+    <section className="block" aria-label="Older work">
+      <div className="block-title">A few older ones are still open</div>
+      <p className="row-sub">Canvas still lists these. Tell us where they stand.</p>
+      {review.items.map(({ item, reason }) => (
+        <OlderItem key={item.assignmentId} item={item} reason={reason} now={now} actions={actions} />
       ))}
-      {hidden.length > 0 && (
-        <Folded label="Hidden" count={hidden.length}>
-          {hidden.map((item) => (
-            <HiddenRow key={item.assignmentId} item={item} actions={actions} />
-          ))}
-        </Folded>
-      )}
+      <div className="block-act">
+        <button
+          type="button"
+          className="vbtn block"
+          disabled={done.busy}
+          aria-busy={done.busy}
+          onClick={() => done.run(() => actions.send({ type: 'older:reviewed', assignmentIds: review.items.map((i) => i.item.assignmentId) }))}
+        >
+          {done.busy ? 'Saving…' : 'Done for now'}
+        </button>
+      </div>
+      {done.error && <p className="status-line error">{done.error}</p>}
     </section>
   );
 }
 
-function Sub({ label, children }: { label: string; children: ReactNode }) {
+function OlderItem({ item, reason, now, actions }: { item: WorkItem; reason: string; now: Date; actions: HomeActions }) {
+  const act = useAction();
+  const [verb, setVerb] = useState<string | null>(null);
+  const run = (label: string, work: () => ReturnType<PanelApi['send']>) => {
+    setVerb(label);
+    act.run(() => work().finally(() => setVerb(null)));
+  };
+  const correct = (correction: 'kept-active' | 'done-offline') => () =>
+    actions.send({ type: 'context:set', assignmentId: item.assignmentId, correction });
   return (
-    <div className="sub-group">
-      <p className="sub-label">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function Folded({ label, count, children }: { label: string; count: number; children: ReactNode }) {
-  return (
-    <details className="group">
-      <summary>
-        <Icon name="chevronDown" size="sm" />
-        {label} ({count})
-      </summary>
-      {children}
-    </details>
-  );
-}
-
-function HiddenRow({ item, actions }: { item: WorkItem; actions?: HomeActions }) {
-  return (
-    <div className="row">
-      <span className="row-body">
-        <span className="row-title regular">{item.title}</span>
-        <span className="row-sub">{item.courseName ?? 'No course'}</span>
-      </span>
-      {actions && (
-        <button type="button" className="btn sm" onClick={() => actions.setHidden(item.assignmentId, false)}>
-          Restore
+    <div className="old">
+      <div className="row-k">
+        <ClassTag item={item} />
+        <span className="grow" />
+        <span className="when">{item.due ? dueWhen(item.due.at, now) : 'No due date'}</span>
+      </div>
+      <p className="row-title clamp">{item.title}</p>
+      <p className="row-sub">{reason}</p>
+      <div className="three">
+        <button type="button" disabled={act.busy} aria-busy={verb === 'keep'} onClick={() => run('keep', correct('kept-active'))}>
+          Still doing it
         </button>
-      )}
-    </div>
-  );
-}
-
-function OpenInCanvasLink({ item }: { item: WorkItem }) {
-  if (!item.url) return <span className="asg-meta">No Canvas link</span>;
-  return (
-    <a className="link" href={item.url} target="_blank" rel="noreferrer">
-      {item.replay ? 'Open replay page' : 'Open in Canvas'}
-      <Icon name="external" size="xs" />
-    </a>
-  );
-}
-
-/** Pick 6A: the assignment card with its policy notice and what still works. */
-export function AssignmentDetail({ item, now, onBack, actions }: { item: WorkItem; now: Date; onBack: () => void; actions: HomeActions }) {
-  const start = startControl(item, actions);
-  const flags = itemFlags(item);
-  const blocked = item.policy.state === 'blocked';
-  return (
-    <>
-      <button type="button" className="link back" onClick={onBack}>
-        <Icon name="chevronLeft" size="sm" />
-        Home
-      </button>
-      <Card label="Assignment">
-        <p className="card-label">Assignment</p>
-        <div className="asg">
-          <AssignmentTile />
-          <div className="asg-body">
-            <h2 className="asg-title">{item.title}</h2>
-            {item.courseName && <div className="asg-meta">{item.courseName}</div>}
-            <div className="asg-meta">
-              <DueText item={item} now={now} />
-            </div>
-          </div>
-        </div>
-        {flags.length > 0 && (
-          <div className="chips" style={{ marginTop: 12 }}>
-            {flags}
-          </div>
-        )}
-        {(blocked || item.policy.state === 'limited' || item.policy.state === 'unresolved') && (
-          <div style={{ marginTop: 14 }}>
-            <PolicyNotice item={item} />
-          </div>
-        )}
-        {item.dueConflict && (
-          <div className="callout amber" style={{ marginTop: 12 }}>
-            <span className="tile amber">
-              <Icon name="calendar" size="sm" />
-            </span>
-            <p className="callout-body">Canvas and the instructions give different due dates. Check both before you plan.</p>
-          </div>
-        )}
-      </Card>
-      <Card label="Details">
-        <div className="row">
-          <RequirementState state={item.requirements} />
-          <span className="row-body">
-            <span className="row-title">Instructions</span>
-            <span className="row-sub">{requirementsLabel[item.requirements]}</span>
-          </span>
-        </div>
-        <div className="row">
-          <span className="tile">
-            <Icon name="list" size="sm" />
-          </span>
-          <span className="row-body">
-            <span className="row-title">Effort: {item.effort.label}</span>
-            <span className="row-sub" style={{ whiteSpace: 'normal' }}>
-              {item.effort.reason ?? 'Not enough checked requirements to say.'}
-            </span>
-          </span>
-        </div>
-      </Card>
-      <button type="button" className="cta block" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
-        {start.busy ? 'Starting session…' : start.label === 'Continue' ? 'Continue session' : 'Start session'}
-        <Icon name="arrowRight" />
-      </button>
-      <div className="btn-row" style={{ justifyContent: 'space-between' }}>
-        <OpenInCanvasLink item={item} />
-        <button type="button" className="link" onClick={() => actions.setHidden(item.assignmentId, !item.hidden)}>
-          {item.hidden ? 'Restore to lists' : 'Hide from lists'}
+        <button type="button" disabled={act.busy} aria-busy={verb === 'done'} onClick={() => run('done', correct('done-offline'))}>
+          Did it offline
+        </button>
+        <button
+          type="button"
+          disabled={act.busy}
+          aria-busy={verb === 'hide'}
+          onClick={() => run('hide', () => actions.send({ type: 'item:hide', assignmentId: item.assignmentId, hidden: true }))}
+        >
+          Hide
         </button>
       </div>
-      {actions.send && (
-        <div className="row-actions center">
-          <DeleteAssignmentData assignmentId={item.assignmentId} send={actions.send} />
-        </div>
-      )}
-      {blocked && <p className="caption">Hints, reviews, and draft reading are off here. Your session still keeps your draft and pages together.</p>}
-    </>
+      {act.error && <p className="status-line error">{act.error}</p>}
+    </div>
   );
 }
+
+type Filter = WorkItem['bucket'] | 'hidden';
+
+const filters: { id: Filter; label: string }[] = [
+  { id: 'soon', label: 'Soon' },
+  { id: 'later', label: 'Later' },
+  { id: 'no-date', label: 'No date' },
+  { id: 'past', label: 'Past' },
+  { id: 'hidden', label: 'Hidden' },
+];
+
+/**
+ * Your work: a week strip for orientation, then one bucket at a time. No date
+ * and Past stay one tap away, because a missing date does not mean unimportant.
+ */
+function WorkList({ items, now, actions }: { items: WorkItem[]; now: Date; actions: HomeActions }) {
+  const [chosen, setChosen] = useState<Filter | null>(null);
+  if (items.length === 0) return null;
+
+  const visible = items.filter((i) => !i.hidden);
+  const inFilter = (f: Filter) => (f === 'hidden' ? items.filter((i) => i.hidden) : visible.filter((i) => i.bucket === f));
+  const counts = new Map(filters.map((f) => [f.id, inFilter(f.id).length]));
+  const current = chosen ?? filters.find((f) => (counts.get(f.id) ?? 0) > 0)?.id ?? 'soon';
+  const rows = inFilter(current).sort((a, b) => (current === 'past' ? dueTime(b) - dueTime(a) : dueTime(a) - dueTime(b)));
+
+  return (
+    <section aria-label="Your work">
+      <div className="sec">
+        <h2>Your work</h2>
+        <span className="n">{visible.length}</span>
+      </div>
+      <WeekStrip items={visible} now={now} />
+      <div className="filter" role="group" aria-label="Show">
+        {filters
+          .filter((f) => f.id === current || (counts.get(f.id) ?? 0) > 0)
+          .map((f) => (
+            <button key={f.id} type="button" aria-pressed={current === f.id} onClick={() => setChosen(f.id)}>
+              {f.label} <b>{counts.get(f.id)}</b>
+            </button>
+          ))}
+      </div>
+      <div className="list">
+        {rows.length === 0 && <p className="empty-line">Nothing here.</p>}
+        {current === 'hidden'
+          ? rows.map((item) => (
+              <div className="row-line" key={item.assignmentId}>
+                <span className="grow">
+                  <span className="row-title clamp">{item.title}</span>
+                  <span className="row-sub">{item.courseName ?? 'No class'}</span>
+                </span>
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={actions.hidingId === item.assignmentId}
+                  aria-busy={actions.hidingId === item.assignmentId}
+                  onClick={() => actions.setHidden(item.assignmentId, false)}
+                >
+                  Restore
+                </button>
+              </div>
+            ))
+          : rows.map((item) => <WorkRow key={item.assignmentId} item={item} now={now} onOpen={actions.openItem} />)}
+      </div>
+    </section>
+  );
+}
+
+/** Today and the next six days, with a dot per item due (up to three). Orientation only. */
+function WeekStrip({ items, now }: { items: WorkItem[]; now: Date }) {
+  const days = Array.from({ length: 7 }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
+  const due = new Map<number, number>();
+  for (const item of items) {
+    if (!item.due) continue;
+    const offset = calendarDaysUntil(new Date(item.due.at), now);
+    if (offset >= 0 && offset < 7) due.set(offset, (due.get(offset) ?? 0) + 1);
+  }
+  return (
+    <div className="strip" style={{ margin: '10px 0' }} aria-hidden="true">
+      {days.map((d, i) => (
+        <span key={i} className={i === 0 ? 'day today' : 'day'}>
+          {d.toLocaleDateString(undefined, { weekday: 'narrow' })}
+          <b>{d.getDate()}</b>
+          <s>
+            {Array.from({ length: Math.min(3, due.get(i) ?? 0) }, (_, j) => (
+              <i key={j} />
+            ))}
+          </s>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function dueTime(item: WorkItem): number {
+  return item.due ? new Date(item.due.at).getTime() : Number.MAX_SAFE_INTEGER;
+}
+
