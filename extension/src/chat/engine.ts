@@ -6,6 +6,7 @@ import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent } 
 import type { ChatTurnRecord, LoomerDb } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type ChatBlock, type ThreadKey } from '../model/chat';
+import { isQuiz } from '../analysis/workType';
 import { workHelpDecision } from '../session/help';
 import { runTool, type ToolSettings } from './tools';
 
@@ -14,6 +15,7 @@ const HISTORY_TURNS = 12;
 const FLUSH_MS = 120;
 const SERVICE_DOWN = "Loomer's AI service isn't running on this computer. Start it with npm run dev:server, then try again.";
 const CUT_OFF = 'The reply was cut off before it finished. Try again.';
+const QUIZ_PAUSE = 'Ask Loomer is paused while you work on a quiz or test. It comes back when you end the session.';
 
 /** The broker could not be reached at all (as opposed to a reply that broke midway). */
 class ServiceDownError extends Error {}
@@ -39,13 +41,19 @@ export function isStreaming(threadKey: ThreadKey) {
 /** Whether Ask Loomer may answer in this thread right now, and why not. */
 export async function chatAllowed(db: LoomerDb, ai: AiSettings, threadKey: ThreadKey): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!ai.enabled) return { ok: false, reason: 'AI help is off. You can turn it on in settings.' };
+  // The quiz rule: while a session on a quiz or test is open, Ask Loomer pauses everywhere.
+  const session = await db.sessions.where('state').anyOf('active', 'paused').last();
+  const sessionItem = session ? await db.assignments.get(session.assignmentId) : undefined;
+  if (sessionItem && isQuiz(sessionItem)) return { ok: false, reason: QUIZ_PAUSE };
   if (threadKey === GENERAL_THREAD) return { ok: true };
   const decision = await workHelpDecision(db, ai, threadKey);
   if (decision.allowed) return { ok: true };
   return {
     ok: false,
     reason:
-      decision.reason === 'policy-blocked'
+      decision.reason === 'quiz'
+        ? 'Loomer does not help with a quiz or test itself. Study for it in a general chat before you start.'
+        : decision.reason === 'policy-blocked'
         ? "Your teacher's rule turns AI help off for this assignment. Loomer can still help you organize it."
         : decision.reason === 'needs-policy-answer'
           ? 'Answer the question about your teacher’s AI rule first.'

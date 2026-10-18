@@ -124,5 +124,7 @@ export function availability(decision: HelpDecision): { availability: HelpAvaila
       return { availability: 'limited', ...quote };
     case 'policy-unresolved':
       return { availability: 'unresolved', ...quote };
+    case 'quiz':
+      return { availability: 'quiz' };
   }
 }

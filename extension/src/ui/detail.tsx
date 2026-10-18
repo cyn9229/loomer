@@ -189,6 +189,7 @@ const notChecked: Record<Exclude<Detail['checkAvailability'], 'available'>, stri
   blocked: 'No AI on this one, so Loomer won’t read your draft.',
   limited: 'AI help is limited here, so Loomer won’t check your draft.',
   unresolved: 'Checking is on hold until the AI rule is clear.',
+  quiz: 'This is a quiz or test, so Loomer won’t read your answers.',
 };
 
 /** What the assignment asks for. Checks describe what was seen in the draft, never a grade. */

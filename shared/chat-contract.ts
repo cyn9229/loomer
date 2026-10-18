@@ -69,6 +69,7 @@ export const planChangeItemSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('workload'), assignment_id: z.string().max(300), label: z.enum(['Light', 'Medium', 'Heavy']) }),
   z.strictObject({ kind: z.literal('start_on'), assignment_id: z.string().max(300), date: ymd }),
   z.strictObject({ kind: z.literal('guess'), assignment_id: z.string().max(300), minutes: z.number().int().min(5).max(10_000) }),
+  z.strictObject({ kind: z.literal('work_type'), assignment_id: z.string().max(300), type: z.enum(['writing', 'practice', 'study', 'reading']) }),
   z.strictObject({ kind: z.literal('normal_day'), minutes: z.number().int().min(0).max(1_440) }),
   z.strictObject({ kind: z.literal('time_left'), minutes: z.number().int().min(5).max(600) }),
   z.strictObject({ kind: z.literal('mark'), assignment_id: z.string().max(300), as: z.enum(['hidden', 'done_offline', 'keep_active']) }),
@@ -107,7 +108,7 @@ export const chatTools = {
   },
   propose_plan_change: {
     description:
-      "Propose changes to the student's plan from what THEY said: how much room a day has (free, some about 2 h, little about 30 min, busy means no starts; for one date, or a weekday with repeat true for every week), their own workload label for an assignment, a day they want to start it, their own time guess for it, their normal day's free time, the time they have in this work session, or hiding / done offline / keep active. Never invent numbers; use only the student's. Nothing changes until the student taps Apply on the card. Due dates and the teacher's AI rule can't be changed.",
+      "Propose changes to the student's plan from what THEY said: how much room a day has (free, some about 2 h, little about 30 min, busy means no starts; for one date, or a weekday with repeat true for every week), their own workload label for an assignment, a day they want to start it, their own time guess for it, what kind of work it is (writing, practice, study, reading), their normal day's free time, the time they have in this work session, or hiding / done offline / keep active. Never invent numbers; use only the student's. Nothing changes until the student taps Apply on the card. Due dates and the teacher's AI rule can't be changed.",
     schema: z.strictObject({ changes: z.array(planChangeItemSchema).min(1).max(10) }),
   },
   quiz_me: {

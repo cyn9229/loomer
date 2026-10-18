@@ -43,7 +43,9 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
       continue;
     }
     const prior = analysisById.get(a.id);
-    if (prior?.detailHash === a.detail.hash && (prior.status === 'ok' || now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS)) continue;
+    // An ok analysis from before work types existed is read again once, to learn the type.
+    const current = prior?.status === 'ok' && prior.workType !== undefined;
+    if (prior?.detailHash === a.detail.hash && (current || (prior.status === 'failed' && now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS))) continue;
     const decision = checkAiDispatch({ aiEnabled: settings.enabled, policy, answer: policyAnswer(a, contextByKey), purpose: 'requirements-analysis' });
     if (decision.allowed) queue.push(a);
   }
@@ -114,6 +116,7 @@ export function groundInSource(r: RequirementsResponse, req: RequirementsRequest
     })),
     plainWords: r.plainWords.trim().slice(0, 600),
     firstStep: headline(r.firstStep),
+    workType: r.workType,
   };
 }
 

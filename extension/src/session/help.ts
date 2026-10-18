@@ -13,22 +13,25 @@ import {
 } from '../../../shared/ai-contract';
 import { studentText } from '../adapters/docs/reader';
 import type { ChatRecord, LoomerDb } from '../core/db';
-import { checkAiDispatch } from '../core/gate';
+import { checkAiDispatch, type AiDenyReason } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
 import type { PolicyResult } from '../analysis/policy';
+import { isQuiz } from '../analysis/workType';
 
 const MAX_WORK_CHARS = 15_000;
 
 type WorkContext = Pick<HelpRequest, 'title' | 'instructions' | 'rubric' | 'studentWork' | 'workScope'>;
 
-export type HelpDecision = ReturnType<typeof checkAiDispatch> & { policy: PolicyResult | null };
+/** `quiz`: the item is a quiz or test taken online; AI help on it is always off. */
+export type HelpDecision = ({ allowed: true } | { allowed: false; reason: AiDenyReason | 'quiz' }) & { policy: PolicyResult | null };
 
-/** Whether work help is allowed now, from consent, detected policy, and the student's answer. */
+/** Whether work help is allowed now, from the quiz rule, consent, detected policy, and the student's answer. */
 export async function workHelpDecision(db: LoomerDb, ai: AiSettings, assignmentId: string): Promise<HelpDecision> {
   const a = await db.assignments.get(assignmentId);
   if (!a) return { allowed: false, reason: 'policy-unresolved', policy: null };
   const policy = assignmentPolicy(a, await db.courses.get(courseKey(a)));
+  if (isQuiz(a)) return { allowed: false, reason: 'quiz', policy };
   const context = (await db.studentContext.bulkGet([a.id, courseKey(a)])).filter((c) => c !== undefined);
   const answer = policyAnswer(a, new Map(context.map((c) => [c.key, c])));
   return { ...checkAiDispatch({ aiEnabled: ai.enabled, policy, answer, purpose: 'work-help' }), policy };

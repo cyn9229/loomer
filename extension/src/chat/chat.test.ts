@@ -140,6 +140,15 @@ describe('sendChat', () => {
     expect(replies[1]!.blocks[0]).toMatchObject({ kind: 'markdown', text: expect.stringContaining("teacher's rule") });
   });
 
+  it('pauses all of Ask Loomer while a session on a quiz is open', async () => {
+    await db.assignments.put({ ...assignment('quiz', 'Answer each question.'), kind: 'quiz' });
+    await db.sessions.add({ sourceKey: 'k', assignmentId: 'quiz', state: 'active', startedAt: now.toISOString(), endedAt: null, lastActivityAt: now.toISOString() });
+    const f = broker([]);
+    await sendChat(deps(f), 'general', 'what is an ellipse?');
+    expect(f.calls).toHaveLength(0);
+    expect((await db.chatTurns.toArray()).at(-1)).toMatchObject({ status: 'error', blocks: [{ kind: 'markdown', text: expect.stringContaining('paused while you work on a quiz') }] });
+  });
+
   it('says plainly when the AI service is not running', async () => {
     const down = async () => {
       throw new TypeError('Failed to fetch');

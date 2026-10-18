@@ -156,6 +156,8 @@ function placeholder(availability: HelpAvailability | undefined, followUp: boole
       return 'Answer the question above first';
     case 'unresolved':
       return 'AI help is on hold';
+    case 'quiz':
+      return 'No AI help on a quiz or test';
   }
 }
 

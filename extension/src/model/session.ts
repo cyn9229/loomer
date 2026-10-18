@@ -60,7 +60,7 @@ export type ChatMessage = {
  * Whether Loomer may help with this assignment's work. `needs-policy-answer` means
  * the UI should ask the one-time policy question (send policy:answer) before help.
  */
-export type HelpAvailability = 'available' | 'needs-policy-answer' | 'ai-off' | 'blocked' | 'limited' | 'unresolved';
+export type HelpAvailability = 'available' | 'needs-policy-answer' | 'ai-off' | 'blocked' | 'limited' | 'unresolved' | 'quiz';
 
 export type HelpState = {
   availability: HelpAvailability;

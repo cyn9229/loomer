@@ -74,6 +74,8 @@ function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId'
     dueConflict: false,
     effort: { label: 'Unknown', reason: null, source: 'ai' },
     guessMinutes: null,
+    workType: { type: 'writing', source: 'rule' },
+    quiz: false,
     policy: { state: 'none-found' },
     requirements: 'checked',
     replay: false,

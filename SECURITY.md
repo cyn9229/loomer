@@ -27,6 +27,7 @@ Turning AI off, pausing, blocking a site, or deleting data stops future sending.
 ## Boundaries Loomer enforces
 
 - **One gate** (`extension/src/core/gate.ts`) decides every read: supported URL, global pause, built-in exclusions (Gmail, Outlook, Google sign-in, and sign-in, account, inbox, grade, and payment routes for research), student exclusions, a grant for the exact purpose, and an allow-list of Canvas API routes (no inbox, grades, or rosters).
+- **Quizzes and tests.** A Canvas quiz, an online-quiz submission, or a test run in an outside tool never gets AI help on its content, hints, or a draft check. While a session on one is open, Ask Loomer pauses everywhere, so it cannot be used during the quiz.
 - **AI dispatch check** (`checkAiDispatch`) runs before sending and again before storing a result. An explicit "no AI" rule in the syllabus or assignment blocks all AI for that assignment; a student answer cannot override it. Unreadable instructions prevent clearance.
 - **Untrusted text.** Assignment, page, and draft text are passed to the model as data inside delimiters. AI output is schema-validated, every quoted claim must appear in the text that was sent, and model output is rendered as plain text.
 - **Stale results are discarded** if the source text, grant, policy, or AI setting changed while a request was in flight.

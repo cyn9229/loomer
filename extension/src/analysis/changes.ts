@@ -12,6 +12,7 @@ import { isOpen } from './facts';
 import { dayOfDate, localDay, minutesWords, WORKLOAD_WORDS } from './plan';
 import { buildHomeModel, type RecommendInput } from './recommend';
 import { roomDays, roomKey, roomLookup, weekdayOf } from './room';
+import { WORK_TYPE_WORDS } from './workType';
 
 /** Settings the planner needs besides the store. */
 export type PlanSettings = Pick<RecommendInput, 'ai' | 'choice' | 'snapshot' | 'levelMinutes'> & { connected: boolean };
@@ -44,6 +45,8 @@ export function editFromItem(c: PlanChangeItem, now: Date): PlanEdit | string {
       return { kind: 'start-on', assignmentId: c.assignment_id, date: c.date };
     case 'guess':
       return { kind: 'guess', assignmentId: c.assignment_id, minutes: c.minutes };
+    case 'work_type':
+      return { kind: 'work-type', assignmentId: c.assignment_id, type: c.type };
     case 'normal_day':
       return { kind: 'normal-day', minutes: c.minutes };
     case 'time_left':
@@ -133,6 +136,9 @@ async function writesFor(db: LoomerDb, edits: PlanEdit[], now: Date): Promise<Pl
       case 'guess':
         await context(e.assignmentId, 'guessMinutes', e.minutes);
         break;
+      case 'work-type':
+        await context(e.assignmentId, 'workType', e.type);
+        break;
       case 'hide':
         await context(e.assignmentId, 'hidden', true);
         break;
@@ -212,6 +218,10 @@ async function previewFor(db: LoomerDb, edits: PlanEdit[], writes: PlanWrite[], 
         return `Start ${title(e.assignmentId)} on ${dateWords(e.date)}`;
       case 'guess':
         return `Your guess for ${title(e.assignmentId)}: about ${minutesWords(e.minutes)}`;
+      case 'work-type': {
+        const was = beforeItems.get(e.assignmentId)?.workType.type;
+        return `${title(e.assignmentId)} is ${WORK_TYPE_WORDS[e.type]} work${was && was !== e.type ? ` (was ${WORK_TYPE_WORDS[was]})` : ''}`;
+      }
       case 'time-left':
         return `You have ${minutesWords(e.minutes)} for this session`;
       case 'hide':

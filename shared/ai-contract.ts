@@ -42,6 +42,8 @@ export const requirementsResponseSchema = z.strictObject({
   plainWords: z.string(),
   /** One concrete first step, at most about 9 words, that starts with a verb and does not do the work. */
   firstStep: z.string(),
+  /** What kind of work it is, so the session can help the right way. */
+  workType: z.enum(['writing', 'practice', 'study', 'reading']),
 });
 
 export type RequirementsRequest = z.infer<typeof requirementsRequestSchema>;

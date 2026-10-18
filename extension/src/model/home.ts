@@ -7,6 +7,13 @@ import type { PlanChangeView } from './plan';
 export type EffortLabel = 'Short' | 'Moderate' | 'Substantial' | 'Unknown';
 
 /**
+ * What kind of work an assignment is. The session shapes itself by it: writing
+ * links a draft and gets writing hints; practice and study get concept help,
+ * similar examples, quizzes, and a topic list; reading gets key terms and checks.
+ */
+export type WorkType = 'writing' | 'practice' | 'study' | 'reading';
+
+/**
  * Effective AI policy for one assignment, from local rules over the syllabus and
  * instructions, plus any student answer. Only `permitted` allows help on the
  * student's own work; `blocked` turns every AI feature off for that assignment.
@@ -87,6 +94,13 @@ export type WorkItem = {
   effort: { label: EffortLabel; reason: string | null; source: 'ai' | 'student' };
   /** The student's own guess for the whole task, in minutes. Loomer never makes this number. */
   guessMinutes: number | null;
+  /** `student`: they set it ("You set this"). `ai`: from the requirement analysis. `rule`: from the Canvas kind, submission type, and title. */
+  workType: { type: WorkType; source: 'student' | 'ai' | 'rule' };
+  /**
+   * The Canvas item is a quiz or test taken online. AI help on it is always off,
+   * and Ask Loomer pauses while a session on it is active. Study for it in general chat beforehand.
+   */
+  quiz: boolean;
   policy: { state: PolicyState; quote?: string; sourceLabel?: string };
   requirements: RequirementsState;
   /** Labeled local replay data. The UI must mark it visibly. */

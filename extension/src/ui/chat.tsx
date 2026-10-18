@@ -161,6 +161,8 @@ function composerPlaceholder(help: HelpState): string {
       return 'AI help is limited here';
     case 'unresolved':
       return 'AI help is on hold';
+    case 'quiz':
+      return 'No AI help on a quiz or test';
   }
 }
 

@@ -4,7 +4,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
 import type { ChatBlock } from '../model/chat';
-import type { EffortLabel, RoomLevel } from '../model/home';
+import type { EffortLabel, RoomLevel, WorkType } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import type { PolicyAnswer } from './gate';
 
@@ -117,6 +117,8 @@ export type Analysis =
       firstStep: string;
       /** Instructions in plain words; absent on older analyses. */
       plainWords?: string;
+      /** The AI's reading of the kind of work; absent on older analyses. */
+      workType?: WorkType;
     }
   | { assignmentId: string; detailHash: string; status: 'failed'; createdAt: string; error: string };
 
@@ -141,6 +143,8 @@ export type StudentContext = {
   startOn?: string;
   /** The student's own guess for the whole task, in minutes. */
   guessMinutes?: number;
+  /** The student's own work type. Beats the AI's and the rules'. */
+  workType?: WorkType;
 };
 
 export type StudentWorkload = Exclude<EffortLabel, 'Unknown'>;
@@ -158,12 +162,13 @@ export type PlanEdit =
   | { kind: 'workload'; assignmentId: string; label: StudentWorkload }
   | { kind: 'start-on'; assignmentId: string; date: string }
   | { kind: 'guess'; assignmentId: string; minutes: number }
+  | { kind: 'work-type'; assignmentId: string; type: WorkType }
   | { kind: 'normal-day'; minutes: number }
   | { kind: 'time-left'; minutes: number }
   | { kind: 'hide' | 'done-offline' | 'keep-active'; assignmentId: string };
 
 /** StudentContext fields a plan change may write. */
-export type PlanContextField = 'workload' | 'startOn' | 'guessMinutes' | 'hidden' | 'correction';
+export type PlanContextField = 'workload' | 'startOn' | 'guessMinutes' | 'hidden' | 'correction' | 'workType';
 
 /** One stored value a change replaced, so undo can put it back. */
 export type PlanWrite =

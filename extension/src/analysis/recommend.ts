@@ -9,6 +9,7 @@ import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet,
 import type { PlanChangeView } from '../model/plan';
 import { comparePlanned, crowdedWeek, dailyBrief, keepPreviousTop, localDay, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
+import { isQuiz, workTypeFor } from './workType';
 import type { PolicyResult } from './policy';
 
 const DAY_MS = 86_400_000;
@@ -391,6 +392,8 @@ function toWorkItem(
         ? { label: analysis.effort, reason: analysis.effortReason.text, source: 'ai' }
         : { label: 'Unknown', reason: null, source: 'ai' },
     guessMinutes: ctx?.guessMinutes ?? null,
+    workType: workTypeFor(a, analysis, ctx),
+    quiz: isQuiz(a),
     policy: {
       state: blocked ? 'blocked' : policy.state,
       quote: policy.finding?.quote,

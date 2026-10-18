@@ -16,6 +16,8 @@ function item(id: string, startDay: number | null, dueDay: number | null, over: 
     dueConflict: false,
     effort: { label: 'Moderate', reason: null, source: 'ai' },
     guessMinutes: null,
+    workType: { type: 'writing', source: 'rule' },
+    quiz: false,
     policy: { state: 'permitted' },
     requirements: 'checked',
     replay: false,
