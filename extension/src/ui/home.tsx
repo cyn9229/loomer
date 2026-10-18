@@ -1,7 +1,8 @@
 // Home: one focal point, then quiet lines, then the plan.
-// HomeView renders, in order: today's brief (once a day), the focus (the next
-// step, or why there isn't one yet), "Why this" when asked, one-line notices
-// (busy days, sync problem, current session, keep going, older work), the plan
+// HomeView renders, in order: the running session's strip (with pause), the
+// time-left question after a timed stop, today's brief (once a day), the focus
+// (the next step, or why there isn't one yet), "Why this" when asked, notices
+// (busy days, your changes, sync problem, keep going, older work), the plan
 // (List by start day, or Week day by day), the sync footer, and the Ask bar.
 // Views render only what the model says; they never invent progress, time
 // estimates, or checks.
@@ -13,7 +14,7 @@ import { Icon } from './Icon';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
 import { YourChanges } from './planChange';
 import { PlanSection, startWords, type PlanMode } from './planView';
-import type { ActiveSession } from './session';
+import { SessionStrip, type ActiveSession, type SessionVerb } from './session';
 import { typeLabel } from './workType';
 import { useElapsedSeconds } from './useNow';
 
@@ -35,6 +36,9 @@ export type HomeActions = {
   send: PanelApi['send'];
   /** Opens Ask Loomer on a thread: "general" or an assignment id. */
   openAsk: (threadKey: string) => void;
+  /** Pause, resume or end the running session (one tap; errors show at the top). */
+  sessionVerb: (verb: SessionVerb) => void;
+  sessionBusy: boolean;
 };
 
 /** Start or Keep going for one assignment, depending on the current session. */
@@ -66,9 +70,11 @@ type HomeProps = {
   /** The student stopped a timed session on an item with a guess: ask roughly how much is left. */
   askLeft: WorkItem | null;
   onAskLeftDone: () => void;
+  /** The "working on this?" line, shown above the Ask bar. */
+  nudge: ReactNode;
 };
 
-export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone }: HomeProps) {
+export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone, nudge }: HomeProps) {
   const [whyOpen, setWhyOpen] = useState(false);
   if (model.status === 'not-connected') {
     return (
@@ -112,18 +118,6 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
         </span>
       </div>,
     );
-  if (active && active.assignment.assignmentId !== nextId)
-    notices.push(
-      <button type="button" className="notice" onClick={actions.continueSession} key="working">
-        <span className={active.status === 'paused' ? 'dot' : 'dot green'} />
-        <span className="grow">
-          {active.status === 'paused' ? 'Paused: ' : 'Working on '}
-          <b>{active.assignment.title}</b>
-          {hintWaiting && <span className="notice-sub">1 hint ready</span>}
-        </span>
-        <Icon name="chevronRight" />
-      </button>,
-    );
   if (resume && resume.assignment.assignmentId !== nextId) notices.push(<ResumeNotice key="resume" resume={resume} now={now} actions={actions} />);
   if (model.olderReview && model.olderReview.items.length > 0) notices.push(<OlderNotice key="older" review={model.olderReview} now={now} actions={actions} />);
   if (model.status === 'checking' && model.pending.length > 0)
@@ -159,6 +153,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
 
   return (
     <>
+      {active && <SessionStrip session={active} now={now} hintWaiting={hintWaiting} onOpen={actions.continueSession} run={actions.sessionVerb} busy={actions.sessionBusy} />}
       {askLeft && <LeftQuestion item={askLeft} send={actions.send} onDone={onAskLeftDone} />}
       {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
       <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
@@ -173,7 +168,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {notices.length > 0 && <div className="notices">{notices}</div>}
       <PlanSection items={next ? [next.item, ...model.rest] : model.rest} room={model.room} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
-      <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} quizOpen={Boolean(active?.assignment.quiz)} send={actions.send} />
+      <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} quizOpen={Boolean(active?.assignment.quiz)} send={actions.send} nudge={nudge} />
     </>
   );
 }
@@ -281,9 +276,10 @@ function Brief({ brief, now, send }: { brief: NonNullable<DailyBrief>; now: Date
  * The way into Ask Loomer, pinned to the bottom of Home. Says up front when the
  * AI service is down, and that Ask Loomer is paused while a quiz session is open.
  */
-function AskBar({ onOpen, aiDown, quizOpen, send }: { onOpen: () => void; aiDown: boolean; quizOpen: boolean; send: PanelApi['send'] }) {
+function AskBar({ onOpen, aiDown, quizOpen, send, nudge }: { onOpen: () => void; aiDown: boolean; quizOpen: boolean; send: PanelApi['send']; nudge: ReactNode }) {
   return (
     <div className="askbar-wrap">
+      {nudge}
       {aiDown && !quizOpen && <AiServiceDown send={send} />}
       {quizOpen ? (
         <p className="askbar off" role="status">

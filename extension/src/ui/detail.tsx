@@ -6,7 +6,7 @@
 // what the assignment asks for as a checklist with open items first. Links,
 // Ask Loomer, and Start working sit at the bottom. Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { StudentCorrection, WorkItem } from '../model/home';
 import { useAction } from './api';
@@ -19,7 +19,7 @@ import { TypeMenu } from './workType';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
 
-export function DetailView({ item, detail, now, actions }: { item: WorkItem; detail: AssignmentDetailModel | undefined; now: Date; actions: HomeActions }) {
+export function DetailView({ item, detail, now, actions, nudge }: { item: WorkItem; detail: AssignmentDetailModel | undefined; now: Date; actions: HomeActions; nudge?: ReactNode }) {
   const start = startControl(item, actions);
   const ok = detail?.status === 'ok' ? detail : null;
   const effortReason = ok?.effort.reason ?? item.effort.reason;
@@ -76,6 +76,7 @@ export function DetailView({ item, detail, now, actions }: { item: WorkItem; det
       )}
       {ok ? <Requirements detail={ok} now={now} actions={actions} /> : <p className="hint-line" style={{ paddingTop: 16 }}>Loading…</p>}
       <div className="end">
+        {nudge}
         <Links item={item} detail={ok} onAsk={() => actions.openAsk(item.assignmentId)} />
         <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
           {start.busy ? 'Starting…' : start.label}

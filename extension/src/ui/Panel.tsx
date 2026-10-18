@@ -8,7 +8,7 @@ import type { ScreenshotDraft } from '../capture/screenshot';
 import { GENERAL_THREAD, type ChatModel } from '../model/chat';
 import type { AssignmentDetailModel } from '../model/detail';
 import type { HomeModel, WorkItem } from '../model/home';
-import type { SessionModel } from '../model/session';
+import type { SessionModel, WorkNudge } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { AskView } from './ask';
 import { ChatView } from './chat';
@@ -16,9 +16,10 @@ import { DetailView } from './detail';
 import { type HomeActions, HomeView } from './home';
 import { Icon } from './Icon';
 import { Logo } from './Logo';
+import { NudgeLine, usePresence } from './nudge';
 import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
-import { HintCard, QuizNote, sessionClock, SessionTime, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
+import { HintCard, QuizNote, SessionControls, sessionClock, SessionTime, SourcesBody, SuggestionRow, verbMessage, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
 
 export type PanelProps = {
@@ -40,9 +41,13 @@ export type PanelProps = {
   paused: boolean;
   /** The local AI service's last health check; null when AI is off or not checked yet. */
   aiService: { up: boolean; checkedAt: string } | null | undefined;
+  /** "Working on this?" from the worker (useNudge), or null. */
+  nudge: WorkNudge;
+  /** Nudges are on in settings; only then does the panel report which assignment it shows. */
+  nudgesEnabled: boolean;
 };
 
-export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService }: PanelProps) {
+export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled }: PanelProps) {
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
   const [planMode, setPlanMode] = useState<PlanMode>('list');
@@ -95,6 +100,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
       });
     },
     continueSession: goWork,
+    sessionVerb: (verb) => start.run(() => api.send(verbMessage(verb))),
+    sessionBusy: start.busy,
     openAsk: (threadKey) => {
       // Refresh the service status so a down service is said before the student types.
       void api.send({ type: 'ai:check' });
@@ -121,6 +128,24 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   };
 
   const openItem = home && openId ? findItem(home, openId) : null;
+  // The assignment on screen (its detail, or its Ask thread) feeds the viewing nudge.
+  const viewingId = openId ?? (view === 'ask' && askThread !== GENERAL_THREAD ? askThread : null);
+  usePresence(nudgesEnabled && !screenshot ? viewingId : null, api.send);
+  const nudgeLine = nudge && !screenshot && (
+    <NudgeLine
+      nudge={nudge}
+      here={viewingId === nudge.assignmentId}
+      onStart={(id) => actions.startSession(id)}
+      onResume={() =>
+        start.run(async () => {
+          const reply = await api.send({ type: 'session:resume' });
+          if (reply.ok) goWork();
+          return reply;
+        })
+      }
+      send={api.send}
+    />
+  );
   // Replay data is labeled once, in the top bar, instead of on every row.
   const replay = Boolean(home && home.status !== 'not-connected' && (home.lastCheck?.replay || allItems(home).some((i) => i.replay)));
   const settings = (
@@ -157,7 +182,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         {settings}
       </>
     );
-    body = <DetailView item={openItem} detail={detail} now={now} actions={actions} />;
+    body = <DetailView item={openItem} detail={detail} now={now} actions={actions} nudge={nudgeLine} />;
   } else if (view === 'ask') {
     bar = (
       <>
@@ -182,6 +207,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         room={home && home.status !== 'not-connected' ? home.room : []}
         quizOpen={Boolean(active?.assignment.quiz)}
         onEndQuiz={goWork}
+        nudge={nudgeLine}
       />
     );
   } else if (view === 'work' && active) {
@@ -194,6 +220,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         </button>
         <span className="grow" />
         <span className={clock.paused ? 'live paused' : clock.warn ? 'live warn' : 'live'}>{clock.text}</span>
+        <SessionControls session={active} run={actions.sessionVerb} busy={start.busy} />
         {settings}
       </>
     );
@@ -242,7 +269,10 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
               )
             }
             suggestion={
-              shownSuggestion.value && <SuggestionRow key={shownSuggestion.value.tabId} suggestion={shownSuggestion.value} leaving={shownSuggestion.leaving} api={api} />
+              <>
+                {nudgeLine}
+                {shownSuggestion.value && <SuggestionRow key={shownSuggestion.value.tabId} suggestion={shownSuggestion.value} leaving={shownSuggestion.leaving} api={api} />}
+              </>
             }
           />
         ) : (
@@ -272,6 +302,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         aiDown={aiService?.up === false}
         askLeft={askLeft}
         onAskLeftDone={() => setAskLeft(null)}
+        nudge={nudgeLine}
       />
     ) : (
       <p className="caption">Loading…</p>

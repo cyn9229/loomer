@@ -2,8 +2,10 @@
 // work, then by type: writing gets what Loomer last read and a stat strip
 // (words, sources, next to fix); practice and study get the topics on the
 // linked sheet to tick off; reading gets neither; a quiz gets only the title.
-// Then the Help | Sources switch (not for a quiz, see QuizNote). SourcesBody: the draft, saved pages and
-// screenshots, what happened this session, and Pause / End. HintCard,
+// Then the Help | Sources switch (not for a quiz, see QuizNote).
+// SessionControls (Pause or Resume, and End) sit in the top bar; SessionStrip
+// shows the running session on Home. SourcesBody: the draft or sheet, saved
+// pages and screenshots, and what happened this session. HintCard,
 // SuggestionRow and LinkDocStep render inside Help. Every change goes through
 // PanelApi messages.
 import { useEffect, useState, type FormEvent } from 'react';
@@ -549,18 +551,79 @@ export function LinkDocStep({
   );
 }
 
-type SessionVerb = 'pause' | 'resume' | 'end';
-const busyLabel: Record<SessionVerb, string> = { pause: 'Pausing…', resume: 'Resuming…', end: 'Ending…' };
+export type SessionVerb = 'pause' | 'resume' | 'end';
 
-/** The Sources tab: the draft or sheet, saved pages, what happened, and Pause / End. */
-export function SourcesBody({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
-  const action = useAction();
-  const [verb, setVerb] = useState<SessionVerb | null>(null);
-  const runVerb = (v: SessionVerb) => {
-    setVerb(v);
-    action.run(() => api.send({ type: v === 'end' ? 'session:end' : v === 'pause' ? 'session:pause' : 'session:resume' }).finally(() => setVerb(null)));
-  };
+/** The message for each session verb. */
+export function verbMessage(verb: SessionVerb) {
+  return { type: verb === 'end' ? 'session:end' : verb === 'pause' ? 'session:pause' : 'session:resume' } as const;
+}
+
+/**
+ * Pause or Resume, and End, one tap each. Sits next to the clock in the
+ * Working top bar; Home's session strip uses the pause button alone. `run` is
+ * the panel's action runner, so errors show at the top of the screen.
+ */
+export function SessionControls({ session, run, busy, end = true }: { session: ActiveSession; run: (verb: SessionVerb) => void; busy: boolean; end?: boolean }) {
   const paused = session.status === 'paused';
+  return (
+    <>
+      <button
+        type="button"
+        className={paused ? 'pp go' : 'pp'}
+        aria-label={paused ? 'Resume session' : 'Pause session'}
+        title={paused ? 'Resume' : 'Pause'}
+        disabled={busy}
+        onClick={() => run(paused ? 'resume' : 'pause')}
+      >
+        <Icon name={paused ? 'play' : 'pause'} size="sm" />
+      </button>
+      {end && (
+        <button type="button" className="end-btn" disabled={busy} onClick={() => run('end')}>
+          End
+        </button>
+      )}
+    </>
+  );
+}
+
+/**
+ * Home's session strip: the clock (or "Paused"), the assignment, and a pause
+ * or resume button. Tapping the strip opens the session.
+ */
+export function SessionStrip({
+  session,
+  now,
+  hintWaiting,
+  onOpen,
+  run,
+  busy,
+}: {
+  session: ActiveSession;
+  now: Date;
+  hintWaiting: boolean;
+  onOpen: () => void;
+  run: (verb: SessionVerb) => void;
+  busy: boolean;
+}) {
+  const clock = sessionClock(session, now);
+  return (
+    <div className="sstrip">
+      <button type="button" className="ss-open" onClick={onOpen}>
+        <span className={clock.paused ? 'dot' : 'dot green'} />
+        <b className={clock.warn ? 'warn' : undefined}>{clock.text}</b>
+        <span className="ss-n">{session.assignment.title}</span>
+        {hintWaiting && <span className="ss-hint">1 hint</span>}
+      </button>
+      <SessionControls session={session} run={run} busy={busy} end={false} />
+      <button type="button" className="icon-btn" aria-label="Open the session" onClick={onOpen}>
+        <Icon name="chevronRight" size="sm" />
+      </button>
+    </div>
+  );
+}
+
+/** The Sources tab: the draft or sheet, saved pages, and what happened this session. */
+export function SourcesBody({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
   const kind = docKind(session);
   // Reading has no Doc to link; show one only if it is already linked.
   const showDoc = session.assignment.workType.type !== 'reading' || session.doc.status === 'linked';
@@ -602,16 +665,6 @@ export function SourcesBody({ session, now, api }: { session: ActiveSession; now
         </>
       )}
 
-      <div className="session-ctl">
-        <button type="button" className="btn" disabled={action.busy} aria-busy={verb === 'pause' || verb === 'resume'} onClick={() => runVerb(paused ? 'resume' : 'pause')}>
-          <Icon name={paused ? 'play' : 'pause'} />
-          {verb === 'pause' || verb === 'resume' ? busyLabel[verb] : paused ? 'Resume' : 'Pause'}
-        </button>
-        <button type="button" className="btn" disabled={action.busy} aria-busy={verb === 'end'} onClick={() => runVerb('end')}>
-          {verb === 'end' ? busyLabel.end : 'End session'}
-        </button>
-      </div>
-      {action.error && <p className="status-line error pad">{action.error}</p>}
       <div className="row-actions pad" style={{ padding: '16px 18px 18px' }}>
         <DeleteAssignmentData assignmentId={session.assignment.assignmentId} send={api.send} />
       </div>

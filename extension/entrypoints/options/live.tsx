@@ -3,6 +3,7 @@
 import { aiSettingsItem, discoveryItem, notifyItem, proactiveItem, settingsItem } from '../../src/core/settings';
 import { useHomeModel } from '../../src/model/useHomeModel';
 import { useStorageItem } from '../../src/model/useStorageItem';
+import { nudgesItem } from '../../src/session/nudge';
 import { OptionsPage } from '../../src/ui/options';
 import { useNow } from '../../src/ui/useNow';
 
@@ -12,6 +13,7 @@ export function LiveOptions() {
   const proactive = useStorageItem(proactiveItem);
   const discovery = useStorageItem(discoveryItem);
   const notify = useStorageItem(notifyItem);
+  const nudges = useStorageItem(nudgesItem);
   const model = useHomeModel();
   const lastCheck = model && model.status !== 'not-connected' ? model.lastCheck : null;
   return (
@@ -21,6 +23,7 @@ export function LiveOptions() {
       proactive={proactive ?? null}
       discovery={discovery ?? null}
       notify={notify ?? null}
+      nudges={nudges ?? null}
       lastCheck={lastCheck}
       now={useNow()}
     />

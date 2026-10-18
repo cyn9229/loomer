@@ -33,9 +33,11 @@ type AskProps = {
   /** A work session on a quiz or test is open: Ask Loomer is paused everywhere until it ends. */
   quizOpen: boolean;
   onEndQuiz: () => void;
+  /** The "working on this?" line, shown above the help box. */
+  nudge?: ReactNode;
 };
 
-export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz }: AskProps) {
+export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz, nudge }: AskProps) {
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
@@ -119,6 +121,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
       <div ref={endRef} />
 
       <div className="dock">
+        {nudge}
         {aiDown && available && !model.streaming && <AiServiceDown send={api.send} />}
         {model?.streaming ? (
           <div className="composer writing" role="status">

@@ -19,6 +19,7 @@ import Delete2Regular from '@mingcute/react/core-regular/delete-2';
 import Document2Regular from '@mingcute/react/core-regular/document-2';
 import DownRegular from '@mingcute/react/core-regular/down';
 import ExternalLinkRegular from '@mingcute/react/core-regular/external-link';
+import EyeRegular from '@mingcute/react/core-regular/eye';
 import EyeCloseRegular from '@mingcute/react/core-regular/eye-close';
 import Flag2Regular from '@mingcute/react/core-regular/flag-2';
 import GlobeRegular from '@mingcute/react/core-regular/globe';
@@ -26,6 +27,7 @@ import HistoryAnticlockwiseRegular from '@mingcute/react/core-regular/history-an
 import Home4Regular from '@mingcute/react/core-regular/home-4';
 import InboxRegular from '@mingcute/react/core-regular/inbox';
 import InformationRegular from '@mingcute/react/core-regular/information';
+import KeyboardRegular from '@mingcute/react/core-regular/keyboard';
 import LayersRegular from '@mingcute/react/core-regular/layers';
 import LeftRegular from '@mingcute/react/core-regular/left';
 import LinkRegular from '@mingcute/react/core-regular/link';
@@ -127,6 +129,8 @@ const icons = {
   repeat: RepeatRegular,
   undo: HistoryAnticlockwiseRegular,
   pauseCircle: PauseCircleRegular,
+  keyboard: KeyboardRegular,
+  eye: EyeRegular,
   // Work types, picked by workTypeIcon().
   writing: QuillPenRegular,
   practice: PencilRulerRegular,

@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import type { PanelApi } from '../../src/ui/api';
 import type { HomeModel } from '../../src/model/home';
+import type { WorkNudge } from '../../src/model/session';
 import { buildChatFixtures, revealTurn, STREAM_STEPS, type ChatFixtureName } from '../../src/ui/chatFixtures';
 import { buildDetail, buildFixtures, buildScreenshotDraft, type FixtureName } from '../../src/ui/fixtures';
 import { Panel } from '../../src/ui/Panel';
@@ -41,6 +42,7 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
   const [session, setSession] = useState<SessionFixtureName>(pick(initialSession, sessionNames, 'none'));
   const [paused, setPaused] = useState(false);
   const [aiDown, setAiDown] = useState(new URLSearchParams(location.search).has('aidown'));
+  const [nudgeName, setNudgeName] = useState<NudgeName>(pick(new URLSearchParams(location.search).get('nudge'), NUDGE_NAMES, 'none'));
   const [shot, setShot] = useState(new URLSearchParams(location.search).has('screenshot'));
   const model = homes[home];
   const chats = buildChatFixtures(now, itemsOf(model));
@@ -87,6 +89,14 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
           <input type="checkbox" checked={aiDown} onChange={(e) => setAiDown(e.target.checked)} /> AI service down
         </label>
         <label>
+          Nudge{' '}
+          <select value={nudgeName} onChange={(e) => setNudgeName(pick(e.target.value, NUDGE_NAMES, nudgeName))}>
+            {NUDGE_NAMES.map((n) => (
+              <option key={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+        <label>
           <input type="checkbox" checked={shot} onChange={(e) => setShot(e.target.checked)} /> Screenshot
         </label>
       </div>
@@ -104,10 +114,27 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
         api={api}
         paused={paused}
         aiService={{ up: !aiDown, checkedAt: now.toISOString() }}
+        nudge={previewNudge(nudgeName, now)}
+        nudgesEnabled
         previewLabel={`Fixture preview: ${home} / ${session}. Not live data.`}
       />
     </>
   );
+}
+
+const NUDGE_NAMES = ['none', 'start', 'viewing', 'resume', 'switch'] as const;
+type NudgeName = (typeof NUDGE_NAMES)[number];
+
+/** A nudge as the worker would raise it, on the practice sheet fixture. */
+function previewNudge(name: NudgeName, now: Date): WorkNudge {
+  if (name === 'none') return null;
+  return {
+    assignmentId: 'a-sheet',
+    title: 'Unit 6 Review Sheet: Quadratics',
+    action: name === 'viewing' ? 'start' : name,
+    reason: name === 'viewing' ? 'viewing' : 'typing',
+    at: now.toISOString(),
+  };
 }
 
 function itemsOf(model: HomeModel) {

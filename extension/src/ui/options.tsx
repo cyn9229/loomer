@@ -23,11 +23,13 @@ export type OptionsProps = {
   proactive: ProactiveSettings | null;
   discovery: { enabled: boolean } | null;
   notify: { enabled: boolean } | null;
+  /** "Suggest starting a session" (nudge:set). */
+  nudges: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
 };
 
-export function OptionsPage({ settings, ai, proactive, discovery, notify, lastCheck, now }: OptionsProps) {
+export function OptionsPage({ settings, ai, proactive, discovery, notify, nudges, lastCheck, now }: OptionsProps) {
   const connected = Boolean(settings?.canvasOrigin);
   const [view, setView] = useState<View | null>(null);
   const current: View = view ?? (connected ? 'privacy' : 'start');
@@ -54,6 +56,7 @@ export function OptionsPage({ settings, ai, proactive, discovery, notify, lastCh
               proactive={proactive}
               discovery={discovery}
               notify={notify}
+              nudges={nudges}
               lastCheck={lastCheck}
               now={now}
               onCleared={() => setView('start')}
@@ -195,6 +198,7 @@ function Privacy({
   proactive,
   discovery,
   notify,
+  nudges,
   lastCheck,
   now,
   onCleared,
@@ -204,6 +208,7 @@ function Privacy({
   proactive: ProactiveSettings | null;
   discovery: { enabled: boolean } | null;
   notify: { enabled: boolean } | null;
+  nudges: { enabled: boolean } | null;
   lastCheck: CheckInfo | null;
   now: Date;
   onCleared: () => void;
@@ -267,6 +272,7 @@ function Privacy({
         </section>
         {ai && <AiHelpCard ai={ai} />}
         {proactive && <ProactiveCard proactive={proactive} />}
+        {nudges && <NudgeCard enabled={nudges.enabled} />}
         {notify && <NotificationsCard enabled={notify.enabled} />}
         {discovery && <DiscoveryCard enabled={discovery.enabled} />}
         {settings && <PauseCard paused={settings.paused} />}
@@ -502,6 +508,52 @@ function NotificationsCard({ enabled }: { enabled: boolean }) {
       {error && (
         <p className="status-line error" role="status">
           {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * "Suggest starting a session": on by default. When on, Loomer may suggest a
+ * session after you type in a linked Doc or keep one assignment open for a few
+ * minutes, with a dot on the toolbar icon while the panel is closed.
+ */
+function NudgeCard({ enabled }: { enabled: boolean }) {
+  const save = useAction();
+  return (
+    <section className="ocard" aria-label="Work sessions">
+      <div className="ocard-head">
+        <span className="tile lg">
+          <Icon name="play" />
+        </span>
+        <div className="grow">
+          <h2 className="ocard-title">Work sessions</h2>
+          <p className="ocard-desc">Loomer never starts a session on its own.</p>
+        </div>
+      </div>
+      <div className="setting">
+        <span className="grow">
+          <span className="setting-title" id="nudge-switch-label">
+            Suggest starting a session
+          </span>
+          <span className="setting-sub" aria-live="polite">
+            {save.busy ? 'Saving…' : 'When you’ve been typing in a linked Doc, or had one assignment open for a few minutes. A dot on the toolbar icon shows it while the panel is closed.'}
+          </span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          className="switch"
+          aria-checked={enabled}
+          aria-labelledby="nudge-switch-label"
+          disabled={save.busy}
+          onClick={() => save.run(() => sendMessage({ type: 'nudge:set', enabled: !enabled }))}
+        />
+      </div>
+      {save.error && (
+        <p className="status-line error" role="status">
+          {save.error}
         </p>
       )}
     </section>
