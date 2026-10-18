@@ -1,6 +1,7 @@
-// "Keep going" on Home: where the last session left off, as facts. Continue
-// restarts that session; the x hides the briefing (resume:dismiss). No "you
-// were away" language and no list of what could have been done.
+// "Keep going" row on Home: where the last session left off, as one line of
+// facts. The arrow restarts that session; the x hides the briefing
+// (resume:dismiss). When the briefing is for the next step itself, the hero
+// shows it instead and this row is not rendered. No "you were away" language.
 import type { ResumeBriefing } from '../model/home';
 import { useAction, type PanelApi } from './api';
 import { observedAt } from './format';
@@ -13,55 +14,36 @@ export function ResumeCard({ resume, now, api, actions }: { resume: ResumeBriefi
   const continuing = actions.startingId === assignment.assignmentId;
 
   return (
-    <section className="block violet" aria-label="Keep going">
-      <div className="block-k">
+    <section className="keep" aria-label="Keep going">
+      <span className="keep-icon">
         <Icon name="clock" />
-        Keep going · {observedAt(resume.at, now)}
-        <span className="grow" />
-        <button
-          type="button"
-          className="icon-btn"
-          style={{ width: 24, height: 24 }}
-          aria-label="Dismiss this summary"
-          title="Dismiss"
-          disabled={dismiss.busy}
-          onClick={() => dismiss.run(() => api.send({ type: 'resume:dismiss', assignmentId: assignment.assignmentId }))}
-        >
-          <Icon name="x" size="xs" />
-        </button>
-      </div>
-      <p className="row-title clamp">{assignment.title}</p>
-      {resume.facts.length > 0 && <p className="row-sub">{resume.facts.slice(0, 2).join(' · ')}</p>}
-      {resume.recommendationChanged && <p className="row-sub">Loomer suggests something else first now. This one’s still here.</p>}
-      <div className="block-act">
-        <button type="button" className={resume.recommendationChanged ? 'btn sm on-tint' : 'vbtn'} onClick={() => actions.startSession(assignment.assignmentId)} disabled={actions.startingId !== null} aria-busy={continuing}>
-          {continuing ? 'Opening…' : 'Keep going'}
-          {!continuing && <Icon name="arrowRight" />}
-        </button>
-        {resume.docUrl && (
-          <a className="btn sm on-tint" href={resume.docUrl} target="_blank" rel="noreferrer">
-            Open Doc
-            <Icon name="external" size="xs" />
-          </a>
-        )}
-      </div>
-      {resume.sources.length > 0 && (
-        <details className="fold" style={{ marginTop: 8 }}>
-          <summary>
-            <Icon name="chevronRight" size="sm" />
-            Saved sources ({resume.sources.length})
-          </summary>
-          {resume.sources.map((s) => (
-            <a className="row-line" key={s.url} href={s.url} target="_blank" rel="noreferrer">
-              <Icon name="globe" size="sm" />
-              <span className="grow row-title" style={{ fontSize: 13 }}>
-                {s.title}
-              </span>
-            </a>
-          ))}
-        </details>
-      )}
-      {dismiss.error && <p className="status-line error">{dismiss.error}</p>}
+      </span>
+      <span className="grow">
+        <span className="keep-k">Keep going · {observedAt(resume.at, now)}</span>
+        <span className="keep-t">{assignment.title}</span>
+        {resume.facts.length > 0 && <span className="keep-f ellipsis">{resume.facts[0]}</span>}
+        {dismiss.error && <span className="keep-f danger-text">{dismiss.error}</span>}
+      </span>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Dismiss this summary"
+        title="Dismiss"
+        disabled={dismiss.busy}
+        onClick={() => dismiss.run(() => api.send({ type: 'resume:dismiss', assignmentId: assignment.assignmentId }))}
+      >
+        <Icon name="x" size="sm" />
+      </button>
+      <button
+        type="button"
+        className="go"
+        aria-label={`Keep going on ${assignment.title}`}
+        onClick={() => actions.startSession(assignment.assignmentId)}
+        disabled={actions.startingId !== null}
+        aria-busy={continuing}
+      >
+        <Icon name="arrowRight" />
+      </button>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 // (older-work review, why this, your work). Views render only what the model
 // says; they never invent progress, time estimates, or checks.
 import { useState } from 'react';
-import type { HomeModel, NextAction, OlderReview, WorkItem } from '../model/home';
+import type { HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
 import { calendarDaysUntil, checkProblem, dueWhen, observedAt } from './format';
 import { Icon } from './Icon';
@@ -42,6 +42,8 @@ export function startControl(item: WorkItem, actions: HomeActions) {
 
 type HeroProps = {
   model: HomeModel;
+  /** Folded into the hero when it is for the same assignment as the next step. */
+  resume: ResumeBriefing | null;
   now: Date;
   actions: HomeActions;
   whyOpen: boolean;
@@ -49,7 +51,7 @@ type HeroProps = {
 };
 
 /** The band's message: what to do next, or why there is no next step yet. */
-export function HomeHero({ model, now, actions, whyOpen, onWhy }: HeroProps) {
+export function HomeHero({ model, resume, now, actions, whyOpen, onWhy }: HeroProps) {
   switch (model.status) {
     case 'not-connected':
       return (
@@ -103,7 +105,7 @@ export function HomeHero({ model, now, actions, whyOpen, onWhy }: HeroProps) {
         </>
       );
     case 'ready':
-      return <NextHero next={model.next} now={now} actions={actions} whyOpen={whyOpen} onWhy={onWhy} />;
+      return <NextHero next={model.next} resume={resume} now={now} actions={actions} whyOpen={whyOpen} onWhy={onWhy} />;
   }
 }
 
@@ -120,10 +122,34 @@ function FindingHero() {
   );
 }
 
-function NextHero({ next, now, actions, whyOpen, onWhy }: { next: NextAction; now: Date; actions: HomeActions; whyOpen: boolean; onWhy: () => void }) {
+/** Steps the headline down for long actions so it never needs an ellipsis. */
+function titleSize(text: string): string {
+  return text.length > 90 ? 'hero-title xlong' : text.length > 55 ? 'hero-title long' : 'hero-title';
+}
+
+function NextHero({
+  next,
+  resume,
+  now,
+  actions,
+  whyOpen,
+  onWhy,
+}: {
+  next: NextAction;
+  resume: ResumeBriefing | null;
+  now: Date;
+  actions: HomeActions;
+  whyOpen: boolean;
+  onWhy: () => void;
+}) {
   const { item } = next;
   const start = startControl(item, actions);
   const clear = useAction();
+  const switchTo = useAction();
+  // A resume briefing for this same assignment folds into the hero as one line.
+  const lastTime = resume?.assignment.assignmentId === item.assignmentId ? resume : null;
+  const label = lastTime && start.label === 'Start session' ? 'Keep going' : start.label;
+  const pick = next.chosenByStudent ? next.loomerPick : null;
   return (
     <>
       <div className="kick">
@@ -131,14 +157,15 @@ function NextHero({ next, now, actions, whyOpen, onWhy }: { next: NextAction; no
         <span className="grow" />
         <span className="band-pill">{item.due ? `Due ${dueWhen(item.due.at, now)}` : 'No due date'}</span>
       </div>
-      <h1 className="hero-title clamp">{next.action}</h1>
+      <h1 className={titleSize(next.action)}>{next.action}</h1>
       <button type="button" className="hero-item clamp" onClick={() => actions.openItem(item.assignmentId)}>
         {item.title}
+        {item.courseName && <span className="hero-course"> · {item.courseName}</span>}
       </button>
-      <p className="hero-sub">{[item.courseName, item.replay ? 'Replay data' : null].filter(Boolean).join(' · ')}</p>
+      {lastTime && lastTime.facts.length > 0 && <p className="hero-sub ellipsis">Last time: {lastTime.facts.slice(0, 2).join(' · ')}</p>}
       <div className="hero-act">
         <button type="button" className="hero-btn" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
-          {start.busy ? 'Starting…' : start.label}
+          {start.busy ? 'Starting…' : label}
           <Icon name="arrowRight" />
         </button>
         {next.chosenByStudent ? (
@@ -151,7 +178,24 @@ function NextHero({ next, now, actions, whyOpen, onWhy }: { next: NextAction; no
           </button>
         )}
       </div>
-      {clear.error && <p className="hero-sub">{clear.error}</p>}
+      {pick && (
+        <p className="hero-alt">
+          <span className="clamp">
+            Loomer would start with <b>{pick.item.title}</b>
+          </span>
+          <button
+            type="button"
+            className="hero-link"
+            title={pick.reason}
+            disabled={switchTo.busy}
+            aria-busy={switchTo.busy}
+            onClick={() => switchTo.run(() => actions.send({ type: 'choice:set', assignmentId: pick.item.assignmentId }))}
+          >
+            {switchTo.busy ? 'Switching…' : 'Switch'}
+          </button>
+        </p>
+      )}
+      {(clear.error ?? switchTo.error) && <p className="hero-sub">{clear.error ?? switchTo.error}</p>}
     </>
   );
 }
@@ -177,7 +221,7 @@ export function HomeBody({ model, now, actions, whyOpen }: BodyProps) {
         </div>
       )}
       {model.olderReview && model.olderReview.items.length > 0 && <OlderReviewBlock review={model.olderReview} now={now} actions={actions} />}
-      {model.status === 'ready' && <NextDetails next={model.next} now={now} actions={actions} whyOpen={whyOpen} />}
+      {model.status === 'ready' && <NextDetails next={model.next} now={now} whyOpen={whyOpen} />}
       {model.status === 'checking' && model.pending.length > 0 && (
         <div className="block">
           <div className="block-k">Still reading</div>
@@ -205,9 +249,8 @@ export function HomeBody({ model, now, actions, whyOpen }: BodyProps) {
   );
 }
 
-/** Why this step, the teacher's AI rule, and Loomer's own pick when the student chose differently. */
-function NextDetails({ next, now, actions, whyOpen }: { next: NextAction; now: Date; actions: HomeActions; whyOpen: boolean }) {
-  const switchTo = useAction();
+/** Why this step, and the teacher's AI rule. */
+function NextDetails({ next, now, whyOpen }: { next: NextAction; now: Date; whyOpen: boolean }) {
   const { item } = next;
   return (
     <>
@@ -224,25 +267,6 @@ function NextDetails({ next, now, actions, whyOpen }: { next: NextAction; now: D
           <EvidenceList evidence={next.evidence} now={now} />
         </div>
       )}
-      {next.chosenByStudent && next.loomerPick && (
-        <div className="block">
-          <div className="block-k">Loomer would start with</div>
-          <p className="row-title clamp">{next.loomerPick.item.title}</p>
-          <p className="row-sub">{next.loomerPick.reason}</p>
-          <div className="block-act">
-            <button
-              type="button"
-              className="btn sm on-tint"
-              disabled={switchTo.busy}
-              aria-busy={switchTo.busy}
-              onClick={() => switchTo.run(() => actions.send({ type: 'choice:set', assignmentId: next.loomerPick!.item.assignmentId }))}
-            >
-              {switchTo.busy ? 'Switching…' : 'Switch to this'}
-            </button>
-          </div>
-          {switchTo.error && <p className="status-line error">{switchTo.error}</p>}
-        </div>
-      )}
     </>
   );
 }
@@ -254,9 +278,14 @@ function NextDetails({ next, now, actions, whyOpen }: { next: NextAction; now: D
  */
 function OlderReviewBlock({ review, now, actions }: { review: NonNullable<OlderReview>; now: Date; actions: HomeActions }) {
   const done = useAction();
+  const n = review.items.length;
   return (
-    <section className="block" aria-label="Older work">
-      <div className="block-title">A few older ones are still open</div>
+    <details className="block fold-block" aria-label="Older work">
+      <summary>
+        <Icon name="clock" />
+        <span className="grow">{n === 1 ? '1 older item needs a look' : `${n} older items need a look`}</span>
+        <Icon name="chevronRight" size="sm" />
+      </summary>
       <p className="row-sub">Canvas still lists these. Tell us where they stand.</p>
       {review.items.map(({ item, reason }) => (
         <OlderItem key={item.assignmentId} item={item} reason={reason} now={now} actions={actions} />
@@ -264,7 +293,7 @@ function OlderReviewBlock({ review, now, actions }: { review: NonNullable<OlderR
       <div className="block-act">
         <button
           type="button"
-          className="vbtn block"
+          className="link"
           disabled={done.busy}
           aria-busy={done.busy}
           onClick={() => done.run(() => actions.send({ type: 'older:reviewed', assignmentIds: review.items.map((i) => i.item.assignmentId) }))}
@@ -273,7 +302,7 @@ function OlderReviewBlock({ review, now, actions }: { review: NonNullable<OlderR
         </button>
       </div>
       {done.error && <p className="status-line error">{done.error}</p>}
-    </section>
+    </details>
   );
 }
 
@@ -392,7 +421,7 @@ function WeekStrip({ items, now }: { items: WorkItem[]; now: Date }) {
     if (offset >= 0 && offset < 7) due.set(offset, (due.get(offset) ?? 0) + 1);
   }
   return (
-    <div className="strip" style={{ margin: '10px 0' }} aria-hidden="true">
+    <div className="strip" style={{ margin: '8px 0' }} aria-hidden="true">
       {days.map((d, i) => (
         <span key={i} className={i === 0 ? 'day today' : 'day'}>
           {d.toLocaleDateString(undefined, { weekday: 'narrow' })}

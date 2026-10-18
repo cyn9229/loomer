@@ -9,7 +9,7 @@ import { useAction } from './api';
 import { dueWhen, effortText, observedAt } from './format';
 import { type HomeActions, startControl } from './home';
 import { Icon } from './Icon';
-import { PolicyBlock, ReplayPill } from './parts';
+import { PolicyBlock } from './parts';
 import { DeleteAssignmentData } from './privacy';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
@@ -32,7 +32,6 @@ export function DetailHero({ item, now, onBack }: { item: WorkItem; now: Date; o
         <span className="band-pill">{item.due ? `Due ${dueWhen(item.due.at, now)}` : 'No due date'}</span>
         {effort && <span className="band-pill">{effort}</span>}
         {item.dueConflict && <span className="band-pill">Two due dates</span>}
-        {item.replay && <span className="band-pill">Replay</span>}
       </div>
     </>
   );
@@ -67,7 +66,6 @@ export function DetailBody({ item, detail, now, actions }: { item: WorkItem; det
         </button>
         <DeleteAssignmentData assignmentId={item.assignmentId} send={actions.send} />
       </div>
-      {item.replay && <ReplayPill />}
     </>
   );
 }
@@ -108,34 +106,54 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
         )}
       </div>
       {check.error && <p className="status-line error">{check.error}</p>}
-      {detail.check && (
-        <p className="row-sub">
-          Checked {observedAt(detail.check.at, now)}
-          {detail.check.scope === 'partial' && ' · only part of your draft was readable'}
-          {detail.check.stale && ' · your draft changed since then'}
-        </p>
-      )}
-      {detail.checkAvailability !== 'available' && <p className="row-sub">{checkBlocked[detail.checkAvailability]}</p>}
       {detail.requirements.length === 0 ? (
         <>
           <p className="empty-line">We haven’t pulled out the requirements yet.</p>
           {detail.descriptionExcerpt && <p className="quote clamp">{detail.descriptionExcerpt}</p>}
         </>
-      ) : (
-        detail.requirements.map((r, i) => (
-          <div className={`req ${r.state}`} key={i}>
-            <span className="req-mark">{reqMark[r.state]}</span>
-            <div className="grow">
-              <div className="req-t">{r.text}</div>
-              <div className="req-n">{r.evidence?.note ?? reqFallback[r.state]}</div>
-              {r.evidence?.quote && <span className="quote">“{r.evidence.quote}”</span>}
+      ) : detail.check ? (
+        <>
+          <p className="row-sub">
+            Checked {observedAt(detail.check.at, now)}
+            {detail.check.scope === 'partial' && ' · only part of your draft was readable'}
+            {detail.check.stale && ' · your draft changed since then'}
+          </p>
+          {detail.checkAvailability !== 'available' && <p className="row-sub">{checkBlocked[detail.checkAvailability]}</p>}
+          {detail.requirements.map((r, i) => (
+            <div className={`req ${r.state}`} key={i}>
+              <span className="req-mark">{reqMark[r.state]}</span>
+              <div className="grow">
+                <div className="req-t">{r.text}</div>
+                <div className="req-n">{r.evidence?.note ?? reqFallback[r.state]}</div>
+                {r.evidence?.quote && <span className="quote">“{r.evidence.quote}”</span>}
+              </div>
             </div>
-          </div>
-        ))
+          ))}
+        </>
+      ) : (
+        <>
+          {/* Before any check, states would all read "Can't tell yet": show the plain list instead. */}
+          <p className="row-sub">{detail.checkAvailability === 'available' ? 'Loomer hasn’t checked your draft yet. Press Check my draft.' : notChecked[detail.checkAvailability]}</p>
+          <ul className="plain-list">
+            {detail.requirements.map((r, i) => (
+              <li key={i}>{r.text}</li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );
 }
+
+/** Why the draft hasn't been checked, before any check exists. */
+const notChecked: Record<Exclude<Detail['checkAvailability'], 'available'>, string> = {
+  'no-doc': 'Loomer hasn’t checked your draft yet. Start a session, link it, then press Check.',
+  'needs-policy-answer': 'Loomer hasn’t checked your draft yet. Answer the AI question in Chat first.',
+  'ai-off': 'Loomer hasn’t checked your draft. Turn on AI help in settings to check it.',
+  blocked: 'Your teacher said no AI here, so Loomer won’t read your draft.',
+  limited: 'Your teacher limits AI here, so Loomer won’t check your draft.',
+  unresolved: 'Checking is on hold until the AI rule is clear.',
+};
 
 const checkBlocked: Record<Exclude<Detail['checkAvailability'], 'available'>, string> = {
   'no-doc': 'Start a session and link your draft to check it.',

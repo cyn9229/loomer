@@ -398,6 +398,51 @@ export function buildFixtures(now: Date) {
       rest: [vocab, reflection, lab, pastQuiz],
       lastCheck,
     },
+
+    // Stress case: a long action, long titles, 55 items, Loomer's own pick, older
+    // work, and a resume briefing for the same assignment as the next step.
+    busy: {
+      status: 'ready',
+      resume: essayResume(false),
+      olderReview: {
+        items: [
+          { item: pastQuiz, reason: 'Canvas still shows it as not turned in.' },
+          {
+            item: item(now, {
+              assignmentId: 'a-old-2',
+              title: 'Unit 2 Reflection: How the Internet Works, Packets, Routing, and the Domain Name System',
+              courseName: 'AP Computer Science Principles',
+              due: { at: at(now, -11, 23, 59), source: 'canvas' },
+            }),
+            reason: 'Canvas marks it missing.',
+          },
+        ],
+      },
+      next: {
+        item: { ...essay, title: 'Unit 4 Synthesis Essay: Urban Heat Islands and the Ethics of Municipal Tree Canopy Investment' },
+        action: 'Outline how the EPA data and the city canopy report disagree about which neighborhoods heat up first and why',
+        reason: 'You picked this one. Loomer keeps it until something changes.',
+        evidence: essayEvidence.slice(0, 2),
+        aiGenerated: true,
+        chosenByStudent: true,
+        loomerPick: { item: vocab, reason: 'It’s due soon and it’s short.' },
+      },
+      rest: Array.from({ length: 55 }, (_, i) =>
+        item(now, {
+          assignmentId: `bulk-${i}`,
+          title: [
+            'Lab 3.2 Stoichiometry of Baking Soda and Vinegar: Pre-Lab Questions and Data Table Setup',
+            'Problem Set 2.4: Rational Functions, Asymptotes, and End Behavior (odd problems 1 to 39)',
+            'Lectura: La casa en Mango Street, capítulos 1 a 5, preguntas de comprensión',
+            'Vocab quiz',
+          ][i % 4]!,
+          courseName: ['Honors Chemistry', 'Precalculus Honors', 'Spanish III', 'AP English Language and Composition'][i % 4],
+          due: i % 5 === 4 ? null : { at: at(now, (i % 13) - 1, 23, 59), source: 'canvas' },
+          replay: i % 7 === 0,
+        }),
+      ),
+      lastCheck: { ...lastCheck, courses: 10 },
+    },
   } satisfies Record<string, HomeModel>;
 }
 

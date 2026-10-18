@@ -156,18 +156,19 @@ p {
 .band {
   background: var(--band);
   color: #fff;
-  padding: 0 18px 42px;
+  padding: 0 16px 36px;
 }
 .band-top {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-top: 14px;
+  padding-top: 12px;
 }
 .band .wordmark {
   color: #fff;
 }
 .band-btn {
+  flex: none;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -180,6 +181,7 @@ p {
   background: rgba(255, 255, 255, 0.22);
 }
 .live-pill {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -204,16 +206,16 @@ p {
 .tabs {
   display: flex;
   gap: 6px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 .tab {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
+  height: 30px;
   padding: 0 12px;
-  border-radius: 16px;
+  border-radius: 15px;
   font-size: 13px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.8);
@@ -256,7 +258,7 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 22px;
+  margin-top: 16px;
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -292,28 +294,38 @@ p {
   margin-top: 12px;
 }
 .hero-title {
-  margin: 10px 0 0;
-  font-size: 26px;
+  margin: 8px 0 0;
+  font-size: 24px;
   line-height: 1.15;
   font-weight: 750;
   letter-spacing: -0.6px;
 }
+/* Long actions step down instead of truncating. */
+.hero-title.long {
+  font-size: 21px;
+  letter-spacing: -0.4px;
+}
+.hero-title.xlong {
+  font-size: 18px;
+  line-height: 1.22;
+  letter-spacing: -0.3px;
+}
 .hero-title.md {
-  margin-top: 18px;
+  margin-top: 16px;
   font-size: 20px;
   line-height: 1.22;
   letter-spacing: -0.4px;
 }
 .hero-item {
   text-align: left;
-  margin-top: 6px;
-  font-size: 15px;
+  margin-top: 4px;
+  font-size: 14.5px;
   line-height: 1.35;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
 }
 .hero-sub {
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.82);
 }
@@ -322,15 +334,15 @@ p {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 .hero-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
-  padding: 0 20px;
-  border-radius: 22px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 20px;
   background: #fff;
   color: var(--v-deep);
   font-weight: 700;
@@ -375,10 +387,10 @@ p {
 
 .sheet {
   flex: 1;
-  margin-top: -24px;
+  margin-top: -22px;
   background: var(--sheet);
   border-radius: var(--r-sheet) var(--r-sheet) 0 0;
-  padding: 18px 18px 22px;
+  padding: 16px 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -779,24 +791,24 @@ p {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 7px 0 6px;
-  border-radius: 14px;
-  font-size: 11px;
+  padding: 3px 0 4px;
+  border-radius: 10px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--muted);
 }
 .day b {
-  font-size: 16px;
+  font-size: 14px;
+  line-height: 1.2;
   font-weight: 700;
   color: var(--ink);
-  margin-top: 1px;
 }
 .day s {
   display: flex;
   gap: 3px;
-  height: 8px;
+  height: 5px;
   align-items: center;
-  margin-top: 3px;
+  margin-top: 1px;
 }
 .day s i {
   width: 4px;
@@ -2051,6 +2063,79 @@ details > summary .icon {
   details::details-content {
     transition: none;
   }
+}
+
+.hero-course {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+}
+/* Loomer's own pick, as one quiet line under the hero. */
+.hero-alt {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.hero-alt .clamp {
+  flex: 1;
+  min-width: 0;
+  -webkit-line-clamp: 1;
+}
+.hero-alt b {
+  font-weight: 650;
+  color: #fff;
+}
+.hero-alt .hero-link {
+  flex: none;
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* A block that is one row until opened (older-work review). */
+details.fold-block {
+  padding: 0 12px;
+}
+details.fold-block > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+details.fold-block > summary::-webkit-details-marker {
+  display: none;
+}
+details.fold-block > summary .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+details.fold-block[open] > summary .icon:last-child {
+  transform: rotate(90deg);
+}
+details.fold-block[open] {
+  padding-bottom: 12px;
+}
+.plain-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.plain-list li + li {
+  margin-top: 6px;
+}
+.keep-f {
+  display: block;
+}
+.keep .icon-btn {
+  width: 28px;
+  height: 28px;
 }
 
 button.hero-item:hover {

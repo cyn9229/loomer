@@ -110,6 +110,9 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
   };
 
   const openItem = home && openId ? findItem(home, openId) : null;
+  const nextId = home?.status === 'ready' ? home.next.item.assignmentId : null;
+  // Replay data is labeled once, in the header, instead of on every row.
+  const replay = Boolean(home && home.status !== 'not-connected' && (home.lastCheck?.replay || allItems(home).some((i) => i.replay)));
   const pill = paused ? { text: 'Loomer paused', paused: true } : active ? sessionPill(active, now) : null;
 
   // Each screen is a band message (hero) plus the sheet's content (body).
@@ -126,7 +129,9 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
     hero = <DetailHero item={openItem} now={now} onBack={() => setOpenId(null)} />;
     body = <DetailBody item={openItem} detail={detail} now={now} actions={actions} />;
   } else if (tab === 'home') {
-    hero = home ? <HomeHero model={home} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} /> : null;
+    hero = home ? (
+      <HomeHero model={home} resume={home.status === 'not-connected' ? null : home.resume} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
+    ) : null;
     body = !home ? (
       <p className="caption">Loading…</p>
     ) : home.status === 'not-connected' ? (
@@ -137,6 +142,8 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
     ) : (
       <>
         {active ? (
+          // The hero already says "Keep going" when the session is for the next step.
+          active.assignment.assignmentId !== nextId && (
           <button type="button" className="keep" onClick={actions.continueSession}>
             <span className="keep-icon">
               <Icon name={active.status === 'paused' ? 'pause' : 'doc'} />
@@ -153,8 +160,9 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
               <Icon name="arrowRight" />
             </span>
           </button>
+          )
         ) : (
-          home.resume && <ResumeCard resume={home.resume} now={now} api={api} actions={actions} />
+          home.resume && home.resume.assignment.assignmentId !== nextId && <ResumeCard resume={home.resume} now={now} api={api} actions={actions} />
         )}
         <HomeBody model={home} now={now} actions={actions} whyOpen={whyOpen} />
         <SyncFoot lastCheck={home.lastCheck} now={now} onRefresh={refresh} refreshing={refreshing} />
@@ -218,8 +226,10 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
       <header className="band">
         <div className="band-top">
           <LogoMark size={22} light />
-          <Wordmark />
+          {/* Narrow panels can't fit the wordmark next to two pills; the mark alone is enough. */}
+          {!(replay && pill) && <Wordmark />}
           <span className="grow" />
+          {replay && <span className="band-pill">Replay data</span>}
           {pill && <span className={pill.paused ? 'live-pill paused' : 'live-pill'}>{pill.text}</span>}
           <button type="button" className="band-btn" onClick={api.openSettings} aria-label="Settings">
             <Icon name="settings" size="sm" />
@@ -267,11 +277,14 @@ function Tabs({ tab, hintWaiting, onTab }: { tab: Tab; hintWaiting: boolean; onT
   );
 }
 
-function findItem(model: HomeModel, id: string): WorkItem | null {
-  if (model.status === 'not-connected') return null;
-  const items = model.status === 'ready' ? [model.next.item, ...model.rest] : model.rest;
+function allItems(model: HomeModel): WorkItem[] {
+  if (model.status === 'not-connected') return [];
   const older = model.olderReview?.items.map((i) => i.item) ?? [];
-  return [...items, ...older].find((i) => i.assignmentId === id) ?? null;
+  return [...(model.status === 'ready' ? [model.next.item] : []), ...model.rest, ...older];
+}
+
+function findItem(model: HomeModel, id: string): WorkItem | null {
+  return allItems(model).find((i) => i.assignmentId === id) ?? null;
 }
 
 /** Loomer is paused: say what stops, and offer to resume. Resuming does not resume a session. */

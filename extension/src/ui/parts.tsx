@@ -26,7 +26,7 @@ export function ClassTag({ item }: { item: WorkItem }) {
   return <span className="tag">{item.courseName ?? 'No class'}</span>;
 }
 
-/** Pills that flag what the student must not miss about an item. */
+/** Pills that flag what the student must not miss about an item. Replay is labeled once in the header, not per row. */
 export function itemFlags(item: WorkItem, now: Date): ReactNode[] {
   const flags: ReactNode[] = [];
   const badge = item.due ? dueBadge(item.due.at, now) : null;
@@ -36,7 +36,6 @@ export function itemFlags(item: WorkItem, now: Date): ReactNode[] {
         {badge}
       </Pill>,
     );
-  if (item.replay) flags.push(<ReplayPill key="replay" />);
   if (item.dueConflict)
     flags.push(
       <Pill key="conflict" tone="amber">
@@ -162,7 +161,6 @@ export function SyncFoot({
           'Hasn’t synced with Canvas yet'
         )}
       </span>
-      {lastCheck?.replay && <ReplayPill />}
       {onRefresh && (
         <button type="button" className="link" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>
           <Icon name="refresh" size="xs" />
