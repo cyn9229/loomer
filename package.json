@@ -12,10 +12,14 @@
     "build": "npm run build -w extension",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test -w extension",
-    "demo:reset": "node -e \"fetch('http://127.0.0.1:8787/replay/reset',{method:'POST'}).then(r=>r.json()).then(r=>console.log('Replay dates re-anchored at',r.anchor)).catch(()=>console.error('Start the server first: npm run dev:server'))\""
+    "demo:reset": "node -e \"fetch('http://127.0.0.1:8787/replay/reset',{method:'POST'}).then(r=>r.json()).then(r=>console.log('Replay dates re-anchored at',r.anchor)).catch(()=>console.error('Start the server first: npm run dev:server'))\"",
+    "e2e:replay": "node scripts/e2e-replay.mjs"
   },
   "engines": {
     "node": ">=22.18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  }
 }

@@ -13,6 +13,10 @@ const MAX_ROUNDS = 4;
 const HISTORY_TURNS = 12;
 const FLUSH_MS = 120;
 const SERVICE_DOWN = "Loomer's AI service isn't running on this computer. Start it with npm run dev:server, then try again.";
+const CUT_OFF = 'The reply was cut off before it finished. Try again.';
+
+/** The broker could not be reached at all (as opposed to a reply that broke midway). */
+class ServiceDownError extends Error {}
 
 export type ChatDeps = {
   db: LoomerDb;
@@ -135,9 +139,11 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
     const message =
       error instanceof Error && error.message === 'not-allowed'
         ? 'AI help was turned off or paused for this, so Loomer stopped.'
-        : error instanceof TypeError
+        : error instanceof ServiceDownError
           ? SERVICE_DOWN
-          : error instanceof Error
+          : error instanceof TypeError
+            ? CUT_OFF
+            : error instanceof Error
             ? error.message
             : 'Something went wrong.';
     await db.chatTurns.update(turnId, { blocks, status: stopped ? 'stopped' : 'error', error: stopped ? undefined : message });
@@ -157,12 +163,18 @@ async function streamRound(
   appendText: (delta: string) => void,
   flush: (force?: boolean) => Promise<void>,
 ): Promise<ToolCall[]> {
-  const res = await (deps.fetch ?? fetch)(`${settings.brokerOrigin}${CHAT_ROUTE}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-loomer-client': 'extension' },
-    body: JSON.stringify(request),
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await (deps.fetch ?? fetch)(`${settings.brokerOrigin}${CHAT_ROUTE}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-loomer-client': 'extension' },
+      body: JSON.stringify(request),
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new ServiceDownError(error instanceof Error ? error.message : 'unreachable');
+  }
   if (!res.ok || !res.body) {
     const body = brokerEnvelopeSchema.safeParse(await res.json().catch(() => null));
     throw new Error(body.success && !body.data.ok ? `AI service: ${body.data.error}` : `AI service status ${res.status}`);
