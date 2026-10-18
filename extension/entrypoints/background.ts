@@ -12,7 +12,7 @@ import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiServiceItem, aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { localDay } from '../src/analysis/plan';
 import { nextPlanSnapshot } from '../src/analysis/recommend';
 import { loadHomeData } from '../src/model/homeData';
@@ -188,6 +188,19 @@ async function updatePlan() {
   if (JSON.stringify(next) !== JSON.stringify(prev)) await planSnapshotItem.setValue(next);
 }
 
+/** Pings the local AI service and records whether it answered. Only while AI is on. */
+async function checkAiService() {
+  const ai = await aiSettingsItem.getValue();
+  if (!ai.enabled) return;
+  let up = false;
+  try {
+    up = (await fetch(`${ai.brokerOrigin}/health`, { signal: AbortSignal.timeout(3_000) })).ok;
+  } catch {
+    up = false;
+  }
+  await aiServiceItem.setValue({ up, checkedAt: new Date().toISOString() });
+}
+
 /** Starts a chat reply in the background; keeps the worker awake while it streams. */
 function startChat(threadKey: string, text: string) {
   const keepAlive = setInterval(() => void browser.runtime.getPlatformInfo(), 15_000);
@@ -204,7 +217,10 @@ function startChat(threadKey: string, text: string) {
     text,
   )
     .catch((error: unknown) => console.error('loomer: chat failed', error))
-    .finally(() => clearInterval(keepAlive));
+    .finally(() => {
+      clearInterval(keepAlive);
+      void checkAiService();
+    });
 }
 
 async function rememberChoice(assignmentId: string) {
@@ -383,7 +399,10 @@ async function handle(message: Message): Promise<Reply> {
         return { ok: false, error: 'Chrome access to the local AI service was not granted.' };
       }
       await aiSettingsItem.setValue({ ...ai, enabled: message.enabled });
-      if (message.enabled) void analyze();
+      if (message.enabled) {
+        void analyze();
+        await checkAiService();
+      } else await aiServiceItem.setValue(null);
       return { ok: true };
     }
     case 'policy:answer':
@@ -532,6 +551,9 @@ async function handle(message: Message): Promise<Reply> {
       if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
       await db.chatTurns.where('threadKey').equals(message.threadKey).delete();
       return { ok: true };
+    case 'ai:check':
+      await checkAiService();
+      return { ok: true };
     case 'brief:dismiss':
       await briefDismissedItem.setValue(localDay(new Date()));
       return { ok: true };
@@ -602,10 +624,14 @@ export default defineBackground(() => {
   browser.runtime.onStartup.addListener(() => {
     void schedule();
     void refresh();
+    void checkAiService();
     void currentSession(db).then((s) => (s?.state === 'active' ? setState(db, s, 'paused', new Date()) : undefined));
   });
   browser.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === REFRESH_ALARM) void refresh();
+    if (alarm.name === REFRESH_ALARM) {
+      void refresh();
+      void checkAiService();
+    }
     if (alarm.name === SESSION_ALARM) runSessionLoop();
   });
 

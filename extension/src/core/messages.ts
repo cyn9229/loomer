@@ -80,6 +80,8 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('chat:stop'), threadKey: z.string().min(1) }),
   /** Delete this thread's messages from this computer. */
   z.object({ type: z.literal('chat:clear'), threadKey: z.string().min(1) }),
+  /** Re-check whether the local AI service is running (for example when the panel opens). */
+  z.object({ type: z.literal('ai:check') }),
   /** Hide today's brief; it returns tomorrow. */
   z.object({ type: z.literal('brief:dismiss') }),
   /** Hide or restore an item in "Other work". Never affects Canvas. */

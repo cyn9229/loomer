@@ -71,3 +71,6 @@ export const planSnapshotItem = storage.defineItem<PlanSnapshot>('local:planSnap
 
 /** Local date (YYYY-MM-DD) the student last dismissed the daily brief. */
 export const briefDismissedItem = storage.defineItem<string | null>('local:briefDismissed', { fallback: null });
+
+/** Whether the local AI service answered its last health check. Null until AI is turned on and checked. */
+export const aiServiceItem = storage.defineItem<{ up: boolean; checkedAt: string } | null>('local:aiService', { fallback: null });
