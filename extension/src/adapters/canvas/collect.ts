@@ -5,7 +5,7 @@ import type { GateState } from '../../core/gate';
 import { contentHash } from '../../core/hash';
 import { mapLimit } from '../../core/concurrency';
 import { extractHtml } from '../../core/html';
-import { parseDocId } from '../docs/reader';
+import { embeddedDocId } from '../docs/reader';
 import { isLoopback } from '../../core/url';
 import { canvasGet, canvasGetAll, type CanvasContext, type CanvasFailure } from './client';
 import {
@@ -212,7 +212,8 @@ async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
       a.presence === 'seen-in-last-check' &&
       !doneInCanvas(a.submission) &&
       (!a.dueAt || Date.parse(a.dueAt) <= horizon) &&
-      (!a.detail || now.getTime() - Date.parse(a.detail.observedAt) > DETAIL_MAX_AGE_MS),
+      // A detail read before embedded Docs were recorded is read again once.
+      (!a.detail || a.detail.embeddedDocs === undefined || now.getTime() - Date.parse(a.detail.observedAt) > DETAIL_MAX_AGE_MS),
   );
 
   let fetched = 0;
@@ -298,9 +299,9 @@ async function toDetail(
   now: Date,
 ): Promise<AssignmentDetail> {
   const { text, links, embeds } = extractHtml(html ?? '', origin);
-  const embeddedDocs = [...new Set(embeds.flatMap((u) => parseDocId(u) ?? []))];
-  // An embedded Doc is also offered as a link, so the student can pick it as their sheet.
-  const allLinks = [...new Set([...links, ...embeddedDocs.map((id) => `https://docs.google.com/document/d/${id}/edit`)])];
+  const embeddedDocs = [...new Set(embeds.flatMap((u) => embeddedDocId(u) ?? []))];
+  // An embedded Doc is also offered as a link, so the student can pick it as their sheet (a published copy cannot be linked).
+  const allLinks = [...new Set([...links, ...embeddedDocs.filter((id) => !id.startsWith('e/')).map((id) => `https://docs.google.com/document/d/${id}/edit`)])];
   const detail = { observedAt: now.toISOString(), hash: '', text, links: allLinks, rubric, submissionTypes, canvasUpdatedAt: canvasUpdatedAt ?? null, embeddedDocs };
   return { ...detail, hash: await detailHash(detail) };
 }

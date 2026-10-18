@@ -4,6 +4,7 @@
 import type { DocRead, LoomerDb } from '../../core/db';
 import { checkCollect, type GateState } from '../../core/gate';
 import { contentHash } from '../../core/hash';
+import { extractHtml } from '../../core/html';
 
 export const DOC_MIN_INTERVAL_MS = 15_000;
 const BACKOFF_START_MS = 30_000;
@@ -16,6 +17,25 @@ export function parseDocId(url: string): string | null {
     const u = new URL(url);
     if (u.hostname !== 'docs.google.com') return null;
     return u.pathname.match(/^\/document\/(?:u\/\d+\/)?d\/([\w-]{20,})/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The Google Doc behind an embedded frame: a Doc address, a "published to the
+ * web" address (returned as `e/<id>`), or a Canvas tool frame whose `url`
+ * parameter holds one of those (Canvas's Google Drive tool embeds this way).
+ */
+export function embeddedDocId(url: string, depth = 0): string | null {
+  const plain = parseDocId(url);
+  if (plain) return plain;
+  try {
+    const u = new URL(url);
+    const published = u.hostname === 'docs.google.com' ? u.pathname.match(/^\/document\/(?:u\/\d+\/)?d\/e\/([\w-]{20,})\//)?.[1] : undefined;
+    if (published) return `e/${published}`;
+    const inner = u.searchParams.get('url');
+    return inner && depth < 2 ? embeddedDocId(inner, depth + 1) : null;
   } catch {
     return null;
   }
@@ -34,7 +54,10 @@ export async function fetchDocText(
   fetchImpl: typeof fetch = fetch,
   purpose: 'work-doc' | 'linked-instructions' = 'work-doc',
 ): Promise<DocFetch> {
-  const decision = checkCollect(gate, purpose, `https://docs.google.com/document/d/${docId}/export?format=txt`);
+  // A published copy has no text export; its public page is read and reduced to text.
+  const published = docId.startsWith('e/');
+  const address = published ? `https://docs.google.com/document/d/${docId}/pub` : `https://docs.google.com/document/d/${docId}/export?format=txt`;
+  const decision = checkCollect(gate, purpose, address);
   if (!decision.allowed) return { kind: 'unreadable', detail: `denied: ${decision.reason}` };
   let res: Response;
   try {
@@ -50,8 +73,13 @@ export async function fetchDocText(
   if (res.status === 429) return { kind: 'rate-limited' };
   if (res.status === 401 || res.status === 403 || res.status === 404) return { kind: 'no-access' };
   if (!res.ok) return { kind: 'unreadable', detail: `status ${res.status}` };
+  const type = res.headers.get('content-type') ?? '';
+  if (published) {
+    if (!type.startsWith('text/html')) return { kind: 'unreadable', detail: `type ${type}` };
+    return { kind: 'ok', text: extractHtml(await res.text(), 'https://docs.google.com').text.slice(0, MAX_DOC_CHARS) };
+  }
   // A login or permission page arrives as HTML with status 200.
-  if (!(res.headers.get('content-type') ?? '').startsWith('text/plain')) return { kind: 'no-access' };
+  if (!type.startsWith('text/plain')) return { kind: 'no-access' };
   return { kind: 'ok', text: (await res.text()).slice(0, MAX_DOC_CHARS) };
 }
 

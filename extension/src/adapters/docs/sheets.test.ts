@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { instructionText, LoomerDb, type Assignment } from '../../core/db';
 import type { GateState } from '../../core/gate';
 import { extractHtml } from '../../core/html';
+import { embeddedDocId } from './reader';
 import { readEmbeddedSheets } from './sheets';
 
 const DOC = '1aBcDeFgHiJkLmNoPqRsTuVwXyZ';
@@ -46,6 +47,27 @@ describe('embedded sheets', () => {
   it('finds a Google Doc embedded in the instructions', () => {
     const html = `<p>Do the review sheet.</p><iframe src="https://docs.google.com/document/d/${DOC}/preview?embedded=true"></iframe>`;
     expect(extractHtml(html, 'https://s.test').embeds).toEqual([`https://docs.google.com/document/d/${DOC}/preview?embedded=true`]);
+  });
+
+  it('recognizes plain, published, and Canvas-tool embeds', () => {
+    expect(embeddedDocId(`https://docs.google.com/document/d/${DOC}/preview`)).toBe(DOC);
+    expect(embeddedDocId(`https://docs.google.com/document/d/e/2PACX-${DOC}/pub?embedded=true`)).toBe(`e/2PACX-${DOC}`);
+    const tool = `https://school.instructure.com/courses/1/external_tools/retrieve?display=borderless&url=${encodeURIComponent(`https://docs.google.com/document/d/${DOC}/edit?usp=drive_web`)}`;
+    expect(embeddedDocId(tool)).toBe(DOC);
+    expect(embeddedDocId('https://www.youtube.com/embed/abc')).toBeNull();
+  });
+
+  it('reads a published sheet from its public page', async () => {
+    const id = `e/2PACX-${DOC}`;
+    await db.assignments.put({ ...assignment, detail: { ...assignment.detail!, embeddedDocs: [id] } });
+    const published: GateState = { ...gate, grants: [{ purpose: 'linked-instructions', origin: 'https://docs.google.com', pathPrefix: `/document/d/${id}/`, version: 1 }] };
+    const page = async () => {
+      const res = new Response('<html><body><h1>Part A: Circles</h1><p>1. Find the radius.</p></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
+      Object.defineProperty(res, 'url', { value: `https://docs.google.com/document/d/${id}/pub` });
+      return res;
+    };
+    await readEmbeddedSheets(db, published, 'k', now, { docsAccess: true, fetch: page });
+    expect((await db.assignments.get(assignment.id))?.detail?.sheet).toMatchObject({ state: 'ok', text: expect.stringContaining('Part A: Circles') });
   });
 
   it('reads the sheet into the instructions, changes the hash, and keeps the text when a later read fails', async () => {
