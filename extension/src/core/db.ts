@@ -3,6 +3,7 @@
 // refresh can never overwrite it.
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
+import type { ChatBlock } from '../model/chat';
 import type { EffortLabel } from '../model/home';
 import type { PolicyAnswer } from './gate';
 
@@ -241,6 +242,17 @@ export type RequirementCheck =
     }
   | { assignmentId: string; status: 'failed'; createdAt: string; error: string };
 
+/** One Ask Loomer turn. Replies stream into `blocks` while status is 'streaming'. */
+export type ChatTurnRecord = {
+  id: number;
+  threadKey: string;
+  role: 'student' | 'loomer';
+  blocks: ChatBlock[];
+  status: 'streaming' | 'done' | 'error' | 'stopped';
+  error?: string;
+  createdAt: string;
+};
+
 export class LoomerDb extends Dexie {
   assignments!: EntityTable<Assignment, 'id'>;
   runs!: EntityTable<CollectionRun, 'id'>;
@@ -256,6 +268,7 @@ export class LoomerDb extends Dexie {
   resumePackets!: EntityTable<ResumePacket, 'assignmentId'>;
   hints!: EntityTable<HintRecord, 'id'>;
   requirementChecks!: EntityTable<RequirementCheck, 'assignmentId'>;
+  chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
 
   constructor(name = 'loomer') {
     super(name);
@@ -281,6 +294,7 @@ export class LoomerDb extends Dexie {
       hints: '++id, sessionId, assignmentId, state',
     });
     this.version(5).stores({ requirementChecks: 'assignmentId' });
+    this.version(6).stores({ chatTurns: '++id, threadKey' });
   }
 }
 

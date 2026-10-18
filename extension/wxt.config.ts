@@ -19,6 +19,12 @@ export default defineConfig({
     optional_permissions: ['tabs', 'notifications'],
     ...(e2e ? { host_permissions: ['http://127.0.0.1/*', 'http://localhost/*'] } : {}),
     action: { default_title: 'Open loomer' },
+    // AI-made interactive widgets run only in the sandboxed widget page: scripts
+    // allowed, but no network, forms, popups, or same-origin access.
+    content_security_policy: {
+      sandbox:
+        "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none';",
+    },
     commands: {
       'add-page': { suggested_key: { default: 'Alt+Shift+L' }, description: 'Add this page to Loomer' },
     },

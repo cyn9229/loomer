@@ -8,6 +8,7 @@ import { capturePage, type CaptureOutcome } from '../src/capture/capture';
 import { draftScreenshot, saveScreenshot, screenshotDraftItem, type Crop, type ScreenshotRefusal } from '../src/capture/screenshot';
 import { notifyDeadlineChanges } from '../src/notify/notify';
 import { checkRequirements } from '../src/session/requirements';
+import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
@@ -185,6 +186,25 @@ async function updatePlan() {
   const data = await loadHomeData(db);
   const next = nextPlanSnapshot({ ...data, connected: Boolean(settings.canvasOrigin), ai, choice, snapshot: prev, briefDismissedOn: null, now: new Date() }, prev);
   if (JSON.stringify(next) !== JSON.stringify(prev)) await planSnapshotItem.setValue(next);
+}
+
+/** Starts a chat reply in the background; keeps the worker awake while it streams. */
+function startChat(threadKey: string, text: string) {
+  const keepAlive = setInterval(() => void browser.runtime.getPlatformInfo(), 15_000);
+  void sendChat(
+    {
+      db,
+      ai: () => aiSettingsItem.getValue(),
+      settings: async () => {
+        const [settings, ai, choice, snapshot] = await Promise.all([settingsItem.getValue(), aiSettingsItem.getValue(), choiceItem.getValue(), planSnapshotItem.getValue()]);
+        return { connected: Boolean(settings.canvasOrigin), ai, choice, snapshot };
+      },
+    },
+    threadKey,
+    text,
+  )
+    .catch((error: unknown) => console.error('loomer: chat failed', error))
+    .finally(() => clearInterval(keepAlive));
 }
 
 async function rememberChoice(assignmentId: string) {
@@ -501,6 +521,17 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     case 'screenshot:save':
       return saveScreenshot(db, await loadGateState(), message.crop, new Date(), cropImage).then((r) => (r.ok ? { ok: true } : { ok: false, error: r.error ?? 'Not saved.' }));
+    case 'chat:send':
+      if (isStreaming(message.threadKey)) return { ok: false, error: 'Loomer is still answering.' };
+      startChat(message.threadKey, message.text);
+      return { ok: true };
+    case 'chat:stop':
+      stopChat(message.threadKey);
+      return { ok: true };
+    case 'chat:clear':
+      if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
+      await db.chatTurns.where('threadKey').equals(message.threadKey).delete();
+      return { ok: true };
     case 'brief:dismiss':
       await briefDismissedItem.setValue(localDay(new Date()));
       return { ok: true };
