@@ -185,8 +185,9 @@ export function buildSessionFixtures(now: Date) {
           { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
           { text: 'Quadratic formula', quote: 'x = (−b ± √(b² − 4ac)) / 2a', sheet: 'Formula sheet', standing: 'unchecked', lastCheck: null, skipped: false },
           { text: 'Discriminant', quote: 'b² − 4ac tells you how many solutions.', sheet: 'Formula sheet', standing: 'unchecked', lastCheck: null, skipped: false },
+          { text: 'Graphing by hand', quote: 'Sketch each parabola without a calculator.', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: true },
         ],
-        next: null,
+        next: { topic: 'Vertex form', reason: 'You missed 2 of 3 on the last check.', mode: 'check' },
       },
     },
     // One sheet read: a single line, flat topics, and the own-copy line.
@@ -194,6 +195,7 @@ export function buildSessionFixtures(now: Date) {
       ...base,
       assignment: sheet,
       startedAt: ago(1),
+      plannedUntil: ago(-29),
       doc: { status: 'not-linked', candidates: [] },
       sources: [],
       activity: [],
@@ -207,7 +209,7 @@ export function buildSessionFixtures(now: Date) {
           { text: 'Vertex form', quote: 'Write each function in vertex form.', sheet: 'Unit 6 Review: Quadratics', standing: 'shaky', lastCheck: { correct: 1, total: 3, at: ago(10) }, skipped: false },
           { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
         ],
-        next: null,
+        next: { topic: 'Vertex form', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' },
       },
     },
     // Three sheets, three states: read, needs Google Docs, and Google refused.

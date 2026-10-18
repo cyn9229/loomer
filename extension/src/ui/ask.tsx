@@ -114,6 +114,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
               const change = model?.planChanges[id];
               return change ? <PlanChangeCard change={change} items={threads} room={room} now={now} send={api.send} /> : null;
             }}
+            onQuizAnswer={(quizId, questionIndex, correct) => void api.send({ type: 'quiz:answer', quizId, questionIndex, correct })}
           />
         ))}
       {ask.busy && last?.role !== 'loomer' && <Thinking />}
@@ -314,7 +315,19 @@ function NotAvailable({
   );
 }
 
-function Turn({ turn, widgetUrl, onOpenItem, renderPlanChange }: { turn: ChatTurn; widgetUrl: string; onOpenItem: (id: string) => void; renderPlanChange: (id: string) => ReactNode }) {
+function Turn({
+  turn,
+  widgetUrl,
+  onOpenItem,
+  renderPlanChange,
+  onQuizAnswer,
+}: {
+  turn: ChatTurn;
+  widgetUrl: string;
+  onOpenItem: (id: string) => void;
+  renderPlanChange: (id: string) => ReactNode;
+  onQuizAnswer: (quizId: string, questionIndex: number, correct: boolean) => void;
+}) {
   if (turn.role === 'student') {
     const text = turn.blocks.map((b) => (b.kind === 'markdown' ? b.text : '')).join('\n');
     return <p className="bubble">{text}</p>;
@@ -325,7 +338,7 @@ function Turn({ turn, widgetUrl, onOpenItem, renderPlanChange }: { turn: ChatTur
       <LogoMark size={17} />
       <div className="grow aib">
         {turn.blocks.map((block, i) => (
-          <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} renderPlanChange={renderPlanChange} />
+          <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} renderPlanChange={renderPlanChange} onQuizAnswer={onQuizAnswer} />
         ))}
         {streaming && turn.blocks.length === 0 && <Thinking inline />}
         {turn.status === 'stopped' && <p className="turn-note">Stopped</p>}

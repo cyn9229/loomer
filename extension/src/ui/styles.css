@@ -3557,7 +3557,7 @@ details > summary .icon {
   padding-bottom: 6px;
   font-weight: 500;
 }
-/* Topics on a practice or study sheet: the student ticks them. */
+/* Topics on the teacher's sheets: standing from the last Quick check, help on tap. */
 .topics {
   margin: 12px 18px 0;
   padding: 10px 12px;
@@ -3576,40 +3576,6 @@ details > summary .icon {
 .topics-k span {
   font-size: 12px;
   color: var(--muted);
-}
-.topic {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  font-size: 14px;
-  cursor: pointer;
-}
-.topic input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.topic .cbx {
-  background: var(--page);
-}
-.topic.done .cbx {
-  background: var(--green);
-  box-shadow: none;
-  color: #fff;
-}
-.topic.done .cbx .icon {
-  width: 12px;
-  height: 12px;
-}
-.topic.done .grow {
-  color: var(--muted);
-  text-decoration: line-through;
-  text-decoration-color: #c9c5bd;
-}
-.topic input:focus-visible + .cbx {
-  box-shadow: var(--focus);
 }
 .topics-note {
   margin-top: 4px;
@@ -3863,4 +3829,162 @@ details > summary .icon {
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
+}
+
+/* Next topic: where to start, and why. The one orange button on the screen. */
+.next-topic {
+  margin: 12px 18px 0;
+  padding: 12px;
+  border-radius: var(--r);
+  background: var(--acc-tint);
+}
+.nt-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
+}
+.nt-k > .icon {
+  color: var(--acc);
+}
+.nt-k b {
+  font-weight: 600;
+}
+.nt-r {
+  margin-top: 2px;
+  padding-left: 22px;
+  font-size: 12.5px;
+  color: var(--acc-text);
+}
+.nt-a {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.nt-a .btn-primary.sm {
+  width: auto;
+  padding: 0 14px;
+  height: 36px;
+}
+.nt-a .btn {
+  height: 36px;
+  background: var(--page);
+  box-shadow: none;
+}
+/* Topic rows: mark, name, last check, and help on tap. */
+.trow {
+  border-bottom: 1px solid var(--line-strong);
+}
+.trow:last-child {
+  border-bottom: 0;
+}
+.trow-b {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 0;
+  font-size: 14px;
+  text-align: left;
+}
+.trow-b > .icon {
+  color: var(--faint);
+}
+.tmark {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #c9c5bd;
+}
+.tmark.shaky {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.tmark.shaky i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+  background: var(--amber-dot);
+}
+.tmark.solid {
+  background: var(--green);
+  box-shadow: none;
+  color: #fff;
+}
+.tmark.solid .icon {
+  width: 11px;
+  height: 11px;
+}
+.tscore {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tscore.shaky {
+  font-weight: 600;
+  color: var(--amber);
+}
+.tscore.solid {
+  font-weight: 600;
+  color: var(--green-ink);
+}
+.trow-x {
+  padding: 2px 0 10px;
+}
+.tacts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 6px;
+}
+.tact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13px;
+  font-weight: 600;
+  transition: transform var(--d-press) var(--ease-out);
+}
+.tact:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.tact .icon {
+  color: var(--muted);
+}
+.tact.soft {
+  background: var(--acc-tint);
+  box-shadow: none;
+  color: var(--acc-text);
+}
+.tact.soft .icon {
+  color: var(--acc);
+}
+.tskip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tskip .link {
+  font-size: 12px;
+}
+.tskipped {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tskipped .link {
+  font-size: 12px;
 }

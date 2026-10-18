@@ -236,6 +236,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           detail={detail}
           onChecklist={() => setOpenId(active.assignment.assignmentId)}
           api={api}
+          onAsk={actions.openAsk}
         />
         <SessionTime
           key={active.plannedUntil ?? 'none'}

@@ -23,9 +23,11 @@ type BlockProps = {
   onOpenItem: (assignmentId: string) => void;
   /** Renders a proposed plan change by id (the card needs Home's plan, which the panel has). */
   renderPlanChange: (changeId: string) => ReactNode;
+  /** A checked answer on a topic's Quick check (quiz:answer), so the topic's standing updates. */
+  onQuizAnswer: (quizId: string, questionIndex: number, correct: boolean) => void;
 };
 
-export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChange }: BlockProps) {
+export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChange, onQuizAnswer }: BlockProps) {
   switch (block.kind) {
     case 'markdown':
       return <MarkdownText text={block.text} streaming={streaming} />;
@@ -34,7 +36,7 @@ export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChang
     case 'visual':
       return <VisualBlock visual={block.visual} widgetUrl={widgetUrl} />;
     case 'quiz':
-      return <QuizCard quiz={block.quiz} />;
+      return <QuizCard quiz={block.quiz} onAnswer={block.quiz.topic ? (i, correct) => onQuizAnswer(block.quiz.id, i, correct) : undefined} />;
     case 'plan-change':
       return renderPlanChange(block.changeId);
     case 'open-assignment':
@@ -316,8 +318,12 @@ function Widget({ html, height, title, widgetUrl }: { html: string; height: numb
 
 // ---------------------------------------------------------------- Quiz
 
-/** One question at a time; answers are checked here and never saved or sent. */
-function QuizCard({ quiz }: { quiz: Quiz }) {
+/**
+ * One question at a time, checked here. A topic's Quick check (quiz.topic set)
+ * reports each checked answer through `onAnswer`, which updates the topic's
+ * standing; any other quiz is never saved or sent.
+ */
+function QuizCard({ quiz, onAnswer }: { quiz: Quiz; onAnswer?: (questionIndex: number, correct: boolean) => void }) {
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
@@ -339,7 +345,7 @@ function QuizCard({ quiz }: { quiz: Quiz }) {
       <section className="quiz enter" aria-label={`Quiz on ${quiz.concept}`}>
         <div className="qk">
           <Icon name="question" size="sm" />
-          Check your understanding
+          {quiz.topic ? `Quick check · ${quiz.topic}` : 'Check your understanding'}
         </div>
         {quiz.questions.map((question, i) => (
           <p className="qrow" key={i}>
@@ -370,6 +376,7 @@ function QuizCard({ quiz }: { quiz: Quiz }) {
     if (picked === null) return;
     setChecked(true);
     setResults((r) => [...r, correct]);
+    onAnswer?.(index, correct);
   };
   const next = () => {
     setIndex((i) => i + 1);
@@ -381,7 +388,7 @@ function QuizCard({ quiz }: { quiz: Quiz }) {
     <section className="quiz enter" aria-label={`Quiz on ${quiz.concept}`}>
       <div className="qk">
         <Icon name="question" size="sm" />
-        <span className="grow">Check your understanding</span>
+        <span className="grow">{quiz.topic ? `Quick check · ${quiz.topic}` : 'Check your understanding'}</span>
         <span className="qcount">
           {index + 1} of {total}
         </span>

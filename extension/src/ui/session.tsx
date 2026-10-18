@@ -11,7 +11,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { DOCS_ORIGINS } from '../core/messages';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
-import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
+import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, SessionModel, SourceItem, TopicNext } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { observedAt, timeOf } from './format';
 import { SheetList } from './sheets';
@@ -134,40 +134,135 @@ type WorkHeaderProps = {
   /** Opens the assignment's detail (the full checklist). */
   onChecklist: () => void;
   api: PanelApi;
+  /** Opens Ask Loomer on an assignment's thread, where topic help streams in. */
+  onAsk: (assignmentId: string) => void;
 };
 
+type Topic = NonNullable<ActiveSession['topics']>['items'][number];
+type HelpMode = 'explain' | 'example' | 'check';
+
 /**
- * The topics on a practice or study sheet. Interim until the redesign: each row
- * starts a quick check (topic:help) and shows the standing from past checks.
- * Each topic's quote from the sheet is its tooltip.
+ * Asks Loomer about one topic (topic:help). The reply streams into the
+ * assignment's Ask Loomer thread, which opens once the request is in.
  */
-function TopicsList({ topics, item, send }: { topics: NonNullable<ActiveSession['topics']>; item: ActiveSession['assignment']; send: PanelApi['send'] }) {
-  const toggle = useAction();
-  // With topics from more than one sheet, they group under each sheet's name, in sheet order.
-  const groups = [...new Set(topics.items.map((t) => t.sheet))];
+function useTopicHelp(assignmentId: string, send: PanelApi['send'], onAsk: (assignmentId: string) => void) {
+  const help = useAction();
+  const ask = (topic: string, mode: HelpMode) =>
+    help.run(async () => {
+      const reply = await send({ type: 'topic:help', assignmentId, topic, mode });
+      if (reply.ok) onAsk(assignmentId);
+      return reply;
+    });
+  return { ask, busy: help.busy, error: help.error };
+}
+
+/**
+ * Where to start, and why ("You missed 2 of 3 on the last check."). With a
+ * time limit it says how to use the time. One primary button: Quick check, or
+ * Explain when the topic needs explaining first.
+ */
+function NextTopic({ next, session, now, help }: { next: NonNullable<TopicNext>; session: ActiveSession; now: Date; help: ReturnType<typeof useTopicHelp> }) {
+  const left = minutesLeft(session, now);
+  const [first, second] = next.mode === 'check' ? (['check', 'explain'] as const) : (['explain', 'check'] as const);
+  const label = { check: 'Quick check', explain: 'Explain it' } as const;
+  return (
+    <section className="next-topic" aria-label="Next topic">
+      <p className="nt-k">
+        <Icon name="target" size="sm" />
+        <span>
+          {left !== null && left > 0 ? `You have ${left} min: start with ` : 'Next: '}
+          <b>{next.topic}</b>
+        </span>
+      </p>
+      <p className="nt-r">{next.reason}</p>
+      <div className="nt-a">
+        <button type="button" className="btn-primary sm" disabled={help.busy} onClick={() => help.ask(next.topic, first)}>
+          <Icon name={first === 'check' ? 'question' : 'bulb'} size="sm" />
+          {label[first]}
+        </button>
+        <button type="button" className="btn" disabled={help.busy} onClick={() => help.ask(next.topic, second)}>
+          {second === 'explain' ? 'Explain it first' : 'Quick check'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+const lastCheckText = (t: Topic) => (t.lastCheck ? `Last check: ${t.lastCheck.correct} of ${t.lastCheck.total}` : 'Not checked');
+
+/**
+ * The topics on the teacher's sheets, grouped by sheet when there is more than
+ * one. Each row shows how the student did on their last Quick check (not
+ * checked, shaky, solid); tapping it offers Explain, Example and Quick check,
+ * and a quiet Skip for a topic the teacher dropped. Skipped topics sit at the
+ * bottom with Undo. Each topic's quote from the sheet is its tooltip.
+ */
+function TopicsList({ topics, item, help, send }: { topics: NonNullable<ActiveSession['topics']>; item: ActiveSession['assignment']; help: ReturnType<typeof useTopicHelp>; send: PanelApi['send'] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const skip = useAction();
+  const shown = topics.items.filter((t) => !t.skipped);
+  const skipped = topics.items.filter((t) => t.skipped);
+  const groups = [...new Set(shown.map((t) => t.sheet))];
   const grouped = groups.length > 1;
   const title = grouped ? 'Topics' : item.workType.type === 'study' ? 'What’s on the test' : 'Topics on the sheet';
-  const shaky = topics.items.filter((t) => t.standing === 'shaky').length;
-  const row = (t: NonNullable<ActiveSession['topics']>['items'][number]) => (
-    <button
-      type="button"
-      className={t.standing === 'solid' ? 'topic done' : 'topic'}
-      key={`${t.sheet}:${t.text}`}
-      title={`“${t.quote}”`}
-      disabled={toggle.busy}
-      onClick={() => toggle.run(() => send({ type: 'topic:help', assignmentId: item.assignmentId, topic: t.text, mode: 'check' }))}
-    >
-      <span className="grow">{t.text}</span>
-      <span>{t.lastCheck ? `${t.lastCheck.correct} of ${t.lastCheck.total}` : 'Check'}</span>
-    </button>
-  );
+  const count = (standing: Topic['standing']) => shown.filter((t) => t.standing === standing).length;
+  const summary = (
+    [
+      [count('solid'), 'solid'],
+      [count('shaky'), 'shaky'],
+      [count('unchecked'), 'not checked'],
+    ] as const
+  )
+    .filter(([n]) => n > 0)
+    .map(([n, word]) => `${n} ${word}`)
+    .join(' · ');
+  const setSkipped = (topic: string, value: boolean) => skip.run(() => send({ type: 'topic:skip', assignmentId: item.assignmentId, topic, skipped: value }));
+
+  const row = (t: Topic) => {
+    const isOpen = open === t.text;
+    return (
+      <div className={isOpen ? 'trow open' : 'trow'} key={`${t.sheet}:${t.text}`}>
+        <button type="button" className="trow-b" aria-expanded={isOpen} title={`“${t.quote}”`} onClick={() => setOpen(isOpen ? null : t.text)}>
+          <span className={`tmark ${t.standing}`} aria-hidden="true">
+            {t.standing === 'solid' ? <Icon name="check" /> : <i />}
+          </span>
+          <span className="grow">{t.text}</span>
+          <span className={`tscore ${t.standing}`}>{lastCheckText(t)}</span>
+          <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size="xs" />
+        </button>
+        {isOpen && (
+          <div className="trow-x">
+            <div className="tacts">
+              {(
+                [
+                  ['explain', 'bulb', 'Explain'],
+                  ['example', 'copy', 'Example'],
+                  ['check', 'question', 'Quick check'],
+                ] as const
+              ).map(([mode, icon, label]) => (
+                <button key={mode} type="button" className={mode === 'check' ? 'tact soft' : 'tact'} disabled={help.busy} onClick={() => help.ask(t.text, mode)}>
+                  <Icon name={icon} size="sm" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="tskip">
+              Teacher dropped this one?{' '}
+              <button type="button" className="link" disabled={skip.busy} onClick={() => setSkipped(t.text, true)}>
+                Skip it
+              </button>
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="topics" aria-label={title}>
       <div className="topics-k">
         <b>{title}</b>
-        {topics.status === 'ok' && topics.items.length > 0 && (
-          <span>{shaky > 0 ? `${shaky} shaky` : `${topics.items.length} topics`}</span>
-        )}
+        {topics.status === 'ok' && shown.length > 0 && <span>{summary}</span>}
       </div>
       {topics.status === 'reading' && <p className="topics-note">Loomer is reading the sheet…</p>}
       {topics.status === 'failed' && <p className="topics-note">Loomer couldn’t find topics on the sheet. Help still works.</p>}
@@ -177,12 +272,20 @@ function TopicsList({ topics, item, send }: { topics: NonNullable<ActiveSession[
           ? groups.map((g) => (
               <div className="topic-group" key={g ?? 'other'}>
                 <p className="topic-group-k">{g ?? 'Other topics'}</p>
-                {topics.items.filter((t) => t.sheet === g).map(row)}
+                {shown.filter((t) => t.sheet === g).map(row)}
               </div>
             ))
-          : topics.items.map(row))}
-      {topics.status === 'ok' && topics.items.length > 0 && <p className="topics-note">You tick these. Loomer never marks one done.</p>}
-      {toggle.error && <p className="status-line error">{toggle.error}</p>}
+          : shown.map(row))}
+      {skipped.map((t) => (
+        <p className="tskipped" key={`skipped:${t.text}`}>
+          <Icon name="eyeOff" size="xs" />
+          <span className="grow">Skipped: {t.text}</span>
+          <button type="button" className="link" disabled={skip.busy} onClick={() => setSkipped(t.text, false)}>
+            Undo
+          </button>
+        </p>
+      ))}
+      {(help.error ?? skip.error) && <p className="status-line error">{help.error ?? skip.error}</p>}
     </section>
   );
 }
@@ -231,8 +334,9 @@ export function QuizNote({ api }: { api: PanelApi }) {
   );
 }
 
-export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist, api }: WorkHeaderProps) {
+export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist, api, onAsk }: WorkHeaderProps) {
   const item = session.assignment;
+  const topicHelp = useTopicHelp(item.assignmentId, api.send, onAsk);
   const kind = typeLabel(item);
   const writing = !item.quiz && item.workType.type === 'writing';
   return (
@@ -252,7 +356,8 @@ export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onCh
           {(item.workType.type === 'practice' || item.workType.type === 'study') && (
             <>
               <SheetList sheets={session.teacherSheets} label="From the instructions" requestOrigins={api.requestOrigins} send={api.send} />
-              {session.topics && <TopicsList topics={session.topics} item={item} send={api.send} />}
+              {session.topics?.next && <NextTopic next={session.topics.next} session={session} now={now} help={topicHelp} />}
+              {session.topics && <TopicsList topics={session.topics} item={item} help={topicHelp} send={api.send} />}
               {session.doc.status === 'not-linked' && <OwnCopy assignmentId={item.assignmentId} candidates={session.doc.candidates} api={api} />}
             </>
           )}

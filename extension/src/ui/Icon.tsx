@@ -9,12 +9,14 @@ import ArrowRightRegular from '@mingcute/react/core-regular/arrow-right';
 import ArrowUpRegular from '@mingcute/react/core-regular/arrow-up';
 import Book4Regular from '@mingcute/react/core-regular/book-4';
 import BrainRegular from '@mingcute/react/core-regular/brain';
+import BulbRegular from '@mingcute/react/core-regular/bulb';
 import CalendarMonthRegular from '@mingcute/react/core-regular/calendar-month';
 import CalendarRegular from '@mingcute/react/core-regular/calendar';
 import ChartBarRegular from '@mingcute/react/core-regular/chart-bar';
 import Chat3Regular from '@mingcute/react/core-regular/chat-3';
 import CheckRegular from '@mingcute/react/core-regular/check';
 import CloseRegular from '@mingcute/react/core-regular/close';
+import Copy2Regular from '@mingcute/react/core-regular/copy-2';
 import Delete2Regular from '@mingcute/react/core-regular/delete-2';
 import Document2Regular from '@mingcute/react/core-regular/document-2';
 import DownRegular from '@mingcute/react/core-regular/down';
@@ -129,6 +131,8 @@ const icons = {
   repeat: RepeatRegular,
   undo: HistoryAnticlockwiseRegular,
   pauseCircle: PauseCircleRegular,
+  bulb: BulbRegular,
+  copy: Copy2Regular,
   keyboard: KeyboardRegular,
   eye: EyeRegular,
   // Work types, picked by workTypeIcon().

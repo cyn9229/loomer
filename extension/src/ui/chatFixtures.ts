@@ -99,6 +99,35 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
   return {
     empty: general({}),
     'plan-change': planChat(now, items, 'proposed'),
+    // A topic's Quick check: the quiz is tagged with the topic, so each checked answer is reported (quiz:answer).
+    'topic-check': {
+      threadKey: 'a-sheet',
+      assignment: items.find((i) => i.assignmentId === 'a-sheet') ?? null,
+      availability: 'available',
+      streaming: false,
+      planChanges: {},
+      turns: turns(now, [
+        [
+          'Quick check: Vertex form',
+          [
+            { kind: 'tool', label: 'Read the sheet', status: 'done' },
+            {
+              kind: 'quiz',
+              quiz: {
+                id: 'quiz-vertex',
+                topic: 'Vertex form',
+                concept: 'Vertex form',
+                questions: [
+                  { prompt: 'What is the vertex of y = (x − 3)² + 2?', choices: ['(3, 2)', '(−3, 2)', '(3, −2)'], answerIndex: 0, explanation: 'In y = (x − h)² + k the vertex is (h, k), so (3, 2).' },
+                  { prompt: 'Which is y = x² − 6x + 5 in vertex form?', choices: ['y = (x − 3)² − 4', 'y = (x + 3)² − 4', 'y = (x − 3)² + 5'], answerIndex: 0, explanation: 'Half of −6 is −3; (x − 3)² = x² − 6x + 9, so subtract 4.' },
+                  { prompt: 'Does y = −2(x + 1)² + 7 open up or down?', choices: ['Up', 'Down'], answerIndex: 1, explanation: 'The leading −2 is negative, so it opens down.' },
+                ],
+              },
+            },
+          ],
+        ],
+      ]),
+    } satisfies ChatModel,
     'plan-applied': planChat(now, items, 'applied'),
     answer: general({ turns: turns(now, [['why do cities get hotter than the countryside?', ANSWER]]) }),
     quiz: general({ turns: turns(now, [['quiz me on this', [{ kind: 'markdown', text: 'Three quick questions on **urban heat islands**.' }, QUIZ]]]) }),
