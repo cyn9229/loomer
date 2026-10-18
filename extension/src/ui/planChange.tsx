@@ -95,6 +95,7 @@ export function PlanChangeCard({ change, items, room, now, send }: CardProps) {
 function Strip({ change, items, room, now }: Omit<CardProps, 'send'>) {
   const changedDays = new Map(change.preview.days.map((d) => [d.date, d.after]));
   const roomByDay = new Map(room.map((r) => [r.date, r]));
+  const moves = change.preview.moves.length > 0;
   return (
     <>
       <div className="strip" role="img" aria-label="Your week with this change">
@@ -128,10 +129,14 @@ function Strip({ change, items, room, now }: Omit<CardProps, 'send'>) {
       <p className="pc-key" aria-hidden="true">
         <u />
         start
-        <u className="moved-in" />
-        moved here
-        <u className="moved-out" />
-        was here
+        {moves && (
+          <>
+            <u className="moved-in" />
+            moved here
+            <u className="moved-out" />
+            was here
+          </>
+        )}
       </p>
     </>
   );

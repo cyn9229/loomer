@@ -3388,6 +3388,9 @@ details > summary .icon {
 }
 
 /* Week view: room on days the student changed; busy days keep dues, no starts. */
+.wk-key .room {
+  margin-left: 8px;
+}
 .wdh .room {
   margin-left: 4px;
 }

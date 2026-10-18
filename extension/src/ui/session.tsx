@@ -32,9 +32,13 @@ function draftLine(doc: DocState, now: Date): string {
   return parts.filter(Boolean).join(' · ');
 }
 
-/** Whole minutes until the student's time is up (0 or less once it is), or null without a limit. */
+/**
+ * Whole minutes until the student's time is up (0 or less once it is), or null
+ * without a limit. The panel's `now` can be up to a minute old, which would make
+ * a fresh 30 min limit read "31 min left", so the later of it and the clock is used.
+ */
 export function minutesLeft(session: ActiveSession, now: Date): number | null {
-  return session.plannedUntil ? Math.ceil((Date.parse(session.plannedUntil) - now.getTime()) / 60_000) : null;
+  return session.plannedUntil ? Math.ceil((Date.parse(session.plannedUntil) - Math.max(now.getTime(), Date.now())) / 60_000) : null;
 }
 
 /**

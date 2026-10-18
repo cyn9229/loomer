@@ -16,7 +16,6 @@ import CloseRegular from '@mingcute/react/core-regular/close';
 import Delete2Regular from '@mingcute/react/core-regular/delete-2';
 import Document2Regular from '@mingcute/react/core-regular/document-2';
 import DownRegular from '@mingcute/react/core-regular/down';
-import Edit2Regular from '@mingcute/react/core-regular/edit-2';
 import ExternalLinkRegular from '@mingcute/react/core-regular/external-link';
 import EyeCloseRegular from '@mingcute/react/core-regular/eye-close';
 import Flag2Regular from '@mingcute/react/core-regular/flag-2';
@@ -32,6 +31,7 @@ import ListCheckRegular from '@mingcute/react/core-regular/list-check';
 import LockRegular from '@mingcute/react/core-regular/lock';
 import NotificationRegular from '@mingcute/react/core-regular/notification';
 import PauseRegular from '@mingcute/react/core-regular/pause';
+import PencilRegular from '@mingcute/react/core-regular/pencil';
 import PicRegular from '@mingcute/react/core-regular/pic';
 import PlayRegular from '@mingcute/react/core-regular/play';
 import PowerRegular from '@mingcute/react/core-regular/power';
@@ -117,7 +117,7 @@ const icons = {
   power: PowerRegular,
   target: TargetRegular,
   chartBar: ChartBarRegular,
-  edit: Edit2Regular,
+  edit: PencilRegular,
   repeat: RepeatRegular,
   undo: HistoryAnticlockwiseRegular,
   // Subjects, picked from the class name by subjectIcon(). Filled, shown in a tinted square.
