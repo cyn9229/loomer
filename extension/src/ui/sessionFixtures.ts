@@ -142,6 +142,11 @@ export function buildSessionFixtures(now: Date) {
 
     paused: { ...base, status: 'paused' },
 
+    // The student said they have 30 min: the clock counts down, a note at 5 min, then they choose.
+    'time-left': { ...base, startedAt: ago(2), plannedUntil: ago(-28) },
+    'time-5-min': { ...base, startedAt: ago(26), plannedUntil: ago(-4) },
+    'time-up': { ...base, startedAt: ago(31), plannedUntil: ago(1) },
+
     'rate-limited': { ...base, doc: { ...linkedDoc, readState: 'rate-limited', lastReadAt: ago(4) } },
 
     'no-access': { ...base, doc: { ...linkedDoc, readState: 'no-access', lastReadAt: null, studentWords: null } },

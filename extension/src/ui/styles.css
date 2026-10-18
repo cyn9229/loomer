@@ -3147,3 +3147,362 @@ details > summary .icon {
   flex: none;
   font-size: 12.5px;
 }
+
+/* ---------- Plan changes: room, the change card, Your changes ---------- */
+/* Room for a day: three dots (free 3, some 2, little 1, busy none in amber). */
+.room {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rm {
+  display: inline-flex;
+  gap: 3px;
+}
+.rm i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #c9c5bd;
+}
+.rm i.on {
+  background: var(--ink);
+  box-shadow: none;
+}
+.rm.busy i {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.rw {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.rw.busy {
+  color: var(--amber);
+}
+
+/* The change card in chat: the week strip, the planner's lines, moved starts. */
+.pcard {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--page);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.pc-stale {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--amber-tint);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--amber-ink);
+}
+.pc-stale .icon {
+  margin-top: 2px;
+  color: var(--amber);
+}
+.strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.sday {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0 8px;
+  border-radius: 10px;
+}
+.sday.set {
+  background: var(--fill);
+}
+.sday b {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sday b .icon {
+  width: 10px;
+  height: 10px;
+}
+.sday small {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+.sday .rm i {
+  width: 5px;
+  height: 5px;
+}
+.room-none {
+  height: 5px;
+}
+.sdots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  min-height: 6px;
+  max-width: 30px;
+}
+.sdots u,
+.pc-key u {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc);
+}
+.sdots u.moved-in,
+.pc-key u.moved-in {
+  box-shadow: 0 0 0 2px var(--acc-soft);
+}
+.sdots u.moved-out,
+.pc-key u.moved-out {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px #c9c5bd;
+}
+.pc-key {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.pc-key u {
+  display: inline-block;
+  margin-left: 6px;
+}
+.pc-key u:first-child {
+  margin-left: 0;
+}
+.pc-lines {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.pc-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13.5px;
+}
+.pc-line .subject {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.pc-line .subject .icon {
+  width: 13px;
+  height: 13px;
+}
+.pc-line b {
+  font-weight: 600;
+}
+.pc-line > .icon {
+  color: var(--faint);
+}
+.pc-from {
+  color: var(--muted);
+  text-decoration-color: #c9c5bd;
+}
+.pc-to {
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.pc-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.pc-act {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pc-act .btn {
+  height: 40px;
+}
+.btn-primary.sm {
+  margin-top: 0;
+  height: 40px;
+  font-size: 14px;
+}
+.pc-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green-ink);
+}
+.pc-done .link,
+.yc-row .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pc-off {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Your changes on Home: one row per applied change, each with Undo. */
+.notice-fold .notice > .icon:first-child {
+  color: var(--muted);
+}
+.notice .count {
+  font-size: 13px;
+  color: var(--muted);
+}
+.yc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+.yc-row > .icon {
+  color: var(--muted);
+}
+.yc-t {
+  display: block;
+  font-size: 14px;
+}
+.yc-s {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Week view: room on days the student changed; busy days keep dues, no starts. */
+.wdh .room {
+  margin-left: 4px;
+}
+.wdh .icon {
+  color: var(--muted);
+}
+.wdm {
+  font-size: 11.5px;
+}
+.wd.busy .wdh b:not(.soon) {
+  color: var(--muted);
+}
+.wd-note {
+  padding: 2px 0;
+  font-size: 12.5px;
+  color: var(--amber);
+}
+
+/* Assignment: what the student set. */
+.fact.you span {
+  color: var(--acc-text);
+}
+.guess {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 18px 0;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.guess .icon {
+  color: var(--muted);
+}
+
+/* Session time: the optional question, the countdown, the 5-minute note, time up. */
+.timeq {
+  margin-top: 16px;
+}
+.timeq-k {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.timeq-s {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.tseg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-top: 8px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--fill);
+}
+.tseg button {
+  height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+.tseg button[aria-pressed='true'] {
+  background: var(--page);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 16, 24, 0.08);
+}
+.timeq + .btn-primary {
+  margin-top: 14px;
+}
+.live.warn {
+  color: var(--amber);
+}
+.live.warn::before {
+  background: var(--amber-dot);
+}
+.tnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 18px 0;
+  padding: 9px 12px;
+  border-radius: var(--r);
+  background: var(--amber-tint);
+  font-size: 13px;
+  color: var(--amber-ink);
+}
+.tnote > .icon {
+  color: var(--amber);
+}
+.tup {
+  margin: 16px 18px 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--fill);
+}
+.tup-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.tup-k .icon {
+  color: var(--acc);
+}
+.tup-p {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.tup .tseg {
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}

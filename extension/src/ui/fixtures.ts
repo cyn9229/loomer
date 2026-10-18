@@ -7,8 +7,9 @@
 import type { ScreenshotDraft } from '../capture/screenshot';
 import type { AssignmentDetailModel } from '../model/detail';
 import { LEAD_DAYS } from '../analysis/plan';
-import type { Checkpoint, CheckInfo, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
-import { dateTime } from './format';
+import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
+import type { PlanChangeView } from '../model/plan';
+import { dateTime, ymd } from './format';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -41,6 +42,22 @@ function startByFor(due: WorkItem['due'], checkpoints: Checkpoint[], effort: Wor
   const target = checkpoint?.at ?? due?.at;
   if (!target) return null;
   return { at: new Date(Date.parse(target) - LEAD_DAYS[effort] * DAY).toISOString(), basis: checkpoint ? 'checkpoint' : 'due' };
+}
+
+/**
+ * Fourteen days of room the way the planner reports it: the next Thursday is
+ * busy (one day), and every Tuesday has little room, about 30 min (the
+ * student's own number). Every other day is free.
+ */
+export function roomFixture(now: Date): DayRoom[] {
+  const days = Array.from({ length: 14 }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
+  const firstThu = days.find((d) => d.getDay() === 4);
+  return days.map((d) => ({
+    date: ymd(d),
+    level: d === firstThu ? 'busy' : d.getDay() === 2 ? 'little' : 'free',
+    minutes: d.getDay() === 2 ? 30 : null,
+    repeating: d.getDay() === 2,
+  }));
 }
 
 function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId' | 'title'>): WorkItem {
@@ -76,7 +93,8 @@ export function buildFixtures(now: Date) {
     title: 'Heat islands comparison essay',
     courseName: 'English 10',
     due: { at: essayDue, source: 'canvas' },
-    effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.', source: 'ai' },
+    effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.', source: 'student' },
+    guessMinutes: 180,
     policy: { state: 'permitted', sourceLabel: 'Course syllabus' },
     checkpoints: [{ text: 'Draft for peer review', at: new Date(Date.parse(essayDue) - DAY).toISOString(), quote: 'Bring a full draft for peer review the day before the final deadline.', derived: true }],
     rankReason: `Start today: heavy workload, Draft for peer review by ${new Date(Date.parse(essayDue) - DAY).toLocaleDateString(undefined, { weekday: 'short' })}.`,
@@ -275,6 +293,8 @@ export function buildFixtures(now: Date) {
       ...noResume,
       crowded,
       brief,
+      room: roomFixture(now),
+      yourChanges: appliedChanges(now),
       next: readyNext,
       rest: [photo, vocab, replayItem, reflection, proposal, lab, reading, pastQuiz, hiddenItem],
       lastCheck,
@@ -561,4 +581,32 @@ export function buildScreenshotDraft(now: Date): ScreenshotDraft {
     height: 800,
     at: new Date(now.getTime() - 60_000).toISOString(),
   };
+}
+
+/** Two changes the student applied: the busy Thursday and little-room Tuesdays, newest first. */
+export function appliedChanges(now: Date): PlanChangeView[] {
+  const room = roomFixture(now);
+  const at = new Date(now.getTime() - 0.5 * HOUR).toISOString();
+  const thu = room.find((r) => r.level === 'busy')!;
+  const tue = room.filter((r) => r.level === 'little');
+  return [
+    {
+      id: 'chg-thu',
+      status: 'applied',
+      preview: { lines: ['Thu: busy, no starts'], days: [{ date: thu.date, before: { ...thu, level: 'free', minutes: null }, after: thu }], moves: [] },
+      createdAt: at,
+      appliedAt: at,
+    },
+    {
+      id: 'chg-tue',
+      status: 'applied',
+      preview: {
+        lines: ['Tuesdays: little room, every week', 'About 30 min, your number'],
+        days: tue.map((r) => ({ date: r.date, before: { ...r, level: 'free', minutes: null, repeating: false }, after: r })),
+        moves: [],
+      },
+      createdAt: at,
+      appliedAt: at,
+    },
+  ];
 }

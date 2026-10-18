@@ -32,11 +32,74 @@ function draftLine(doc: DocState, now: Date): string {
   return parts.filter(Boolean).join(' · ');
 }
 
-/** "24 min" since the session started, or "Paused". */
-export function sessionClock(session: ActiveSession, now: Date): { text: string; paused: boolean } {
-  if (session.status === 'paused') return { text: 'Paused', paused: true };
+/** Whole minutes until the student's time is up (0 or less once it is), or null without a limit. */
+export function minutesLeft(session: ActiveSession, now: Date): number | null {
+  return session.plannedUntil ? Math.ceil((Date.parse(session.plannedUntil) - now.getTime()) / 60_000) : null;
+}
+
+/**
+ * The top bar's clock: "28 min left" when the student set a time ("warn" in the
+ * last 5 minutes), otherwise "24 min" since the start, or "Paused". The panel
+ * refreshes `now` once a minute, so this changes once a minute and never animates.
+ */
+export function sessionClock(session: ActiveSession, now: Date): { text: string; paused: boolean; warn: boolean } {
+  if (session.status === 'paused') return { text: 'Paused', paused: true, warn: false };
+  const left = minutesLeft(session, now);
+  if (left !== null) return { text: left > 0 ? `${left} min left` : 'Time’s up', paused: false, warn: left <= 5 };
   const minutes = Math.max(0, Math.round((now.getTime() - new Date(session.startedAt).getTime()) / 60_000));
-  return { text: minutes < 1 ? 'Just started' : `${minutes} min`, paused: false };
+  return { text: minutes < 1 ? 'Just started' : `${minutes} min`, paused: false, warn: false };
+}
+
+/**
+ * The student's time limit inside the Working screen. In the last 5 minutes, a
+ * quiet note; at time up, Stop here (session:end) or Keep going (session:time
+ * null, which clears the limit). Loomer never stops a session by itself.
+ */
+export function SessionTime({ session, now, api, onStopped }: { session: ActiveSession; now: Date; api: PanelApi; onStopped: (item: ActiveSession['assignment']) => void }) {
+  const act = useAction();
+  const [noted, setNoted] = useState<string | null>(null);
+  const left = minutesLeft(session, now);
+  if (left === null || left > 5 || session.status !== 'active') return null;
+  if (left > 0) {
+    return noted === session.plannedUntil ? null : (
+      <p className="tnote" role="status">
+        <Icon name="edit" size="sm" />
+        <span className="grow">About {left} min left. Note where you stopped.</span>
+        <button type="button" className="link" onClick={() => setNoted(session.plannedUntil)}>
+          Got it
+        </button>
+      </p>
+    );
+  }
+  return (
+    <section className="tup" role="status" aria-label="Time is up">
+      <p className="tup-k">
+        <Icon name="sandglass" size="sm" />
+        Your time is up
+      </p>
+      <p className="tup-p">Stop here or keep going. Loomer won’t stop you.</p>
+      <div className="pc-act">
+        <button
+          type="button"
+          className="btn-primary sm"
+          disabled={act.busy}
+          onClick={() =>
+            act.run(async () => {
+              const reply = await api.send({ type: 'session:end' });
+              if (reply.ok) onStopped(session.assignment);
+              return reply;
+            })
+          }
+        >
+          Stop here
+        </button>
+        <button type="button" className="btn" disabled={act.busy} onClick={() => act.run(() => api.send({ type: 'session:time', minutes: null }))}>
+          Keep going
+        </button>
+      </div>
+      {act.error && <p className="status-line error">{act.error}</p>}
+    </section>
+  );
 }
 
 type WorkHeaderProps = {

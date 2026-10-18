@@ -1,6 +1,7 @@
 // Assignment detail: tap any assignment. Subject icon and class, title, the
 // instructions in plain words (AI, when allowed), three tiles (start by, due,
-// workload), the checkpoint track when the instructions set earlier dates, and
+// workload; "you set this" when the student chose them), the student's own
+// time guess, the checkpoint track when the instructions set earlier dates, and
 // what the assignment asks for as a checklist with open items first. Links,
 // Ask Loomer, and Start working sit at the bottom. Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
@@ -8,7 +9,7 @@ import { useState } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { StudentCorrection, WorkItem } from '../model/home';
 import { useAction } from './api';
-import { calendarDaysUntil, monthDay, observedAt, timeOf, weekday, workloadWord } from './format';
+import { calendarDaysUntil, minutesText, monthDay, observedAt, timeOf, weekday, workloadWord } from './format';
 import { type HomeActions, startControl } from './home';
 import { Icon } from './Icon';
 import { PolicyNote, SizeMeter, SubjectTile } from './parts';
@@ -41,14 +42,20 @@ export function DetailView({ item, detail, now, actions }: { item: WorkItem; det
       <div className="facts">
         <StartTile item={item} now={now} />
         <DueTile item={item} now={now} />
-        <div className="fact">
+        <div className={item.effort.source === 'student' ? 'fact you' : 'fact'}>
           <SizeMeter label={item.effort.label} />
           <b>{workloadWord[item.effort.label]}</b>
-          <span>Workload</span>
+          <span>{item.effort.source === 'student' ? 'Workload · you set this' : 'Workload'}</span>
         </div>
       </div>
+      {item.guessMinutes !== null && (
+        <p className="guess">
+          <Icon name="clock" size="sm" />
+          Your guess: about {minutesText(item.guessMinutes)}
+        </p>
+      )}
       {item.checkpoints.length > 0 && item.due && <CheckpointTrack item={item} due={item.due.at} now={now} />}
-      {item.effort.label !== 'Unknown' && effortReason && (
+      {item.effort.source === 'ai' && item.effort.label !== 'Unknown' && effortReason && (
         <p className="quoteline">
           Why {workloadWord[item.effort.label].toLowerCase()}? {effortReason}
         </p>
@@ -98,7 +105,7 @@ function StartTile({ item, now }: { item: WorkItem; now: Date }) {
     <div className={soon ? 'fact acc' : 'fact'}>
       <Icon name="sandglass" />
       <b>{at ? dayWord(at, now) : 'Not set'}</b>
-      <span>Start by</span>
+      <span>{item.startBy?.basis === 'student' ? 'Start by · you picked' : 'Start by'}</span>
     </div>
   );
 }

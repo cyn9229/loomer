@@ -21,9 +21,11 @@ type BlockProps = {
   /** The sandboxed widget page (an extension page in the live panel). */
   widgetUrl: string;
   onOpenItem: (assignmentId: string) => void;
+  /** Renders a proposed plan change by id (the card needs Home's plan, which the panel has). */
+  renderPlanChange: (changeId: string) => ReactNode;
 };
 
-export function Block({ block, streaming, widgetUrl, onOpenItem }: BlockProps) {
+export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChange }: BlockProps) {
   switch (block.kind) {
     case 'markdown':
       return <MarkdownText text={block.text} streaming={streaming} />;
@@ -33,6 +35,8 @@ export function Block({ block, streaming, widgetUrl, onOpenItem }: BlockProps) {
       return <VisualBlock visual={block.visual} widgetUrl={widgetUrl} />;
     case 'quiz':
       return <QuizCard quiz={block.quiz} />;
+    case 'plan-change':
+      return renderPlanChange(block.changeId);
     case 'open-assignment':
       return (
         <button type="button" className="openas enter" onClick={() => onOpenItem(block.assignmentId)}>

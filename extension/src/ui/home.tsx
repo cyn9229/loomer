@@ -8,9 +8,10 @@
 import { useState, type ReactNode } from 'react';
 import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
-import { checkProblem, dueWhen, observedAt } from './format';
+import { checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon } from './Icon';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
+import { YourChanges } from './planChange';
 import { PlanSection, startWords, type PlanMode } from './planView';
 import type { ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
@@ -18,8 +19,8 @@ import { useElapsedSeconds } from './useNow';
 export type HomeActions = {
   openSettings: () => void;
   openItem: (id: string) => void;
-  /** Starts a work session; replaces any other session. */
-  startSession: (assignmentId: string) => void;
+  /** Starts a work session; replaces any other session. `minutes` is the time the student said they have. */
+  startSession: (assignmentId: string, minutes?: number) => void;
   /** Goes to the running session's Working screen. */
   continueSession: () => void;
   /** Assignment of the running or paused session, if any. */
@@ -36,11 +37,12 @@ export type HomeActions = {
 };
 
 /** Start or Keep going for one assignment, depending on the current session. */
-export function startControl(item: WorkItem, actions: HomeActions) {
+export function startControl(item: WorkItem, actions: HomeActions, minutes?: number) {
   const current = actions.sessionAssignmentId === item.assignmentId;
   return {
+    current,
     label: current ? 'Keep going' : 'Start working',
-    onClick: () => (current ? actions.continueSession() : actions.startSession(item.assignmentId)),
+    onClick: () => (current ? actions.continueSession() : actions.startSession(item.assignmentId, minutes)),
     disabled: actions.startingId !== null,
     busy: actions.startingId === item.assignmentId,
   };
@@ -60,9 +62,12 @@ type HomeProps = {
   onPlanMode: (mode: PlanMode) => void;
   /** AI is on but the local AI service didn't answer its last health check. */
   aiDown: boolean;
+  /** The student stopped a timed session on an item with a guess: ask roughly how much is left. */
+  askLeft: WorkItem | null;
+  onAskLeftDone: () => void;
 };
 
-export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown }: HomeProps) {
+export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone }: HomeProps) {
   const [whyOpen, setWhyOpen] = useState(false);
   if (model.status === 'not-connected') {
     return (
@@ -95,6 +100,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
         <span className="grow">{model.crowded.text}</span>
       </p>,
     );
+  if (model.yourChanges.length > 0) notices.push(<YourChanges key="changes" changes={model.yourChanges} now={now} send={actions.send} />);
   if (problem && model.lastCheck)
     notices.push(
       <div className="notice" role="status" key="problem">
@@ -152,6 +158,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
 
   return (
     <>
+      {askLeft && <LeftQuestion item={askLeft} send={actions.send} onDone={onAskLeftDone} />}
       {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
       <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
       {next && whyOpen && (
@@ -163,10 +170,92 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
         </section>
       )}
       {notices.length > 0 && <div className="notices">{notices}</div>}
-      <PlanSection items={next ? [next.item, ...model.rest] : model.rest} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
+      <PlanSection items={next ? [next.item, ...model.rest] : model.rest} room={model.room} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
       <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} send={actions.send} />
     </>
+  );
+}
+
+const TIME_CHOICES = [
+  { label: '30 min', minutes: 30 },
+  { label: '1 hour', minutes: 60 },
+  { label: '2 hours', minutes: 120 },
+  { label: 'Not sure', minutes: undefined },
+] as const;
+
+/**
+ * "How much time do you have?" above Start working. Optional: picking nothing
+ * or Not sure starts without a limit. Loomer only repeats this number back.
+ */
+function TimeQuestion({ value, onChange }: { value: number | undefined; onChange: (minutes: number | undefined) => void }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  return (
+    <div className="timeq">
+      <p className="timeq-k">How much time do you have?</p>
+      <div className="tseg" role="group" aria-label="How much time do you have?">
+        {TIME_CHOICES.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            aria-pressed={picked === c.label}
+            onClick={() => {
+              setPicked(c.label);
+              onChange(c.minutes);
+            }}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      {value !== undefined && <p className="timeq-s">Loomer picks a step that fits. You can keep going after.</p>}
+    </div>
+  );
+}
+
+const LEFT_CHOICES = [
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '1 hour', minutes: 60 },
+  { label: '2 hours', minutes: 120 },
+] as const;
+
+/** After a timed session stops: the student's rough guess of what's left (plan:set guess). */
+function LeftQuestion({ item, send, onDone }: { item: WorkItem; send: PanelApi['send']; onDone: () => void }) {
+  const save = useAction();
+  return (
+    <section className="tup" aria-label="How much is left">
+      <p className="tup-k">
+        <Icon name="clock" size="sm" />
+        Roughly how much is left?
+      </p>
+      <p className="tup-p">
+        {item.guessMinutes !== null && <>Your guess was about {minutesText(item.guessMinutes)}. </>}
+        Just your guess, so Loomer can plan your next start on {item.title}.
+      </p>
+      <div className="tseg">
+        {LEFT_CHOICES.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            disabled={save.busy}
+            onClick={() =>
+              save.run(async () => {
+                const reply = await send({ type: 'plan:set', changes: [{ kind: 'guess', assignment_id: item.assignmentId, minutes: c.minutes }] });
+                if (reply.ok) onDone();
+                return reply;
+              })
+            }
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <button type="button" className="link muted" style={{ marginTop: 8 }} onClick={onDone}>
+        Skip
+      </button>
+      {save.error && <p className="status-line error">{save.error}</p>}
+    </section>
   );
 }
 
@@ -275,7 +364,8 @@ function NextStep({
   onWhy: () => void;
 }) {
   const { item } = next;
-  const start = startControl(item, actions);
+  const [minutes, setMinutes] = useState<number | undefined>(undefined);
+  const start = startControl(item, actions, minutes);
   const clear = useAction();
   const switchTo = useAction();
   // A resume briefing for this same assignment folds in as one "Last time" line.
@@ -310,6 +400,7 @@ function NextStep({
       )}
       {lastTime && lastTime.facts.length > 0 && <p className="focus-line ellipsis">Last time: {lastTime.facts.slice(0, 2).join(' · ')}</p>}
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
+      {!start.current && <TimeQuestion value={minutes} onChange={setMinutes} />}
       <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
         {start.busy ? 'Starting…' : label}
         <Icon name="arrowRight" />

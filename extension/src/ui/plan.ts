@@ -3,6 +3,7 @@
 // into days. A day can hold several starts. A start date that has passed counts
 // as today, because the work still needs a start.
 import type { Checkpoint, WorkItem } from '../model/home';
+import type { PlanPreview } from '../model/plan';
 import { calendarDaysUntil } from './format';
 
 /** Days shown in the plan: today and the next six. */
@@ -59,4 +60,37 @@ export function weekDays(items: WorkItem[], now: Date): { date: Date; offset: nu
     ];
     return { date, offset, events };
   });
+}
+
+/**
+ * The seven days a plan-change card draws: from today, or from the first
+ * changed day when that is a week or more away.
+ */
+export function stripDays(preview: PlanPreview, now: Date): Date[] {
+  const changed = [...preview.days.map((d) => localDate(d.date)), ...preview.moves.flatMap((m) => [m.from, m.to].filter((x): x is string => x !== null).map((iso) => new Date(iso)))];
+  const first = Math.min(...changed.map((d) => calendarDaysUntil(d, now)).filter((n) => n >= 0));
+  const offset = Number.isFinite(first) && first >= PLAN_DAYS ? first : 0;
+  return Array.from({ length: PLAN_DAYS }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset + i));
+}
+
+/**
+ * Starts on one strip day once the change applies: starts that stay, starts
+ * moved in, and starts moved away (drawn hollow where they were). Moved items
+ * are counted only through the moves, so this works before and after Apply.
+ */
+export function stripStarts(items: WorkItem[], moves: PlanPreview['moves'], day: Date, now: Date): { kept: number; movedIn: number; movedOut: number } {
+  const moved = new Set(moves.map((m) => m.assignmentId));
+  const offset = calendarDaysUntil(day, now);
+  const onDay = (iso: string | null) => iso !== null && Math.max(0, calendarDaysUntil(new Date(iso), now)) === offset;
+  return {
+    kept: planItems(items).filter((i) => !moved.has(i.assignmentId) && startOffset(i, now) === offset).length,
+    movedIn: moves.filter((m) => onDay(m.to)).length,
+    movedOut: moves.filter((m) => onDay(m.from)).length,
+  };
+}
+
+/** A YYYY-MM-DD key as a local date. */
+export function localDate(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y!, m! - 1, d!);
 }

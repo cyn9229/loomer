@@ -4,7 +4,9 @@
 // local AI service not running. `revealTurn` replays a finished reply step by
 // step so the preview shows how replies stream in. Fixture data only.
 import { GENERAL_THREAD, type ChatBlock, type ChatModel, type ChatTurn } from '../model/chat';
-import type { WorkItem } from '../model/home';
+import type { DayRoom, WorkItem } from '../model/home';
+import type { PlanChangeView } from '../model/plan';
+import { roomFixture } from './fixtures';
 
 const DIAGRAM = `<svg viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif" font-size="11" fill="#111018">
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#736f68"/></marker></defs>
@@ -94,6 +96,8 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
   const blocked = items.find((i) => i.policy.state === 'blocked') ?? null;
   return {
     empty: general({}),
+    'plan-change': planChat(now, items, 'proposed'),
+    'plan-applied': planChat(now, items, 'applied'),
     answer: general({ turns: turns(now, [['why do cities get hotter than the countryside?', ANSWER]]) }),
     quiz: general({ turns: turns(now, [['quiz me on this', [{ kind: 'markdown', text: 'Three quick questions on **urban heat islands**.' }, QUIZ]]]) }),
     widget: general({
@@ -160,4 +164,46 @@ export function revealTurn(model: ChatModel, step: number): ChatModel {
     }
   }
   return { ...model, streaming: true, turns: [...model.turns.slice(0, -1), { ...reply, blocks, status: 'streaming' }] };
+}
+
+/**
+ * "thursday i have a game so i'm busy. and tuesdays i only get like 30 min",
+ * answered with a plan-change card. The reflection's start moves a day earlier.
+ */
+function planChat(now: Date, items: WorkItem[], status: PlanChangeView['status']): ChatModel {
+  const room = roomFixture(now);
+  const thu = room.find((r) => r.level === 'busy')!;
+  const tue = room.filter((r) => r.level === 'little');
+  const moved = items.find((i) => i.assignmentId === 'a-reflection' && i.startBy);
+  const free = (r: DayRoom): DayRoom => ({ ...r, level: 'free', minutes: null, repeating: false });
+  const change: PlanChangeView = {
+    id: 'chg-1',
+    status,
+    preview: {
+      lines: ['Thu: busy, no starts.', 'Tuesdays: little room, about 30 min, every week.'],
+      days: [thu, ...tue].map((r) => ({ date: r.date, before: free(r), after: r })),
+      moves: moved?.startBy
+        ? [{ assignmentId: moved.assignmentId, title: moved.title, from: moved.startBy.at, to: new Date(Date.parse(moved.startBy.at) - 86_400_000).toISOString() }]
+        : [],
+    },
+    createdAt: now.toISOString(),
+    appliedAt: status === 'applied' ? now.toISOString() : null,
+  };
+  return {
+    threadKey: GENERAL_THREAD,
+    assignment: null,
+    availability: 'available',
+    streaming: false,
+    planChanges: { [change.id]: change },
+    turns: turns(now, [
+      [
+        "thursday i have a game so i'm busy. and tuesdays i only get like 30 min",
+        [
+          { kind: 'tool', label: 'Looked at your week', status: 'done' },
+          { kind: 'markdown', text: 'Got it. Here’s what would change.' },
+          { kind: 'plan-change', changeId: change.id },
+        ],
+      ],
+    ]),
+  };
 }

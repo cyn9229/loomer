@@ -2,19 +2,19 @@
 // work by the day it should start (a day can hold several starts). Week shows
 // each of the next seven days with what starts, which checkpoints land, and
 // what is due. Below both: Later, No due date, Past due and Hidden as folds.
-import type { WorkItem } from '../model/home';
-import { calendarDaysUntil, timeOf } from './format';
+import type { DayRoom, WorkItem } from '../model/home';
+import { calendarDaysUntil, minutesText, timeOf, ymd } from './format';
 import type { HomeActions } from './home';
 import { Icon, type IconName } from './Icon';
-import { WorkRow } from './parts';
+import { RoomMeter, WorkRow } from './parts';
 import { PLAN_DAYS, planByStart, weekDays, type WeekEvent } from './plan';
 import { subjectIcon } from './subject';
 
 export type PlanMode = 'list' | 'week';
 
-type PlanProps = { items: WorkItem[]; now: Date; actions: HomeActions; mode: PlanMode; onMode: (mode: PlanMode) => void };
+type PlanProps = { items: WorkItem[]; room: DayRoom[]; now: Date; actions: HomeActions; mode: PlanMode; onMode: (mode: PlanMode) => void };
 
-export function PlanSection({ items, now, actions, mode, onMode }: PlanProps) {
+export function PlanSection({ items, room, now, actions, mode, onMode }: PlanProps) {
   if (items.length === 0) return null;
   const plan = planByStart(items, now);
   return (
@@ -35,7 +35,7 @@ export function PlanSection({ items, now, actions, mode, onMode }: PlanProps) {
           ))}
         </span>
       </div>
-      {mode === 'list' ? <PlanList days={plan.days} now={now} onOpen={actions.openItem} /> : <PlanWeek items={items} now={now} onOpen={actions.openItem} />}
+      {mode === 'list' ? <PlanList days={plan.days} now={now} onOpen={actions.openItem} /> : <PlanWeek items={items} room={room} now={now} onOpen={actions.openItem} />}
       <Folds items={items} later={plan.later} now={now} actions={actions} />
     </>
   );
@@ -87,8 +87,13 @@ function PlanList({ days, now, onOpen }: { days: { offset: number; items: WorkIt
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Week option 1: every day listed, today first, with its starts, checkpoints and dues. */
-function PlanWeek({ items, now, onOpen }: { items: WorkItem[]; now: Date; onOpen: (id: string) => void }) {
+/**
+ * Week option 1: every day listed, today first, with its starts, checkpoints
+ * and dues. A day the student gave less room shows its dots and level (and a
+ * repeat mark when it is every week); a busy day keeps its dues but no starts.
+ */
+function PlanWeek({ items, room, now, onOpen }: { items: WorkItem[]; room: DayRoom[]; now: Date; onOpen: (id: string) => void }) {
+  const roomByDay = new Map(room.map((r) => [r.date, r]));
   return (
     <>
       <p className="wk-key" aria-hidden="true">
@@ -102,19 +107,42 @@ function PlanWeek({ items, now, onOpen }: { items: WorkItem[]; now: Date; onOpen
           <Icon name="flag" />
         </span>
         checkpoint
+        {room.some((r) => r.level !== 'free') && (
+          <>
+            <RoomMeter level="some" />
+            room you have
+          </>
+        )}
+        {room.some((r) => r.repeating && r.level !== 'free') && (
+          <>
+            <Icon name="repeat" size="xs" />
+            every week
+          </>
+        )}
       </p>
       {weekDays(items, now).map(({ date, offset, events }) => {
         const starts = events.filter((e) => e.kind === 'start').length;
         const dues = events.filter((e) => e.kind === 'due').length;
         const name = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : date.toLocaleDateString(undefined, { weekday: 'short' });
+        const day = roomByDay.get(ymd(date));
+        const limited = day && day.level !== 'free' ? day : null;
         return (
-          <section className="wd" key={offset} aria-label={name}>
+          <section className={limited?.level === 'busy' ? 'wd busy' : 'wd'} key={offset} aria-label={name}>
             <div className="wdh">
               <b className={offset <= 1 ? 'soon' : undefined}>{name}</b>
               <span>{date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
               <span className="grow" />
-              <span>{events.length === 0 ? 'Nothing planned' : `${plural(starts, 'start')} · ${dues} due`}</span>
+              {limited ? (
+                <>
+                  {limited.repeating && <Icon name="repeat" size="xs" label="Every week" />}
+                  <RoomMeter level={limited.level} word />
+                  {limited.minutes !== null && limited.level !== 'busy' && <span className="wdm">{minutesText(limited.minutes)}</span>}
+                </>
+              ) : (
+                <span>{events.length === 0 ? 'Nothing planned' : `${plural(starts, 'start')} · ${dues} due`}</span>
+              )}
             </div>
+            {limited?.level === 'busy' && <p className="wd-note">No starts. You said you’re busy.</p>}
             {events.map((event, i) => (
               <WeekRow key={i} event={event} onOpen={onOpen} />
             ))}

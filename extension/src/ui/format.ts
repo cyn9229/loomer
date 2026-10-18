@@ -104,6 +104,18 @@ export const workloadWord: Record<EffortLabel, string> = {
   Unknown: 'Not sure',
 };
 
+/** A number of minutes the student gave, as "45 min", "3 h" or "1 h 30 min". Never Loomer's own estimate. */
+export function minutesText(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** Local calendar date as YYYY-MM-DD, the key DayRoom uses. */
+export function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** "Thu" */
 export function weekday(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });

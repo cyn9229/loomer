@@ -1,7 +1,7 @@
 // Shared building blocks for the side panel and options page. Each part renders
 // model data as given and adds no claims of its own.
 import { useState, type ReactNode } from 'react';
-import type { CheckInfo, Evidence, WorkItem } from '../model/home';
+import type { CheckInfo, Evidence, RoomLevel, WorkItem } from '../model/home';
 import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf, weekday } from './format';
 import { Icon, type IconName } from './Icon';
 import { subjectIcon } from './subject';
@@ -68,6 +68,30 @@ export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date
       </span>
       <span className={soon ? 'item-t soon' : 'item-t'}>{item.due ? dueShort(item.due.at, now) : ''}</span>
     </button>
+  );
+}
+
+const roomWord: Record<RoomLevel, string> = { free: 'Free', some: 'Some room', little: 'Little room', busy: 'Busy' };
+const roomDots: Record<RoomLevel, number> = { free: 3, some: 2, little: 1, busy: 0 };
+
+/**
+ * How much room a day has, as three dots (free 3, some 2, little 1, busy none,
+ * with busy's dots in amber). `word` adds the level's name after the dots.
+ */
+export function RoomMeter({ level, word }: { level: RoomLevel; word?: boolean }) {
+  return (
+    <span className="room" role="img" aria-label={roomWord[level]}>
+      <span className={`rm ${level}`} aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <i key={i} className={i < roomDots[level] ? 'on' : undefined} />
+        ))}
+      </span>
+      {word && (
+        <span className={`rw ${level}`} aria-hidden="true">
+          {roomWord[level]}
+        </span>
+      )}
+    </span>
   );
 }
 

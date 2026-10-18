@@ -18,7 +18,7 @@ import { Icon } from './Icon';
 import { Logo } from './Logo';
 import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
-import { HintCard, sessionClock, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
+import { HintCard, sessionClock, SessionTime, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
 
 export type PanelProps = {
@@ -46,6 +46,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
   const [planMode, setPlanMode] = useState<PlanMode>('list');
+  // After Stop here on a timed session, Home asks roughly how much is left (only when the item has a guess).
+  const [askLeft, setAskLeft] = useState<WorkItem | null>(null);
   const [workTab, setWorkTab] = useState<WorkTab>('help');
   const [openId, setOpenId] = useState<string | null>(null);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
@@ -80,11 +82,11 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   const actions: HomeActions = {
     openSettings: api.openSettings,
     openItem: setOpenId,
-    startSession: (assignmentId) => {
+    startSession: (assignmentId, minutes) => {
       setStartingId(assignmentId);
       start.run(async () => {
         try {
-          const reply = await api.send({ type: 'session:start', assignmentId });
+          const reply = await api.send({ type: 'session:start', assignmentId, minutes });
           if (reply.ok) goWork();
           return reply;
         } finally {
@@ -177,6 +179,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         api={api}
         onOpenItem={setOpenId}
         aiDown={aiService?.up === false}
+        room={home && home.status !== 'not-connected' ? home.room : []}
       />
     );
   } else if (view === 'work' && active) {
@@ -188,7 +191,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           Home
         </button>
         <span className="grow" />
-        <span className={clock.paused ? 'live paused' : 'live'}>{clock.text}</span>
+        <span className={clock.paused ? 'live paused' : clock.warn ? 'live warn' : 'live'}>{clock.text}</span>
         {settings}
       </>
     );
@@ -202,6 +205,16 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           hintWaiting={hint !== null}
           detail={detail}
           onChecklist={() => setOpenId(active.assignment.assignmentId)}
+        />
+        <SessionTime
+          key={active.plannedUntil ?? 'none'}
+          session={active}
+          now={now}
+          api={api}
+          onStopped={(item) => {
+            if (item.guessMinutes !== null) setAskLeft(item);
+            setView('home');
+          }}
         />
         {workTab === 'help' ? (
           <ChatView
@@ -252,6 +265,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         planMode={planMode}
         onPlanMode={setPlanMode}
         aiDown={aiService?.up === false}
+        askLeft={askLeft}
+        onAskLeftDone={() => setAskLeft(null)}
       />
     ) : (
       <p className="caption">Loading…</p>

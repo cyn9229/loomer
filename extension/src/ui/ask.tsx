@@ -3,10 +3,10 @@
 // in as blocks (Markdown, tool lines, visuals, quizzes, assignment links). An
 // assignment thread follows that assignment's AI rule: blocked shows the rule
 // and offers General instead; an unknown rule asks the one-time question first.
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { GENERAL_THREAD, type ChatModel, type ChatTurn } from '../model/chat';
 import type { HelpAvailability } from '../model/session';
-import type { WorkItem } from '../model/home';
+import type { DayRoom, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
 import { PolicyStep, Thinking } from './chat';
 import { Block } from './chatBlocks';
@@ -14,6 +14,7 @@ import { dueWhen } from './format';
 import { Icon } from './Icon';
 import { LogoMark } from './Logo';
 import { AiServiceDown, SubjectTile } from './parts';
+import { PlanChangeCard } from './planChange';
 
 type AskProps = {
   model: ChatModel | undefined;
@@ -26,9 +27,11 @@ type AskProps = {
   onOpenItem: (assignmentId: string) => void;
   /** AI is on but the local AI service didn't answer its last health check. */
   aiDown: boolean;
+  /** Home's items and day room, for plan-change cards. */
+  room: DayRoom[];
 };
 
-export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown }: AskProps) {
+export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room }: AskProps) {
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
@@ -83,7 +86,18 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
       ) : null}
 
       {model?.availability !== 'blocked' &&
-        turns.map((turn) => <Turn key={turn.id} turn={turn} widgetUrl={api.widgetUrl} onOpenItem={onOpenItem} />)}
+        turns.map((turn) => (
+          <Turn
+            key={turn.id}
+            turn={turn}
+            widgetUrl={api.widgetUrl}
+            onOpenItem={onOpenItem}
+            renderPlanChange={(id) => {
+              const change = model?.planChanges[id];
+              return change ? <PlanChangeCard change={change} items={threads} room={room} now={now} send={api.send} /> : null;
+            }}
+          />
+        ))}
       {ask.busy && last?.role !== 'loomer' && <Thinking />}
       {error && <p className="status-line error pad">{error}</p>}
       <div ref={endRef} />
@@ -290,7 +304,7 @@ function NotAvailable({
   );
 }
 
-function Turn({ turn, widgetUrl, onOpenItem }: { turn: ChatTurn; widgetUrl: string; onOpenItem: (id: string) => void }) {
+function Turn({ turn, widgetUrl, onOpenItem, renderPlanChange }: { turn: ChatTurn; widgetUrl: string; onOpenItem: (id: string) => void; renderPlanChange: (id: string) => ReactNode }) {
   if (turn.role === 'student') {
     const text = turn.blocks.map((b) => (b.kind === 'markdown' ? b.text : '')).join('\n');
     return <p className="bubble">{text}</p>;
@@ -301,7 +315,7 @@ function Turn({ turn, widgetUrl, onOpenItem }: { turn: ChatTurn; widgetUrl: stri
       <LogoMark size={17} />
       <div className="grow aib">
         {turn.blocks.map((block, i) => (
-          <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} />
+          <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} renderPlanChange={renderPlanChange} />
         ))}
         {streaming && turn.blocks.length === 0 && <Thinking inline />}
         {turn.status === 'stopped' && <p className="turn-note">Stopped</p>}

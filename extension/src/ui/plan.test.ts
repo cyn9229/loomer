@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkItem } from '../model/home';
-import { planByStart, weekDays } from './plan';
+import { planByStart, stripDays, stripStarts, weekDays } from './plan';
 
 const now = new Date(2026, 9, 17, 10, 0);
 const day = (d: number, h = 23) => new Date(2026, 9, 17 + d, h, 59).toISOString();
@@ -49,5 +49,20 @@ describe('weekDays', () => {
     expect(week[1]!.events.map((e) => e.kind)).toEqual(['due']);
     expect(week[4]!.events.map((e) => e.kind)).toEqual(['checkpoint']);
     expect(week[5]!.events.map((e) => e.kind)).toEqual(['due']);
+  });
+});
+
+describe('change card strip', () => {
+  const room = (date: string) => ({ date, level: 'free' as const, minutes: null, repeating: false });
+  it('counts kept starts and moved starts without counting a moved item twice', () => {
+    const moved = item('set', 3, 4);
+    const preview = { lines: [], days: [], moves: [{ assignmentId: 'set', title: 'set', from: day(3, 9), to: day(2, 9) }] };
+    const days = stripDays(preview, now);
+    expect(days[0]!.getDate()).toBe(17);
+    expect(stripStarts([moved, item('lab', 2, 4)], preview.moves, days[2]!, now)).toEqual({ kept: 1, movedIn: 1, movedOut: 0 });
+    expect(stripStarts([moved], preview.moves, days[3]!, now)).toEqual({ kept: 0, movedIn: 0, movedOut: 1 });
+  });
+  it('starts the strip at the first change when it is a week or more away', () => {
+    expect(stripDays({ lines: [], days: [{ date: '2026-10-27', before: room('2026-10-27'), after: { ...room('2026-10-27'), level: 'busy' } }], moves: [] }, now)[0]!.getDate()).toBe(27);
   });
 });

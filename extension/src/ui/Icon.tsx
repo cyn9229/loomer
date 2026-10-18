@@ -16,10 +16,12 @@ import CloseRegular from '@mingcute/react/core-regular/close';
 import Delete2Regular from '@mingcute/react/core-regular/delete-2';
 import Document2Regular from '@mingcute/react/core-regular/document-2';
 import DownRegular from '@mingcute/react/core-regular/down';
+import Edit2Regular from '@mingcute/react/core-regular/edit-2';
 import ExternalLinkRegular from '@mingcute/react/core-regular/external-link';
 import EyeCloseRegular from '@mingcute/react/core-regular/eye-close';
 import Flag2Regular from '@mingcute/react/core-regular/flag-2';
 import GlobeRegular from '@mingcute/react/core-regular/globe';
+import HistoryAnticlockwiseRegular from '@mingcute/react/core-regular/history-anticlockwise';
 import Home4Regular from '@mingcute/react/core-regular/home-4';
 import InboxRegular from '@mingcute/react/core-regular/inbox';
 import InformationRegular from '@mingcute/react/core-regular/information';
@@ -35,6 +37,7 @@ import PlayRegular from '@mingcute/react/core-regular/play';
 import PowerRegular from '@mingcute/react/core-regular/power';
 import QuestionRegular from '@mingcute/react/core-regular/question';
 import Refresh2Regular from '@mingcute/react/core-regular/refresh-2';
+import RepeatRegular from '@mingcute/react/core-regular/repeat';
 import RightRegular from '@mingcute/react/core-regular/right';
 import SafetyCertificateRegular from '@mingcute/react/core-regular/safety-certificate';
 import SandglassRegular from '@mingcute/react/core-regular/sandglass';
@@ -114,6 +117,9 @@ const icons = {
   power: PowerRegular,
   target: TargetRegular,
   chartBar: ChartBarRegular,
+  edit: Edit2Regular,
+  repeat: RepeatRegular,
+  undo: HistoryAnticlockwiseRegular,
   // Subjects, picked from the class name by subjectIcon(). Filled, shown in a tinted square.
   subjectDoc: Document2Filled,
   book: Book2Filled,
