@@ -239,7 +239,7 @@ try {
     frame.src = chrome.runtime.getURL('/widget.html');
     document.body.appendChild(frame);
     return new Promise((resolve) => {
-      setTimeout(() => resolve(null), 6_000);
+      setTimeout(() => resolve(null), 12_000);
       window.addEventListener('message', (e) => {
         if (e.source !== frame.contentWindow) return;
         if (e.data?.type === 'loomer-widget-ready') frame.contentWindow.postMessage({ type: 'loomer-widget', html: '<body style="margin:0"><div style="height:500px">tall</div></body>' }, '*');
