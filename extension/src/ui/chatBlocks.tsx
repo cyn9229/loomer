@@ -10,7 +10,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode 
 import Markdown from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import remarkMath from 'remark-math';
-import { sendWidgetHtml } from '../chat/widgetFrame';
+import { sendWidgetHtml, WIDGET_MAX_HEIGHT, WIDGET_MIN_HEIGHT } from '../chat/widgetFrame';
 import type { ChartSpec, ChatBlock, Quiz, Visual } from '../model/chat';
 import { Icon } from './Icon';
 
@@ -296,11 +296,22 @@ function Chart({ spec, title }: { spec: ChartSpec; title: string }) {
  */
 function Widget({ html, height, title, widgetUrl }: { html: string; height: number; title: string; widgetUrl: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
+  // Starts at the model's suggested height, then fits the content the frame reports.
+  const [fitted, setFitted] = useState<number | null>(null);
   useEffect(() => {
     const frame = ref.current;
-    return frame ? sendWidgetHtml(frame, html) : undefined;
+    return frame ? sendWidgetHtml(frame, html, setFitted) : undefined;
   }, [html]);
-  return <iframe ref={ref} className="widget" sandbox="allow-scripts" src={widgetUrl} title={title} style={{ height: Math.min(600, Math.max(120, height)) }} />;
+  return (
+    <iframe
+      ref={ref}
+      className="widget"
+      sandbox="allow-scripts"
+      src={widgetUrl}
+      title={title}
+      style={{ height: fitted ?? Math.min(WIDGET_MAX_HEIGHT, Math.max(WIDGET_MIN_HEIGHT, height)) }}
+    />
+  );
 }
 
 // ---------------------------------------------------------------- Quiz

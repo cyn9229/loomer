@@ -192,6 +192,17 @@ try {
       );
       const frames = await panel.locator('iframe[sandbox]').count();
       check('chat screen embeds the demo in a sandboxed frame', interactive ? frames > 0 : null, `${frames} sandboxed iframes`);
+      // The frame grows to fit the demo (up to its 600 px cap), so nothing is cut off.
+      if (frames > 0) {
+        await panel.waitForTimeout(1_000);
+        const handle = await panel.locator('iframe[sandbox]').first().elementHandle();
+        const frameHeight = await handle.evaluate((f) => f.clientHeight);
+        const content = await (await handle.contentFrame())
+          ?.evaluate(() => Math.ceil(Math.max(document.documentElement.getBoundingClientRect().height, document.body.getBoundingClientRect().bottom)))
+          .catch(() => null);
+        const expected = content == null ? null : Math.min(600, Math.max(120, content));
+        check('demo frame fits its content', expected == null ? null : Math.abs(frameHeight - expected) <= 12, `content ${content ?? '?'} px, frame ${frameHeight} px`);
+      }
       await panel.mouse.wheel(0, 4000);
       await shot(5, 'chat-bottom');
     } else {
@@ -220,6 +231,23 @@ try {
     });
   });
   check('widget sandbox isolated', sandbox?.chrome === false && sandbox?.cookie === 'blocked' && sandbox?.net === 'blocked', JSON.stringify(sandbox));
+  // The sandbox reports its content height so the panel can fit the frame (here a 500 px demo in a 200 px frame).
+  const reported = await panel.evaluate(async () => {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.style.height = '200px';
+    frame.src = chrome.runtime.getURL('/widget.html');
+    document.body.appendChild(frame);
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(null), 6_000);
+      window.addEventListener('message', (e) => {
+        if (e.source !== frame.contentWindow) return;
+        if (e.data?.type === 'loomer-widget-ready') frame.contentWindow.postMessage({ type: 'loomer-widget', html: '<body style="margin:0"><div style="height:500px">tall</div></body>' }, '*');
+        if (e.data?.type === 'loomer-widget-height') resolve(e.data.height);
+      });
+    });
+  });
+  check('sandbox reports the demo height', reported === 500, `reported ${reported}`);
 
   // 5. End and resume
   check('end session', (await send({ type: 'session:end' })).ok);
