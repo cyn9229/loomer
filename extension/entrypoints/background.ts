@@ -14,6 +14,7 @@ import { discoveryStateItem, evaluateForeground } from '../src/discovery/discove
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
 import { aiServiceItem, aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, type PlanSettings } from '../src/analysis/changes';
+import { isOpen } from '../src/analysis/facts';
 import { localDay } from '../src/analysis/plan';
 import { nextPlanSnapshot } from '../src/analysis/recommend';
 import { loadHomeData } from '../src/model/homeData';
@@ -22,6 +23,7 @@ import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/priv
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
 import { setTopicDone, topicsStep } from '../src/session/topics';
+import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
 import { currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
@@ -288,11 +290,44 @@ async function registerTypingSignal() {
 /** A keystroke ping from the content script; trusted only for the linked Doc of the active session. */
 async function onTyping(tabUrl: string | undefined) {
   const docId = tabUrl ? parseDocId(tabUrl) : null;
+  if (!docId) return;
   const s = await currentSession(db);
-  if (!docId || !s || s.state !== 'active') return;
-  if ((await db.docLinks.get(s.assignmentId))?.docId !== docId) return;
-  await typingItem.setValue({ docId, at: Date.now() });
-  runSessionLoop();
+  if (s?.state === 'active' && (await db.docLinks.get(s.assignmentId))?.docId === docId) {
+    await typingItem.setValue({ docId, at: Date.now() });
+    runSessionLoop();
+    return;
+  }
+  // Typing in a Doc linked to another assignment, or with no active session: maybe suggest a session.
+  const link = await db.docLinks.where('docId').equals(docId).first();
+  if (link) await recordNudgeSignal('typing', link.assignmentId);
+}
+
+/** Feeds one typing or viewing signal to the nudge rules. Never starts or reads anything. */
+async function recordNudgeSignal(kind: NudgeSignal['kind'], assignmentId: string) {
+  if (!(await nudgesItem.getValue()).enabled) return;
+  const a = await db.assignments.get(assignmentId);
+  if (!a || !isOpen(a)) return;
+  const s = await currentSession(db);
+  const prev = await loadNudgeState();
+  const next = nudgeAfter(prev, { kind, assignmentId, title: a.title, at: Date.now() }, s ? { assignmentId: s.assignmentId, state: s.state === 'active' ? 'active' : 'paused' } : null);
+  if (await saveNudgeState(prev, next)) await badgeIfClosed(NUDGE_BADGE);
+}
+
+const NUDGE_BADGE = '•';
+
+/** A quiet badge on the toolbar icon, only when the panel is closed and no other badge shows. */
+async function badgeIfClosed(text: string) {
+  if ((await browser.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] })).length > 0) return;
+  if (await browser.action.getBadgeText({})) return;
+  await browser.action.setBadgeBackgroundColor({ color: '#fc4811' });
+  await browser.action.setBadgeText({ text });
+}
+
+/** Clears the nudge for an assignment the session now covers, or that the student muted. */
+async function settleNudge(change: (state: NudgeState) => NudgeState) {
+  const prev = await loadNudgeState();
+  await saveNudgeState(prev, change(prev));
+  if ((await browser.action.getBadgeText({})) === NUDGE_BADGE) await browser.action.setBadgeText({ text: '' });
 }
 
 function stopSessionLoop() {
@@ -466,6 +501,16 @@ async function handle(message: Message): Promise<Reply> {
       if (r.ok) await updatePlan();
       return r.ok ? { ok: true } : { ok: false, error: r.error };
     }
+    case 'presence:viewing':
+      await recordNudgeSignal('viewing', message.assignmentId);
+      return { ok: true };
+    case 'nudge:dismiss':
+      await settleNudge((n) => muted(n, message.assignmentId, Date.now()));
+      return { ok: true };
+    case 'nudge:set':
+      await nudgesItem.setValue({ enabled: message.enabled });
+      if (!message.enabled) await settleNudge((n) => ({ ...n, nudge: null }));
+      return { ok: true };
     case 'topic:toggle':
       await setTopicDone(db, message.assignmentId, message.topic, message.done);
       return { ok: true };
@@ -476,6 +521,7 @@ async function handle(message: Message): Promise<Reply> {
     case 'session:start': {
       if ((await settingsItem.getValue()).paused) return { ok: false, error: 'Loomer is paused. Resume it in settings first.' };
       await startSession(db, message.assignmentId, new Date(), message.minutes);
+      await settleNudge((n) => covered(n, message.assignmentId));
       // Starting work on something is a choice; Home keeps it until the evidence changes.
       await rememberChoice(message.assignmentId);
       await openDoc(message.assignmentId);
@@ -487,6 +533,7 @@ async function handle(message: Message): Promise<Reply> {
       const s = await currentSession(db);
       if (!s) return { ok: false, error: 'No session.' };
       await setState(db, s, message.type === 'session:pause' ? 'paused' : 'active', new Date());
+      if (message.type === 'session:resume') await settleNudge((n) => covered(n, s.assignmentId));
       if (message.type === 'session:resume') runSessionLoop();
       else stopSessionLoop();
       await runDiscovery();

@@ -98,6 +98,20 @@ export type SheetTopics = {
   items: { text: string; quote: string; done: boolean }[];
 } | null;
 
+/**
+ * A suggestion to start, resume, or switch the session, from typing in a linked
+ * Doc or the panel staying open on one assignment. Loomer never acts on it: show
+ * [Start] / [Resume] / [Switch] (session:start or session:resume) and [Not now]
+ * (nudge:dismiss, mutes it for 2 h). Read it with useNudge().
+ */
+export type WorkNudge = {
+  assignmentId: string;
+  title: string;
+  action: 'start' | 'resume' | 'switch';
+  reason: 'typing' | 'viewing';
+  at: string;
+} | null;
+
 export type SessionModel =
   | { status: 'none' }
   | {
