@@ -17,16 +17,7 @@ type Drag = { mode: 'move' | 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: 
 const MIN = 0.06;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function ScreenshotHero() {
-  return (
-    <>
-      <h1 className="hero-title md">Save a screenshot</h1>
-      <p className="hero-sub">Drag the box around the part you need.</p>
-    </>
-  );
-}
-
-export function ScreenshotBody({ draft, now, api }: { draft: Draft; now: Date; api: PanelApi }) {
+export function ScreenshotView({ draft, now, api }: { draft: Draft; now: Date; api: PanelApi }) {
   const [rect, setRect] = useState<Rect>({ x: 0.08, y: 0.12, w: 0.84, h: 0.5 });
   const stage = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -78,6 +69,8 @@ export function ScreenshotBody({ draft, now, api }: { draft: Draft; now: Date; a
   const pct = (v: number) => `${v * 100}%`;
   return (
     <>
+      <h1 className="w-title">Save a screenshot</h1>
+      <p className="w-meta">Drag the box around the part you need.</p>
       <div className="crop-stage" ref={stage} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
         <img src={draft.dataUrl} alt={`Screenshot of ${draft.title}`} width={draft.width} height={draft.height} />
         <div
@@ -92,7 +85,7 @@ export function ScreenshotBody({ draft, now, api }: { draft: Draft; now: Date; a
           ))}
         </div>
       </div>
-      <div className="row-line" style={{ borderTop: 0 }}>
+      <div className="row-line">
         <Icon name="globe" />
         <span className="grow">
           <span className="row-title ellipsis">
@@ -103,17 +96,17 @@ export function ScreenshotBody({ draft, now, api }: { draft: Draft; now: Date; a
           </span>
         </span>
       </div>
-      <p className="note">
+      <p className="note" style={{ paddingTop: 4 }}>
         <Icon name="lock" />
         Screenshots stay on this computer. Loomer won’t send them to AI.
       </p>
-      {(save.error ?? cancel.error) && <p className="status-line error">{save.error ?? cancel.error}</p>}
+      {(save.error ?? cancel.error) && <p className="status-line error pad">{save.error ?? cancel.error}</p>}
       <div className="dock">
         <div className="two">
           <button type="button" className="btn" disabled={save.busy || cancel.busy} aria-busy={cancel.busy} onClick={() => cancel.run(() => api.send({ type: 'screenshot:cancel' }))}>
             {cancel.busy ? 'Discarding…' : 'Cancel'}
           </button>
-          <button type="button" className="vbtn" disabled={save.busy || cancel.busy} aria-busy={save.busy} onClick={onSave}>
+          <button type="button" className="btn-primary" disabled={save.busy || cancel.busy} aria-busy={save.busy} onClick={onSave}>
             {save.busy ? 'Saving…' : 'Save to sources'}
           </button>
         </div>

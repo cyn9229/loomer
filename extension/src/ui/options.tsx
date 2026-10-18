@@ -36,7 +36,7 @@ export function OptionsPage({ settings, ai, proactive, discovery, notify, lastCh
     <div className="options">
       <aside className="options-side">
         <div className="options-brand">
-          <LogoMark size={34} />
+          <LogoMark size={24} />
           <Wordmark />
         </div>
         <nav aria-label="Settings">
@@ -564,7 +564,7 @@ function ProactiveCard({ proactive }: { proactive: ProactiveSettings }) {
           </span>
           <span className="setting-sub">{saving === 'delay' ? 'Saving…' : `${proactive.delaySec} seconds without edits`}</span>
         </span>
-        <div className="seg" role="radiogroup" aria-labelledby="proactive-delay-label">
+        <div className="seg-opt" role="radiogroup" aria-labelledby="proactive-delay-label">
           {DELAYS.map((d) => (
             <button
               key={d}

@@ -2,11 +2,12 @@
 // model data as given and adds no claims of its own.
 import type { ReactNode } from 'react';
 import type { CheckInfo, Evidence, WorkItem } from '../model/home';
-import { checkProblem, dueBadge, dueWhen, evidenceKindLabel, observedAt, policyNotice } from './format';
+import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf } from './format';
 import { Icon, type IconName } from './Icon';
 
 type Tone = 'accent' | 'green' | 'red' | 'amber' | 'replay' | 'gray';
 
+/** A colored status word (settings only). No capsule: color plus an optional icon. */
 export function Pill({ tone = 'gray', icon, children }: { tone?: Tone; icon?: IconName; children: ReactNode }) {
   return (
     <span className={tone === 'gray' ? 'pill' : `pill ${tone}`}>
@@ -16,121 +17,97 @@ export function Pill({ tone = 'gray', icon, children }: { tone?: Tone; icon?: Ic
   );
 }
 
-/** Visible label for replay data. Required wherever a replay item or check appears. */
+/** Visible label for replay data. Required wherever a replay check appears. */
 export function ReplayPill() {
-  return <Pill tone="replay">Replay</Pill>;
+  return <Pill tone="replay">Replay data</Pill>;
 }
 
-/** The class an item belongs to, as a neutral tag. */
-export function ClassTag({ item }: { item: WorkItem }) {
-  return <span className="tag">{item.courseName ?? 'No class'}</span>;
-}
-
-/** Pills that flag what the student must not miss about an item. Replay is labeled once in the header, not per row. */
-export function itemFlags(item: WorkItem, now: Date): ReactNode[] {
-  const flags: ReactNode[] = [];
-  const badge = item.due ? dueBadge(item.due.at, now) : null;
-  if (badge)
-    flags.push(
-      <Pill key="due" tone="red">
-        {badge}
-      </Pill>,
-    );
-  if (item.dueConflict)
-    flags.push(
-      <Pill key="conflict" tone="amber">
-        Two due dates
-      </Pill>,
-    );
-  if (item.policy.state === 'blocked') flags.push(<Pill key="ai">No AI</Pill>);
-  if (item.requirements === 'unreadable') flags.push(<Pill key="unread">Can’t read</Pill>);
-  if (item.correction === 'kept-active')
-    flags.push(
-      <Pill key="kept" tone="accent">
-        Kept on list
-      </Pill>,
-    );
+/** Short words for what the student must not miss about an item, shown after the class. */
+function itemFlags(item: WorkItem): string[] {
+  const flags: string[] = [];
+  if (item.dueConflict) flags.push('two due dates');
+  if (item.policy.state === 'blocked') flags.push('no AI');
+  if (item.requirements === 'unreadable') flags.push('can’t read it');
+  if (item.correction === 'kept-active') flags.push('kept on your list');
   return flags;
 }
 
-/** One assignment in a list: class tag, flags, when it is due, then the title. */
-export function WorkRow({ item, now, onOpen }: { item: WorkItem; now: Date; onOpen?: (id: string) => void }) {
-  const content = (
-    <>
-      <span className="row-k">
-        <ClassTag item={item} />
-        {itemFlags(item, now)}
-        <span className="grow" />
-        <span className="when">{item.due ? dueWhen(item.due.at, now) : 'No due date'}</span>
-      </span>
-      <span className="row-title clamp">{item.title}</span>
-    </>
-  );
-  if (!onOpen) return <div className="row">{content}</div>;
+/**
+ * One agenda row: a time column, then the title with the class under it.
+ * `when` picks the left column: the due time (inside a day group) or the date
+ * (in Later, No due date, and Past due).
+ */
+export function WorkRow({ item, now, when, onOpen }: { item: WorkItem; now: Date; when: 'time' | 'date'; onOpen: (id: string) => void }) {
+  const flags = itemFlags(item);
+  const soon = item.due ? isSoon(item.due.at, now) : false;
+  const left = !item.due ? '' : when === 'time' ? timeOf(item.due.at) : monthDay(item.due.at);
   return (
-    <button type="button" className="row" onClick={() => onOpen(item.assignmentId)}>
-      {content}
+    <button type="button" className="item" onClick={() => onOpen(item.assignmentId)}>
+      <span className={soon ? 'item-t soon' : 'item-t'}>{left}</span>
+      <span className="item-body">
+        <span className="item-title">{item.title}</span>
+        <span className="item-sub">
+          {item.courseName ?? 'No class'}
+          {flags.length > 0 && <span className="flag"> · {flags.join(' · ')}</span>}
+        </span>
+      </span>
     </button>
   );
 }
 
-/** A teacher's AI rule: what it means, quoted, with where it came from. */
-export function PolicyBlock({ state, quote, source }: { state: WorkItem['policy']['state']; quote?: string; source?: string }) {
+/** Due today or tomorrow, and not passed: the only things shown in the accent. */
+export function isSoon(iso: string, now: Date): boolean {
+  const at = new Date(iso);
+  return at.getTime() >= now.getTime() && calendarDaysUntil(at, now) <= 1;
+}
+
+/** A teacher's AI rule, as one quiet note with the quote and where it came from. */
+export function PolicyNote({ state, quote, source }: { state: WorkItem['policy']['state']; quote?: string; source?: string }) {
   const notice = policyNotice[state];
   if (!notice) return null;
   return (
-    <div className={notice.tone === 'amber' ? 'block amber' : 'block violet'} role="note">
-      <div className="block-k">
-        <Icon name="shield" />
-        {notice.title}
+    <div className="policy" role="note">
+      <Icon name="shield" />
+      <div className="grow">
+        <b>{notice.title}</b>
+        {quote && <span className="quote">“{quote}”</span>}
+        {source && <span className="source">{source}</span>}
       </div>
-      {quote && <span className="quote">“{quote}”</span>}
-      {source && (
-        <span className="source">
-          <Icon name="doc" size="xs" />
-          {source}
-        </span>
-      )}
     </div>
   );
 }
 
-const evidenceIcon: Record<Evidence['kind'], { name: IconName; amber?: boolean }> = {
-  'school-fact': { name: 'calendar' },
-  'ai-interpretation': { name: 'sparkle' },
-  'student-context': { name: 'user' },
-  limitation: { name: 'alert', amber: true },
+const evidenceIcon: Record<Evidence['kind'], IconName> = {
+  'school-fact': 'calendar',
+  'ai-interpretation': 'sparkle',
+  'student-context': 'user',
+  limitation: 'alert',
 };
 
 /** "Why this?" rows. Quotes appear only when the model supplies one. */
 export function EvidenceList({ evidence, now }: { evidence: Evidence[]; now: Date }) {
   return (
     <>
-      {evidence.map((e, i) => {
-        const { name, amber } = evidenceIcon[e.kind];
-        return (
-          <div className="evidence" key={i}>
-            <span className={amber ? 'evidence-dot amber' : 'evidence-dot'}>
-              <Icon name={name} />
+      {evidence.map((e, i) => (
+        <div className="evidence" key={i}>
+          <Icon name={evidenceIcon[e.kind]} />
+          <div className="grow">
+            <span className="evidence-kind">{evidenceKindLabel[e.kind]}</span>
+            <div className="evidence-text">{e.text}</div>
+            {e.quote && <span className="quote">“{e.quote}”</span>}
+            <span className="source">
+              {e.sourceUrl ? (
+                <a href={e.sourceUrl} target="_blank" rel="noreferrer">
+                  {e.sourceLabel}
+                </a>
+              ) : (
+                e.sourceLabel
+              )}
+              {e.observedAt && <> · {observedAt(e.observedAt, now)}</>}
             </span>
-            <div className="grow">
-              <span className="evidence-kind">{evidenceKindLabel[e.kind]}</span>
-              <div className="evidence-text">{e.text}</div>
-              {e.quote && <span className="quote">“{e.quote}”</span>}
-              <span className="source">
-                {e.sourceUrl ? (
-                  <a href={e.sourceUrl} target="_blank" rel="noreferrer">
-                    {e.sourceLabel}
-                  </a>
-                ) : (
-                  e.sourceLabel
-                )}
-                {e.observedAt && <> · {observedAt(e.observedAt, now)}</>}
-              </span>
-            </div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </>
   );
 }
@@ -153,8 +130,7 @@ export function SyncFoot({
       <span className="grow">
         {lastCheck ? (
           <>
-            {problem ? 'Tried' : 'Synced with'} Canvas at {observedAt(lastCheck.at, now)} · {lastCheck.courses}{' '}
-            {lastCheck.courses === 1 ? 'class' : 'classes'}
+            {problem ? 'Tried to sync' : 'Synced with Canvas'} at {observedAt(lastCheck.at, now)}
             {problem && <span className="foot-problem">{problem}</span>}
           </>
         ) : (
@@ -162,8 +138,7 @@ export function SyncFoot({
         )}
       </span>
       {onRefresh && (
-        <button type="button" className="link" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>
-          <Icon name="refresh" size="xs" />
+        <button type="button" className="link muted" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>
           {refreshing ? 'Syncing…' : 'Refresh'}
         </button>
       )}

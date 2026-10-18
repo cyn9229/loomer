@@ -1,47 +1,58 @@
-// Work-session pieces. SessionHero is the band for Chat and Sources (which
-// assignment, what Loomer last read). SourcesBody is the Sources tab: session
-// controls, the linked draft, saved pages and screenshots, and factual activity.
-// HintCard, SuggestionRow and LinkDocStep render inside Chat. Every change goes
-// through PanelApi messages.
+// The Working screen's pieces. WorkHeader: which assignment, what Loomer last
+// read, and the Help | Sources switch. SourcesBody: the draft, saved pages and
+// screenshots, what happened this session, and Pause / End. HintCard,
+// SuggestionRow and LinkDocStep render inside Help. Every change goes through
+// PanelApi messages.
 import { useEffect, useState, type FormEvent } from 'react';
 import { DOCS_ORIGINS } from '../core/messages';
 import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
 import { useAction, type PanelApi } from './api';
-import { observedAt } from './format';
+import { observedAt, timeOf } from './format';
 import { Icon } from './Icon';
 import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
 export type ActiveSession = Extract<SessionModel, { status: 'active' | 'paused' }>;
+export type WorkTab = 'help' | 'sources';
 
 const readLine: Record<DocReadState, string> = {
   ok: 'Loomer is reading your draft',
   waiting: 'Draft linked. Loomer reads it soon',
-  'rate-limited': 'Google asked Loomer to slow down. Reading picks back up on its own',
+  'rate-limited': 'Google asked Loomer to slow down. It picks back up on its own',
   'no-access': 'Loomer can’t open your Doc. Sign in to Google with the account that owns it',
   unreadable: 'Loomer couldn’t read your Doc. It’ll try again',
 };
 
-/** One line about the draft, for the band. */
+/** One line about the draft, under the title. */
 function draftLine(doc: DocState, now: Date): string {
-  if (doc.status === 'not-linked') return 'Link your draft to get started';
-  if (doc.readState === 'ok' && doc.lastReadAt) return `Loomer read your draft at ${observedAt(doc.lastReadAt, now)}`;
-  return readLine[doc.readState];
+  if (doc.status === 'not-linked') return 'No draft linked yet';
+  if (doc.readState !== 'ok') return readLine[doc.readState];
+  const parts = [doc.lastReadAt ? `Draft read ${observedAt(doc.lastReadAt, now)}` : 'Draft linked', doc.studentWords !== null ? `${doc.studentWords} of your words` : null];
+  return parts.filter(Boolean).join(' · ');
 }
 
-export function SessionHero({ session, now }: { session: ActiveSession; now: Date }) {
-  return (
-    <>
-      <h1 className="hero-title md clamp">{session.assignment.title}</h1>
-      <p className="hero-sub">{session.status === 'paused' ? 'Paused. Loomer isn’t reading your draft or saving pages.' : draftLine(session.doc, now)}</p>
-    </>
-  );
-}
-
-/** Band pill for the header: working or paused. */
-export function sessionPill(session: ActiveSession, now: Date): { text: string; paused: boolean } {
+/** "24 min" since the session started, or "Paused". */
+export function sessionClock(session: ActiveSession, now: Date): { text: string; paused: boolean } {
   if (session.status === 'paused') return { text: 'Paused', paused: true };
   const minutes = Math.max(0, Math.round((now.getTime() - new Date(session.startedAt).getTime()) / 60_000));
-  return { text: minutes < 1 ? 'Working · just now' : `Working · ${minutes} min`, paused: false };
+  return { text: minutes < 1 ? 'Just started' : `${minutes} min`, paused: false };
+}
+
+export function WorkHeader({ session, now, tab, onTab, hintWaiting }: { session: ActiveSession; now: Date; tab: WorkTab; onTab: (t: WorkTab) => void; hintWaiting: boolean }) {
+  return (
+    <>
+      <h1 className="w-title">{session.assignment.title}</h1>
+      <p className="w-meta">{session.status === 'paused' ? 'Paused. Loomer isn’t reading your draft or saving pages.' : draftLine(session.doc, now)}</p>
+      <div className="seg" role="tablist" aria-label="Working">
+        <button type="button" role="tab" aria-selected={tab === 'help'} onClick={() => onTab('help')}>
+          Help
+          {hintWaiting && tab !== 'help' && <span className="dot" aria-label="1 hint ready" />}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'sources'} onClick={() => onTab('sources')}>
+          Sources <span className="n">{session.sources.length}</span>
+        </button>
+      </div>
+    </>
+  );
 }
 
 type HintProps = {
@@ -56,10 +67,10 @@ type HintProps = {
 };
 
 /**
- * A new hint shows as the full card. Hide collapses it to one row; the row's x
- * is the real dismiss (hint:dismiss): that kind of hint is not raised again for
- * this assignment. Rendering a hint tells the worker it was seen (hint:seen),
- * which clears the toolbar badge. Never takes focus.
+ * A new hint shows in full. Hide collapses it to one line; that line's x is the
+ * real dismiss (hint:dismiss): that kind of hint is not raised again for this
+ * assignment. Rendering a hint tells the worker it was seen (hint:seen), which
+ * clears the toolbar badge. Never takes focus.
  */
 export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, api }: HintProps) {
   const dismiss = useAction();
@@ -73,7 +84,7 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
     return (
       <div className={leaving ? 'hint-row leaving' : 'hint-row'} aria-hidden={leaving || undefined}>
         <button type="button" className="hint-row-open" onClick={onShow}>
-          <Icon name="sparkle" size="sm" />
+          <Icon name="sparkle" />
           1 hint ready
         </button>
         <button
@@ -92,28 +103,26 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
     );
   }
   return (
-    <section className={leaving ? 'block violet hint leaving' : 'block violet hint'} aria-label="Hint" aria-hidden={leaving || undefined}>
-      <div className="block-k">
+    <section className={leaving ? 'hint leaving' : 'hint'} aria-label="Hint" aria-hidden={leaving || undefined}>
+      <div className="hint-k">
         <Icon name="sparkle" />
         Hint
         <span className="grow" />
-        <button type="button" className="link subtle" onClick={onHide}>
+        <button type="button" className="link muted" onClick={onMoreHelp}>
+          More help
+        </button>
+        <button type="button" className="link muted" onClick={onHide}>
           Hide
         </button>
       </div>
-      <p className="block-text">{hint.text}</p>
+      <p className="hint-text">{hint.text}</p>
       {hint.reference && <Reference quote={hint.reference.quote} from={hint.reference.from} />}
-      <div className="block-act">
-        <button type="button" className="btn sm on-tint" onClick={onMoreHelp}>
-          More help
-        </button>
-      </div>
     </section>
   );
 }
 
 /**
- * Research discovery: one quiet row for the tab in front. It never claims the
+ * Research discovery: one quiet line for the tab in front. It never claims the
  * page is relevant. Save asks Chrome for this one site inside the click, then
  * the worker saves one snapshot and gives the access back.
  */
@@ -145,27 +154,28 @@ export function SuggestionRow({ suggestion, leaving, api }: { suggestion: NonNul
 
   const rule = hostRule(suggestion.url);
   return (
-    <section className={leaving ? 'suggestion leaving' : 'suggestion'} aria-label="Page suggestion" aria-hidden={leaving || undefined}>
-      <div className="suggestion-main">
+    <section className={leaving ? 'leaving' : undefined} aria-label="Page suggestion" aria-hidden={leaving || undefined}>
+      <div className="sugg">
         <Icon name="globe" />
-        <div className="grow">
-          <div className="suggestion-t">Researching for this? Save this page.</div>
-          <div className="suggestion-s" title={suggestion.matched.length ? `Title mentions: ${suggestion.matched.join(', ')}` : undefined}>
+        <span className="grow">
+          <b>Save this page as a source?</b>
+          <span className="sub" title={suggestion.matched.length ? `Title mentions: ${suggestion.matched.join(', ')}` : undefined}>
             {suggestion.title} · {hostOf(suggestion.url)}
-          </div>
-        </div>
-        <button type="button" className="vbtn sm" onClick={add} disabled={action.busy || leaving || !origin} aria-busy={verb === 'add'}>
-          <Icon name="plus" />
+          </span>
+        </span>
+        <button type="button" className="link" onClick={add} disabled={action.busy || leaving || !origin} aria-busy={verb === 'add'}>
           {verb === 'add' ? 'Saving…' : 'Save'}
         </button>
-      </div>
-      <div className="btn-row">
-        <button type="button" className="link subtle" onClick={dismiss} disabled={action.busy || leaving} aria-busy={verb === 'dismiss'}>
-          {verb === 'dismiss' ? 'Stopping…' : 'Not now'}
+        <button type="button" className="icon-btn" aria-label="Not now" title="Not now" onClick={dismiss} disabled={action.busy || leaving} aria-busy={verb === 'dismiss'}>
+          <Icon name="x" size="sm" />
         </button>
-        {rule && !leaving && <NeverRead rule={rule} label="Never read this site" deleteLabel="Also delete pages already saved from this site" send={api.send} />}
       </div>
-      {action.error && <p className="status-line error">{action.error}</p>}
+      {rule && !leaving && (
+        <div className="sugg-more">
+          <NeverRead rule={rule} label="Never read this site" deleteLabel="Also delete pages already saved from this site" send={api.send} />
+        </div>
+      )}
+      {action.error && <p className="status-line error" style={{ paddingBottom: 8 }}>{action.error}</p>}
     </section>
   );
 }
@@ -173,8 +183,7 @@ export function SuggestionRow({ suggestion, leaving, api }: { suggestion: NonNul
 export function Reference({ quote, from }: { quote: string; from: 'your draft' | 'the instructions' }) {
   return (
     <figure className="reference">
-      <figcaption>From {from}</figcaption>
-      <blockquote>“{quote}”</blockquote>
+      <blockquote>“{quote}”</blockquote> <figcaption>{from}</figcaption>
     </figure>
   );
 }
@@ -214,7 +223,7 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
 
   return (
     <section className="step" aria-label="Link your draft">
-      {n !== undefined && <span className="num">{n}</span>}
+      <span className="num">{n ?? <Icon name="doc" size="xs" />}</span>
       <div className="grow">
         <div className="step-t">Which Doc is your draft?</div>
         <div className="step-s">{candidates.length > 0 ? 'We found these in the instructions. Pick yours.' : 'Paste the link to your Google Doc.'}</div>
@@ -223,11 +232,9 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
             <Icon name="doc" />
             <span className="grow">
               <span className="row-title">Google Doc</span>
-              <span className="row-sub ellipsis">
-                {c.url.replace('https://', '')}
-              </span>
+              <span className="row-sub ellipsis">{c.url.replace('https://', '')}</span>
             </span>
-            <button type="button" className="vbtn sm" disabled={action.busy} aria-busy={linking === c.url} onClick={() => link(c.url)}>
+            <button type="button" className="btn sm accent" disabled={action.busy} aria-busy={linking === c.url} onClick={() => link(c.url)}>
               {linking === c.url ? 'Linking…' : 'Use this'}
             </button>
           </div>
@@ -235,9 +242,9 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
         <form onSubmit={submit} className="paste-row">
           <label className="grow">
             <span className="visually-hidden">Google Doc link</span>
-            <input className="input" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="Paste a Doc link" inputMode="url" spellCheck={false} />
+            <input className="input" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="Or paste a Doc link" inputMode="url" spellCheck={false} />
           </label>
-          <button type="submit" className="btn sm on-tint" style={{ height: 38 }} disabled={action.busy || !pasted.trim()} aria-busy={linking !== null && linking === pasted.trim()}>
+          <button type="submit" className="btn" disabled={action.busy || !pasted.trim()} aria-busy={linking !== null && linking === pasted.trim()}>
             Link
           </button>
         </form>
@@ -250,7 +257,7 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
 type SessionVerb = 'pause' | 'resume' | 'end';
 const busyLabel: Record<SessionVerb, string> = { pause: 'Pausing…', resume: 'Resuming…', end: 'Ending…' };
 
-/** The Sources tab: session controls, the draft, saved pages, and what happened. */
+/** The Sources tab: the draft, saved pages, what happened, and Pause / End. */
 export function SourcesBody({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
   const action = useAction();
   const [verb, setVerb] = useState<SessionVerb | null>(null);
@@ -261,50 +268,49 @@ export function SourcesBody({ session, now, api }: { session: ActiveSession; now
   const paused = session.status === 'paused';
   return (
     <>
-      <div className="session-ctl">
-        <button type="button" className="btn sm" disabled={action.busy} aria-busy={verb === 'pause' || verb === 'resume'} onClick={() => runVerb(paused ? 'resume' : 'pause')}>
-          <Icon name={paused ? 'play' : 'pause'} />
-          {verb === 'pause' || verb === 'resume' ? busyLabel[verb] : paused ? 'Resume' : 'Pause'}
-        </button>
-        <button type="button" className="btn sm" disabled={action.busy} aria-busy={verb === 'end'} onClick={() => runVerb('end')}>
-          {verb === 'end' ? busyLabel.end : 'End session'}
-        </button>
+      <div className="sec">
+        <h2>Your draft</h2>
       </div>
-      {action.error && <p className="status-line error">{action.error}</p>}
-
       {session.doc.status === 'linked' ? (
         <LinkedDoc doc={session.doc} now={now} api={api} />
       ) : (
         <LinkDocStep assignmentId={session.assignment.assignmentId} candidates={session.doc.candidates} api={api} />
       )}
 
-      <section aria-label="Saved sources">
-        <div className="sec">
-          <h2>Sources</h2>
-          <span className="n">{session.sources.length}</span>
-        </div>
-        {session.sources.map((s) => (
-          <SourceRow key={s.id} source={s} now={now} api={api} />
-        ))}
-        <p className="field-hint">Right-click any page and pick “Add page to Loomer”, or press Alt+Shift+L.</p>
-      </section>
+      <div className="sec">
+        <h2>Sources</h2>
+        <span className="aside">{session.sources.length === 0 ? 'None yet' : session.sources.length}</span>
+      </div>
+      {session.sources.map((s) => (
+        <SourceRow key={s.id} source={s} now={now} api={api} />
+      ))}
+      <p className="field-hint">To save a page, right-click it and pick “Add page to Loomer”, or press Alt+Shift+L.</p>
 
       {session.activity.length > 0 && (
-        <section aria-label="This session">
+        <>
           <div className="sec">
             <h2>This session</h2>
           </div>
           {session.activity.map((a, i) => (
-            <div className="row-line" key={i}>
-              <span className="grow row-sub" style={{ color: 'var(--ink)', fontSize: 13 }}>
-                {a.text}
-              </span>
-              <span className="when">{observedAt(a.at, now)}</span>
+            <div className="activity" key={i}>
+              <span className="item-t">{timeOf(a.at)}</span>
+              <span>{a.text}</span>
             </div>
           ))}
-        </section>
+        </>
       )}
-      <div className="row-actions">
+
+      <div className="session-ctl">
+        <button type="button" className="btn" disabled={action.busy} aria-busy={verb === 'pause' || verb === 'resume'} onClick={() => runVerb(paused ? 'resume' : 'pause')}>
+          <Icon name={paused ? 'play' : 'pause'} />
+          {verb === 'pause' || verb === 'resume' ? busyLabel[verb] : paused ? 'Resume' : 'Pause'}
+        </button>
+        <button type="button" className="btn" disabled={action.busy} aria-busy={verb === 'end'} onClick={() => runVerb('end')}>
+          {verb === 'end' ? busyLabel.end : 'End session'}
+        </button>
+      </div>
+      {action.error && <p className="status-line error pad">{action.error}</p>}
+      <div className="row-actions pad" style={{ padding: '16px 18px 18px' }}>
         <DeleteAssignmentData assignmentId={session.assignment.assignmentId} send={api.send} />
       </div>
     </>
@@ -312,26 +318,23 @@ export function SourcesBody({ session, now, api }: { session: ActiveSession; now
 }
 
 function LinkedDoc({ doc, now, api }: { doc: Extract<DocState, { status: 'linked' }>; now: Date; api: PanelApi }) {
-  const facts = [doc.lastReadAt ? `read ${observedAt(doc.lastReadAt, now)}` : null, doc.studentWords !== null ? `${doc.studentWords} of your words` : null].filter(Boolean);
   const trouble = doc.readState === 'no-access' || doc.readState === 'unreadable' || doc.readState === 'rate-limited';
   return (
-    <section className={trouble ? 'block amber' : 'block'} aria-label="Your draft">
-      <div className="row-line" style={{ padding: 0 }}>
+    <>
+      <div className="row-line">
         <Icon name="doc" />
         <span className="grow">
-          <span className="row-title">Your draft</span>
-          <span className="row-sub">
-            {doc.readState === 'ok' ? `Google Doc${facts.length ? ` · ${facts.join(' · ')}` : ''}` : readLine[doc.readState]}
-          </span>
+          <span className="row-title">Google Doc</span>
+          <span className={trouble ? 'row-sub danger-text' : 'row-sub'}>{draftLine(doc, now)}</span>
         </span>
-        <a className="btn sm on-tint" href={doc.url} target="_blank" rel="noreferrer">
+        <a className="link" href={doc.url} target="_blank" rel="noreferrer">
           Open
         </a>
       </div>
-      <div className="row-actions">
+      <div className="indent">
         <NeverRead rule={docRule(doc.docId)} label="Never read this Doc" deleteLabel="Also delete Loomer’s copy of this Doc" send={api.send} />
       </div>
-    </section>
+    </>
   );
 }
 
@@ -339,7 +342,7 @@ function SourceRow({ source, now, api }: { source: SourceItem; now: Date; api: P
   const action = useAction();
   const rule = hostRule(source.url);
   return (
-    <div>
+    <>
       <div className="row-line">
         {source.kind === 'screenshot' && source.image ? <img className="thumb" src={source.image} alt="" /> : <Icon name={source.kind === 'screenshot' ? 'image' : 'globe'} />}
         <span className="grow">
@@ -351,16 +354,16 @@ function SourceRow({ source, now, api }: { source: SourceItem; now: Date; api: P
           </span>
           {action.error && <span className="row-sub danger-text">{action.error}</span>}
         </span>
-        <button type="button" className="link subtle" disabled={action.busy} aria-busy={action.busy} onClick={() => action.run(() => api.send({ type: 'source:remove', id: source.id }))}>
+        <button type="button" className="link muted" disabled={action.busy} aria-busy={action.busy} onClick={() => action.run(() => api.send({ type: 'source:remove', id: source.id }))}>
           {action.busy ? 'Removing…' : 'Remove'}
         </button>
       </div>
       {rule && (
-        <div className="row-actions" style={{ margin: '-4px 0 6px 30px' }}>
+        <div className="indent">
           <NeverRead rule={rule} label="Never read this site" deleteLabel="Also delete pages already saved from this site" send={api.send} />
         </div>
       )}
-    </div>
+    </>
   );
 }
 

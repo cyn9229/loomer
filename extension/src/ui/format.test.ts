@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarDaysUntil, deadlineLabel, dueBadge } from './format';
+import { calendarDaysUntil, dayHeading, deadlineLabel, dueBadge } from './format';
 
 const now = new Date(2026, 9, 17, 16, 12); // Sat Oct 17, 4:12 PM local
 
@@ -27,5 +27,13 @@ describe('dueBadge', () => {
     expect(dueBadge(new Date(2026, 9, 18, 8, 0).toISOString(), now)).toBe('Due tomorrow');
     expect(dueBadge(new Date(2026, 9, 19, 8, 0).toISOString(), now)).toBeNull();
     expect(dueBadge(new Date(2026, 9, 17, 9, 0).toISOString(), now)).toBeNull();
+  });
+});
+
+describe('dayHeading', () => {
+  it('names today and tomorrow, then weekday and date', () => {
+    expect(dayHeading(new Date(2026, 9, 17, 23, 0).toISOString(), now)).toEqual({ label: 'Today', soon: true });
+    expect(dayHeading(new Date(2026, 9, 18, 8, 0).toISOString(), now)).toEqual({ label: 'Tomorrow', soon: true });
+    expect(dayHeading(new Date(2026, 9, 19, 8, 0).toISOString(), now).soon).toBe(false);
   });
 });

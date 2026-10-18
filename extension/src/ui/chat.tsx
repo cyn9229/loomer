@@ -1,8 +1,10 @@
-// Chat tab: hint-first help for the session's assignment. When a session is new,
-// up to two numbered steps come first (which Doc is your draft, and the one-time
-// AI rule question). Then the proactive hint, the conversation, quick follow-up
-// chips, and a docked composer with the research suggestion above it. Loomer
-// answers with hints and questions, never finished work; replies have no copy button.
+// Help, inside the Working screen: hint-first help for the session's assignment.
+// When a session is new, up to two numbered steps come first (which Doc is your
+// draft, and the one-time AI rule question). Then the proactive hint, the
+// conversation, quick follow-ups, and a docked composer with the research
+// suggestion above it. Loomer answers with hints and questions, never finished
+// work; replies have no copy button. The composer stays disabled until help is
+// available.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { ChatMessage, HelpState } from '../model/session';
 import { useAction, type PanelApi } from './api';
@@ -11,13 +13,13 @@ import { LogoMark } from './Logo';
 import { LinkDocStep, Reference, type ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
 
-const kindLabel: Record<ChatMessage['kind'], string> = {
-  question: 'Loomer',
+const kindLabel: Record<ChatMessage['kind'], string | null> = {
+  question: null,
   hint: 'Hint',
-  explanation: 'Explanation',
+  explanation: null,
   example: 'Example on a different topic',
   redirect: 'Let’s try this instead',
-  review: 'Feedback',
+  review: 'Feedback on your draft',
   notice: 'Heads up',
 };
 
@@ -33,9 +35,9 @@ export function ChatView({
   api: PanelApi;
   draft: string;
   setDraft: (text: string) => void;
-  /** The proactive hint card or row, rendered by the panel. */
+  /** The proactive hint, rendered by the panel. */
   hint: ReactNode;
-  /** The research suggestion row, rendered by the panel. */
+  /** The research suggestion line, rendered by the panel. */
   suggestion: ReactNode;
 }) {
   const { help, assignment, doc } = session;
@@ -79,10 +81,11 @@ export function ChatView({
       {hint}
       <Unavailable help={help} api={api} />
 
-      {help.messages.length === 0 && help.availability === 'available' && steps === 0 && (
+      {help.messages.length === 0 && help.availability === 'available' && steps === 0 && !hint && (
         <p className="caption">Stuck? Ask about this assignment. Loomer starts with a small hint and never writes it for you.</p>
       )}
 
+      {hint && help.messages.length > 0 && <div className="rule" />}
       {help.messages.map((m) => (
         <Message key={m.id} message={m} />
       ))}
@@ -90,19 +93,19 @@ export function ChatView({
       {thinking && <Thinking />}
 
       {canAsk && last?.role === 'loomer' && (
-        <div className="chips">
-          <button type="button" className="chip" onClick={() => send('Can you explain more?')}>
+        <div className="qr">
+          <button type="button" className="btn sm" onClick={() => send('Can you explain more?')}>
             Explain more
           </button>
-          <button type="button" className="chip" onClick={() => send('Give me a smaller step')}>
+          <button type="button" className="btn sm" onClick={() => send('Give me a smaller step')}>
             Smaller step
           </button>
-          <button type="button" className="chip" onClick={() => ask.run(() => api.send({ type: 'help:review', assignmentId: assignment.assignmentId }))}>
+          <button type="button" className="btn sm" onClick={() => ask.run(() => api.send({ type: 'help:review', assignmentId: assignment.assignmentId }))}>
             Check my draft
           </button>
         </div>
       )}
-      {ask.error && <p className="status-line error">{ask.error}</p>}
+      {ask.error && <p className="status-line error pad">{ask.error}</p>}
       <div ref={endRef} />
 
       <div className="dock">
@@ -172,7 +175,7 @@ function PolicyStep({ n, assignmentId, api }: { n?: number; assignmentId: string
   ] as const;
   return (
     <section className="step" aria-label="AI rule question">
-      {n !== undefined && <span className="num">{n}</span>}
+      <span className="num">{n ?? '?'}</span>
       <div className="grow">
         <div className="step-t">Does your teacher allow AI help on this one?</div>
         <div className="step-s">We couldn’t find a rule in the instructions or syllabus.</div>
@@ -181,6 +184,7 @@ function PolicyStep({ n, assignmentId, api }: { n?: number; assignmentId: string
             <button
               key={value}
               type="button"
+              className="btn"
               disabled={answer.busy}
               aria-busy={saving === value}
               onClick={() => {
@@ -206,60 +210,55 @@ function Unavailable({ help, api }: { help: HelpState; api: PanelApi }) {
       return null;
     case 'ai-off':
       return (
-        <div className="block">
-          <div className="block-k">
+        <section className="hint" aria-label="AI help is off">
+          <div className="hint-k" style={{ color: 'var(--muted)' }}>
             <Icon name="sparkle" />
             AI help is off
           </div>
-          <p className="block-text">Turn it on in settings to get hints. Everything else still works.</p>
-          <div className="block-act">
-            <button type="button" className="btn sm on-tint" onClick={api.openSettings}>
-              Open settings
-            </button>
-          </div>
-        </div>
+          <p className="hint-text">Turn it on in settings to get hints. Everything else still works.</p>
+          <button type="button" className="btn sm" style={{ marginTop: 10 }} onClick={api.openSettings}>
+            Open settings
+          </button>
+        </section>
       );
     case 'blocked':
     case 'limited':
     case 'unresolved':
       return (
-        <div className={help.availability === 'unresolved' ? 'block violet' : 'block amber'} role="note">
-          <div className="block-k">
+        <section className="hint" role="note" aria-label="AI rule">
+          <div className="hint-k" style={{ color: 'var(--amber)' }}>
             <Icon name="lock" />
             {help.availability === 'blocked' ? 'No AI on this one' : help.availability === 'limited' ? 'Only some AI help on this one' : 'AI help is on hold'}
           </div>
-          <p className="block-text">
-            {help.availability === 'unresolved'
-              ? 'Loomer will help once the AI rule is clear.'
-              : 'Your teacher set this rule, so Loomer won’t help with the writing here.'}
+          <p className="hint-text">
+            {help.availability === 'unresolved' ? 'Loomer will help once the AI rule is clear.' : 'Loomer won’t help with the writing here, because of this rule.'}
           </p>
-          {help.policyQuote && <span className="quote">“{help.policyQuote}”</span>}
-          {help.policySource && (
-            <span className="source">
-              <Icon name="doc" size="xs" />
-              {help.policySource}
-            </span>
+          {help.policyQuote && (
+            <p className="reference">
+              “{help.policyQuote}” {help.policySource && <span style={{ color: 'var(--muted)' }}>{help.policySource}</span>}
+            </p>
           )}
-          <p className="row-sub" style={{ marginTop: 8 }}>
+          <p className="note" style={{ padding: '12px 0 0' }}>
             You can still save sources and keep your work together here.
           </p>
-        </div>
+        </section>
       );
   }
 }
 
 function Message({ message }: { message: ChatMessage }) {
   if (message.role === 'student') return <p className="bubble">{message.text}</p>;
+  const label = kindLabel[message.kind];
   return (
     <div className="msg">
-      <div className="msg-k">
-        <LogoMark size={13} />
-        {kindLabel[message.kind]}
+      <LogoMark size={18} />
+      <div className="grow">
+        {label && <span className="msg-k">{label}</span>}
+        <p className="msg-text">{message.text}</p>
+        {message.references.map((r, i) => (
+          <Reference key={i} quote={r.quote} from={r.from} />
+        ))}
       </div>
-      <p className="msg-text">{message.text}</p>
-      {message.references.map((r, i) => (
-        <Reference key={i} quote={r.quote} from={r.from} />
-      ))}
     </div>
   );
 }

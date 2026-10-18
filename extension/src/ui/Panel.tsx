@@ -1,8 +1,8 @@
-// The side panel shell: a violet band (logo, tabs or Back, and the screen's
-// main message) over a white sheet. Takes the models from outside (live hooks
-// or fixtures) and acts only through PanelApi, so it renders the same in both
-// modes. Screens: Home, assignment detail, Chat, Sources, and the screenshot
-// crop, which takes over while a capture is waiting.
+// The side panel shell. No tabs: Home is the start, starting work opens the
+// Working screen (Help | Sources), tapping an assignment opens its detail, and a
+// waiting screenshot takes over until it is saved or discarded. Each screen has
+// a slim top bar. Takes the models from outside (live hooks or fixtures) and
+// acts only through PanelApi, so it renders the same in both modes.
 import { useState, type ReactNode } from 'react';
 import type { ScreenshotDraft } from '../capture/screenshot';
 import type { AssignmentDetailModel } from '../model/detail';
@@ -10,23 +10,13 @@ import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { ChatView } from './chat';
-import { DetailBody, DetailHero } from './detail';
-import { type HomeActions, HomeBody, HomeHero } from './home';
-import { Icon, type IconName } from './Icon';
+import { DetailView } from './detail';
+import { type HomeActions, HomeView } from './home';
+import { Icon } from './Icon';
 import { LogoMark, Wordmark } from './Logo';
-import { SyncFoot } from './parts';
-import { ResumeCard } from './resume';
-import { ScreenshotBody, ScreenshotHero } from './screenshot';
-import { HintCard, SessionHero, sessionPill, SourcesBody, SuggestionRow, type ActiveSession } from './session';
+import { ScreenshotView } from './screenshot';
+import { HintCard, sessionClock, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
-
-type Tab = 'home' | 'chat' | 'sources';
-
-const tabs: { id: Tab; label: string; icon: IconName }[] = [
-  { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'chat', label: 'Chat', icon: 'chat' },
-  { id: 'sources', label: 'Sources', icon: 'sources' },
-];
 
 export type PanelProps = {
   home: HomeModel | undefined;
@@ -46,9 +36,9 @@ export type PanelProps = {
 };
 
 export function Panel({ home, session, useDetail, screenshot, now, api, onRefresh, previewLabel, paused }: PanelProps) {
-  const [tab, setTab] = useState<Tab>('home');
+  const [view, setView] = useState<'home' | 'work'>('home');
+  const [workTab, setWorkTab] = useState<WorkTab>('help');
   const [openId, setOpenId] = useState<string | null>(null);
-  const [whyOpen, setWhyOpen] = useState(false);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
   const [chatDraft, setChatDraft] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -70,9 +60,10 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
       }
     : undefined;
 
-  const goTab = (t: Tab) => {
+  const goWork = () => {
     setOpenId(null);
-    setTab(t);
+    setWorkTab('help');
+    setView('work');
   };
 
   const actions: HomeActions = {
@@ -83,14 +74,14 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
       start.run(async () => {
         try {
           const reply = await api.send({ type: 'session:start', assignmentId });
-          if (reply.ok) goTab('chat');
+          if (reply.ok) goWork();
           return reply;
         } finally {
           setStartingId(null);
         }
       });
     },
-    continueSession: () => goTab('chat'),
+    continueSession: goWork,
     sessionAssignmentId: active?.assignment.assignmentId ?? null,
     startingId,
     hidingId,
@@ -110,110 +101,102 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
   };
 
   const openItem = home && openId ? findItem(home, openId) : null;
-  const nextId = home?.status === 'ready' ? home.next.item.assignmentId : null;
-  // Replay data is labeled once, in the header, instead of on every row.
+  // Replay data is labeled once, in the top bar, instead of on every row.
   const replay = Boolean(home && home.status !== 'not-connected' && (home.lastCheck?.replay || allItems(home).some((i) => i.replay)));
-  const pill = paused ? { text: 'Loomer paused', paused: true } : active ? sessionPill(active, now) : null;
+  const settings = (
+    <button type="button" className="icon-btn" onClick={api.openSettings} aria-label="Settings">
+      <Icon name="settings" size="sm" />
+    </button>
+  );
+  const brand = (
+    <>
+      <LogoMark />
+      <Wordmark />
+      <span className="grow" />
+      {replay && <span className="tag">Replay data</span>}
+    </>
+  );
 
-  // Each screen is a band message (hero) plus the sheet's content (body).
-  let nav: ReactNode = <Tabs tab={tab} hintWaiting={hint !== null} onTab={goTab} />;
-  let hero: ReactNode = null;
+  let bar: ReactNode;
   let body: ReactNode;
-
   if (screenshot) {
-    nav = null;
-    hero = <ScreenshotHero />;
-    body = <ScreenshotBody draft={screenshot} now={now} api={api} />;
-  } else if (tab === 'home' && openItem) {
-    nav = null;
-    hero = <DetailHero item={openItem} now={now} onBack={() => setOpenId(null)} />;
-    body = <DetailBody item={openItem} detail={detail} now={now} actions={actions} />;
-  } else if (tab === 'home') {
-    hero = home ? (
-      <HomeHero model={home} resume={home.status === 'not-connected' ? null : home.resume} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
-    ) : null;
-    body = !home ? (
-      <p className="caption">Loading…</p>
-    ) : home.status === 'not-connected' ? (
-      <p className="mini">
-        <Icon name="lock" />
-        Loomer only reads. It never turns anything in or changes Canvas.
-      </p>
-    ) : (
+    bar = (
       <>
-        {active ? (
-          // The hero already says "Keep going" when the session is for the next step.
-          active.assignment.assignmentId !== nextId && (
-          <button type="button" className="keep" onClick={actions.continueSession}>
-            <span className="keep-icon">
-              <Icon name={active.status === 'paused' ? 'pause' : 'doc'} />
-            </span>
-            <span className="grow">
-              <span className="keep-k">
-                {active.status === 'paused' ? 'Paused session' : 'Working on'}
-              </span>
-              <span className="keep-t">
-                {active.assignment.title}
-              </span>
-            </span>
-            <span className="go">
-              <Icon name="arrowRight" />
-            </span>
-          </button>
-          )
-        ) : (
-          home.resume && home.resume.assignment.assignmentId !== nextId && <ResumeCard resume={home.resume} now={now} api={api} actions={actions} />
-        )}
-        <HomeBody model={home} now={now} actions={actions} whyOpen={whyOpen} />
-        <SyncFoot lastCheck={home.lastCheck} now={now} onRefresh={refresh} refreshing={refreshing} />
+        {brand}
+        {settings}
       </>
     );
-  } else if (!active) {
-    hero = <h1 className="hero-title md">No session yet</h1>;
-    body = (
-      <div className="block">
-        <p className="block-text" style={{ marginTop: 0 }}>
-          {tab === 'chat' ? 'Start a session from Home to get hints on an assignment.' : 'Start a session from Home. Your draft and saved pages show up here.'}
-        </p>
-        <div className="block-act">
-          <button type="button" className="btn sm on-tint" onClick={() => goTab('home')}>
-            Go to Home
-          </button>
-        </div>
-      </div>
+    body = <ScreenshotView draft={screenshot} now={now} api={api} />;
+  } else if (openItem) {
+    bar = (
+      <>
+        <button type="button" className="back" onClick={() => setOpenId(null)}>
+          <Icon name="chevronLeft" />
+          Back
+        </button>
+        <span className="grow" />
+        {settings}
+      </>
     );
-  } else if (tab === 'chat') {
-    hero = <SessionHero session={active} now={now} />;
+    body = <DetailView item={openItem} detail={detail} now={now} actions={actions} />;
+  } else if (view === 'work' && active) {
+    const clock = sessionClock(active, now);
+    bar = (
+      <>
+        <button type="button" className="back" onClick={() => setView('home')}>
+          <Icon name="chevronLeft" />
+          Home
+        </button>
+        <span className="grow" />
+        <span className={clock.paused ? 'live paused' : 'live'}>{clock.text}</span>
+        {settings}
+      </>
+    );
     body = (
-      <ChatView
-        session={active}
-        api={api}
-        draft={chatDraft}
-        setDraft={setChatDraft}
-        hint={
-          shownHint.value && (
-            <HintCard
-              key={shownHint.value.id}
-              hint={shownHint.value}
-              leaving={shownHint.leaving}
-              hidden={hiddenHintId === shownHint.value.id}
-              onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
-              onShow={() => setHiddenHintId(null)}
-              onMoreHelp={() => setChatDraft('Can you help me more with this hint?')}
-              api={api}
-            />
-          )
-        }
-        suggestion={
-          shownSuggestion.value && (
-            <SuggestionRow key={shownSuggestion.value.tabId} suggestion={shownSuggestion.value} leaving={shownSuggestion.leaving} api={api} />
-          )
-        }
-      />
+      <>
+        <WorkHeader session={active} now={now} tab={workTab} onTab={setWorkTab} hintWaiting={hint !== null} />
+        {workTab === 'help' ? (
+          <ChatView
+            session={active}
+            api={api}
+            draft={chatDraft}
+            setDraft={setChatDraft}
+            hint={
+              shownHint.value && (
+                <HintCard
+                  key={shownHint.value.id}
+                  hint={shownHint.value}
+                  leaving={shownHint.leaving}
+                  hidden={hiddenHintId === shownHint.value.id}
+                  onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
+                  onShow={() => setHiddenHintId(null)}
+                  onMoreHelp={() => setChatDraft('Can you help me more with this hint?')}
+                  api={api}
+                />
+              )
+            }
+            suggestion={
+              shownSuggestion.value && <SuggestionRow key={shownSuggestion.value.tabId} suggestion={shownSuggestion.value} leaving={shownSuggestion.leaving} api={api} />
+            }
+          />
+        ) : (
+          <SourcesBody session={active} now={now} api={api} />
+        )}
+      </>
     );
   } else {
-    hero = <SessionHero session={active} now={now} />;
-    body = <SourcesBody session={active} now={now} api={api} />;
+    bar = (
+      <>
+        {brand}
+        <span className="bar-date">{now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+        {settings}
+      </>
+    );
+    body = home ? (
+      <HomeView model={home} now={now} actions={actions} active={active} hintWaiting={hint !== null} onRefresh={refresh} refreshing={refreshing} />
+    ) : (
+      <p className="caption">Loading…</p>
+    );
   }
 
   return (
@@ -223,57 +206,17 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
           {previewLabel}
         </p>
       )}
-      <header className="band">
-        <div className="band-top">
-          <LogoMark size={22} light />
-          {/* Narrow panels can't fit the wordmark next to two pills; the mark alone is enough. */}
-          {!(replay && pill) && <Wordmark />}
-          <span className="grow" />
-          {replay && <span className="band-pill">Replay data</span>}
-          {pill && <span className={pill.paused ? 'live-pill paused' : 'live-pill'}>{pill.text}</span>}
-          <button type="button" className="band-btn" onClick={api.openSettings} aria-label="Settings">
-            <Icon name="settings" size="sm" />
-          </button>
-        </div>
-        {nav}
-        {hero}
-      </header>
-      <main className="sheet" key={screenshot ? 'shot' : `${tab}:${openId ?? ''}`}>
-        {paused && <PausedStrip api={api} />}
+      <header className="bar">{bar}</header>
+      <main className="screen" key={screenshot ? 'shot' : openItem ? `item:${openItem.assignmentId}` : view}>
+        {paused && <PausedLine api={api} />}
         {start.error && (
-          <p className="status-line error" role="status">
+          <p className="status-line error pad" role="status">
             {start.error}
           </p>
         )}
         {body}
       </main>
     </div>
-  );
-}
-
-function Tabs({ tab, hintWaiting, onTab }: { tab: Tab; hintWaiting: boolean; onTab: (t: Tab) => void }) {
-  return (
-    <nav className="tabs" role="tablist" aria-label="Loomer">
-      {tabs.map((t) => {
-        // Quiet indicator: a waiting hint marks the Chat tab when another tab is open.
-        const marked = t.id === 'chat' && hintWaiting && tab !== 'chat';
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            className="tab"
-            aria-selected={tab === t.id}
-            aria-label={marked ? `${t.label}, 1 hint ready` : undefined}
-            onClick={() => onTab(t.id)}
-          >
-            <Icon name={t.icon} />
-            {t.label}
-            {marked && <span className="tab-dot" aria-hidden="true" />}
-          </button>
-        );
-      })}
-    </nav>
   );
 }
 
@@ -287,28 +230,22 @@ function findItem(model: HomeModel, id: string): WorkItem | null {
   return allItems(model).find((i) => i.assignmentId === id) ?? null;
 }
 
-/** Loomer is paused: say what stops, and offer to resume. Resuming does not resume a session. */
-function PausedStrip({ api }: { api: PanelApi }) {
+/** Loomer is paused: say what stops, and offer to turn it back on. Doesn't resume a session. */
+function PausedLine({ api }: { api: PanelApi }) {
   const resume = useAction();
   return (
-    <div className="block amber" role="status">
-      <div className="block-k">
-        <Icon name="pause" />
-        Loomer is paused
-      </div>
-      <p className="block-text">It isn’t syncing Canvas, reading your Doc, or saving pages.</p>
-      <div className="block-act">
-        <button
-          type="button"
-          className="btn sm on-tint"
-          disabled={resume.busy}
-          aria-busy={resume.busy}
-          onClick={() => resume.run(() => api.send({ type: 'privacy:pause', paused: false }))}
-        >
-          {resume.busy ? 'Turning back on…' : 'Turn Loomer back on'}
+    <div className="notices" style={{ marginTop: 14 }} role="status">
+      <div className="notice">
+        <span className="dot" />
+        <span className="grow">
+          Loomer is paused
+          <span className="notice-sub">It isn’t syncing Canvas, reading your Doc, or saving pages.</span>
+          {resume.error && <span className="notice-sub danger-text">{resume.error}</span>}
+        </span>
+        <button type="button" className="link" disabled={resume.busy} aria-busy={resume.busy} onClick={() => resume.run(() => api.send({ type: 'privacy:pause', paused: false }))}>
+          {resume.busy ? 'Turning on…' : 'Turn on'}
         </button>
       </div>
-      {resume.error && <p className="status-line error">{resume.error}</p>}
     </div>
   );
 }

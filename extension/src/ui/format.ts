@@ -65,6 +65,29 @@ export function dueWhen(iso: string, now: Date): string {
   return day;
 }
 
+/** "7:59 PM" */
+export function timeOf(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/** "Oct 29" */
+export function monthDay(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Agenda day heading: "Today", "Tomorrow", or "Mon 19". `soon` marks today and
+ * tomorrow, which the agenda shows in the accent color.
+ */
+export function dayHeading(iso: string, now: Date): { label: string; soon: boolean } {
+  const at = new Date(iso);
+  const days = calendarDaysUntil(at, now);
+  const short = `${at.toLocaleDateString(undefined, { weekday: 'short' })} ${at.getDate()}`;
+  if (days === 0) return { label: 'Today', soon: true };
+  if (days === 1) return { label: 'Tomorrow', soon: true };
+  return { label: short, soon: false };
+}
+
 /** The red badge, only for work due today or tomorrow. */
 export function dueBadge(iso: string, now: Date): string | null {
   const at = new Date(iso);
