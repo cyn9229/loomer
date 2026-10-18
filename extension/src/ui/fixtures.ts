@@ -165,6 +165,32 @@ export function buildFixtures(now: Date) {
     effort: { label: 'Short', reason: null, source: 'ai' },
   });
   const hiddenItem = { ...item(now, { assignmentId: 'a-hidden', title: 'Optional: extra credit poster', courseName: 'Health' }), hidden: true };
+  // One of each other kind of work: a practice sheet, a reading, and a Canvas quiz (no AI help).
+  const sheet = item(now, {
+    assignmentId: 'a-sheet',
+    title: 'Unit 6 Review Sheet: Quadratics',
+    courseName: 'Algebra 2',
+    due: { at: at(now, 3, 23, 59), source: 'canvas' },
+    effort: { label: 'Moderate', reason: 'Twenty problems across five topics.', source: 'ai' },
+    workType: { type: 'practice', source: 'ai' },
+  });
+  const readingCh = item(now, {
+    assignmentId: 'a-lectura',
+    title: 'Lectura: La casa en Mango Street, cap. 1 a 5',
+    courseName: 'Spanish III',
+    due: { at: at(now, 4, 15, 0), source: 'canvas' },
+    effort: { label: 'Short', reason: 'Five short chapters.', source: 'ai' },
+    workType: { type: 'reading', source: 'rule' },
+  });
+  const quizItem = item(now, {
+    assignmentId: 'a-quiz',
+    title: 'Unit 4 Quiz: Rational Functions',
+    courseName: 'Precalculus',
+    due: { at: at(now, 5, 8, 0), source: 'canvas' },
+    effort: { label: 'Short', reason: null, source: 'ai' },
+    workType: { type: 'practice', source: 'rule' },
+    quiz: true,
+  });
   const replayItem = item(now, {
     assignmentId: 'r-replay',
     title: 'Sample: tree canopy data table',
@@ -298,7 +324,7 @@ export function buildFixtures(now: Date) {
       room: roomFixture(now),
       yourChanges: appliedChanges(now),
       next: readyNext,
-      rest: [photo, vocab, replayItem, reflection, proposal, lab, reading, pastQuiz, hiddenItem],
+      rest: [photo, vocab, sheet, replayItem, readingCh, reflection, quizItem, proposal, lab, reading, pastQuiz, hiddenItem],
       lastCheck,
     },
 

@@ -2,7 +2,8 @@
 // They reuse the Home fixture assignments so both previews tell one story.
 // Covered: no session, Doc not linked (with candidates), reading normally with a
 // hint, paused, Google rate limit, no access, policy question, blocked policy,
-// and AI turned off.
+// AI turned off, and the other kinds of work: practice (with and without a
+// linked sheet, and while its topics are read), reading, and a quiz.
 import type { ChatMessage, SessionModel } from '../model/session';
 import { buildFixtures } from './fixtures';
 
@@ -12,6 +13,10 @@ export function buildSessionFixtures(now: Date) {
   const home = buildFixtures(now);
   const essay = home.ready.next.item;
   const reflection = home['ready-blocked'].next.item;
+  const byId = (id: string) => home.ready.rest.find((i) => i.assignmentId === id)!;
+  const sheet = byId('a-sheet');
+  const lectura = byId('a-lectura');
+  const quiz = byId('a-quiz');
   const ago = (minutes: number) => new Date(now.getTime() - minutes * MIN).toISOString();
 
   const sources = [
@@ -152,6 +157,65 @@ export function buildSessionFixtures(now: Date) {
     'rate-limited': { ...base, doc: { ...linkedDoc, readState: 'rate-limited', lastReadAt: ago(4) } },
 
     'no-access': { ...base, doc: { ...linkedDoc, readState: 'no-access', lastReadAt: null, studentWords: null } },
+
+    // Practice with the teacher's sheet linked: topics to tick, no word count.
+    practice: {
+      ...base,
+      assignment: sheet,
+      startedAt: ago(12),
+      doc: { ...linkedDoc, docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', studentWords: null },
+      sources: [],
+      activity: [],
+      help: { availability: 'available' as const, messages: [], pending: false },
+      topics: {
+        status: 'ok',
+        items: [
+          { text: 'Factor quadratics', quote: 'Factor each quadratic completely.', done: true },
+          { text: 'Complete the square', quote: 'Rewrite by completing the square.', done: true },
+          { text: 'Quadratic formula', quote: 'Solve using the quadratic formula.', done: false },
+          { text: 'Vertex form', quote: 'Write each function in vertex form.', done: false },
+          { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', done: false },
+        ],
+      },
+    },
+    'practice-no-sheet': {
+      ...base,
+      assignment: sheet,
+      startedAt: ago(1),
+      doc: { status: 'not-linked', candidates: [] },
+      sources: [],
+      activity: [],
+      help: { availability: 'available' as const, messages: [], pending: false },
+    },
+    'practice-reading-sheet': {
+      ...base,
+      assignment: sheet,
+      startedAt: ago(1),
+      doc: { ...linkedDoc, docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', studentWords: null, lastReadAt: null, readState: 'waiting' },
+      sources: [],
+      activity: [],
+      help: { availability: 'available' as const, messages: [], pending: false },
+      topics: { status: 'reading', items: [] },
+    },
+    'reading-work': {
+      ...base,
+      assignment: lectura,
+      startedAt: ago(9),
+      doc: { status: 'not-linked', candidates: [] },
+      sources: [],
+      activity: [],
+      help: { availability: 'available' as const, messages: [], pending: false },
+    },
+    // A Canvas quiz: no help, and Ask Loomer is paused while it's open.
+    quiz: {
+      ...base,
+      assignment: quiz,
+      startedAt: ago(3),
+      doc: { status: 'not-linked', candidates: [] },
+      sources: [],
+      activity: [],
+      help: { availability: 'quiz', messages: [], pending: false },
+    },
 
     'needs-policy': {
       ...base,

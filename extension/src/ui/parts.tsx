@@ -5,6 +5,7 @@ import type { CheckInfo, Evidence, RoomLevel, WorkItem } from '../model/home';
 import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedAt, policyNotice, timeOf, weekday } from './format';
 import { Icon, type IconName } from './Icon';
 import { subjectIcon } from './subject';
+import { typeLabel } from './workType';
 
 type Tone = 'accent' | 'green' | 'red' | 'amber' | 'replay' | 'gray';
 
@@ -50,7 +51,7 @@ function dueShort(iso: string, now: Date): string {
 
 /**
  * One plan row: the class's subject icon, the title with a short line under
- * it, and the due date on the right (crimson when due today or tomorrow).
+ * it (the kind of work first), and the due date on the right (crimson when due today or tomorrow).
  * `note` replaces the class line, for example with the planner's reason.
  */
 export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date; note?: string | null; onOpen: (id: string) => void }) {
@@ -62,6 +63,11 @@ export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date
       <span className="item-body">
         <span className="item-title">{item.title}</span>
         <span className="item-sub">
+          <span className="wtype">
+            <Icon name={typeLabel(item).icon} size="xs" />
+            {typeLabel(item).word}
+          </span>
+          {' · '}
           {note ?? item.courseName ?? 'No class'}
           {flags.length > 0 && <span className="flag"> · {flags.join(' · ')}</span>}
         </span>

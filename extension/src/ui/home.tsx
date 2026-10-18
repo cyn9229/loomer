@@ -14,6 +14,7 @@ import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from '
 import { YourChanges } from './planChange';
 import { PlanSection, startWords, type PlanMode } from './planView';
 import type { ActiveSession } from './session';
+import { typeLabel } from './workType';
 import { useElapsedSeconds } from './useNow';
 
 export type HomeActions = {
@@ -172,7 +173,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {notices.length > 0 && <div className="notices">{notices}</div>}
       <PlanSection items={next ? [next.item, ...model.rest] : model.rest} room={model.room} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
-      <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} send={actions.send} />
+      <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} quizOpen={Boolean(active?.assignment.quiz)} send={actions.send} />
     </>
   );
 }
@@ -276,15 +277,25 @@ function Brief({ brief, now, send }: { brief: NonNullable<DailyBrief>; now: Date
   );
 }
 
-/** The way into Ask Loomer, pinned to the bottom of Home. Says up front when the AI service is down. */
-function AskBar({ onOpen, aiDown, send }: { onOpen: () => void; aiDown: boolean; send: PanelApi['send'] }) {
+/**
+ * The way into Ask Loomer, pinned to the bottom of Home. Says up front when the
+ * AI service is down, and that Ask Loomer is paused while a quiz session is open.
+ */
+function AskBar({ onOpen, aiDown, quizOpen, send }: { onOpen: () => void; aiDown: boolean; quizOpen: boolean; send: PanelApi['send'] }) {
   return (
     <div className="askbar-wrap">
-      {aiDown && <AiServiceDown send={send} />}
-      <button type="button" className="askbar" onClick={onOpen}>
-        <Icon name="sparkle" />
-        Ask Loomer anything
-      </button>
+      {aiDown && !quizOpen && <AiServiceDown send={send} />}
+      {quizOpen ? (
+        <p className="askbar off" role="status">
+          <Icon name="pauseCircle" />
+          Ask Loomer is paused during your quiz
+        </p>
+      ) : (
+        <button type="button" className="askbar" onClick={onOpen}>
+          <Icon name="sparkle" />
+          Ask Loomer anything
+        </button>
+      )}
     </div>
   );
 }
@@ -388,7 +399,7 @@ function NextStep({
             {item.title}
           </button>
           <span className="focus-meta">
-            {item.courseName ?? 'No class'} · {item.due ? <>due <b>{dueWhen(item.due.at, now)}</b></> : 'no due date'}
+            {item.courseName ?? 'No class'} · {typeLabel(item).word} · {item.due ? <>due <b>{dueWhen(item.due.at, now)}</b></> : 'no due date'}
           </span>
         </span>
       </div>

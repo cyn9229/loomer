@@ -18,7 +18,7 @@ import { Icon } from './Icon';
 import { Logo } from './Logo';
 import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
-import { HintCard, sessionClock, SessionTime, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
+import { HintCard, QuizNote, sessionClock, SessionTime, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
 
 export type PanelProps = {
@@ -180,6 +180,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         onOpenItem={setOpenId}
         aiDown={aiService?.up === false}
         room={home && home.status !== 'not-connected' ? home.room : []}
+        quizOpen={Boolean(active?.assignment.quiz)}
+        onEndQuiz={goWork}
       />
     );
   } else if (view === 'work' && active) {
@@ -205,6 +207,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           hintWaiting={hint !== null}
           detail={detail}
           onChecklist={() => setOpenId(active.assignment.assignmentId)}
+          api={api}
         />
         <SessionTime
           key={active.plannedUntil ?? 'none'}
@@ -216,7 +219,9 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
             setView('home');
           }}
         />
-        {workTab === 'help' ? (
+        {active.assignment.quiz ? (
+          <QuizNote api={api} />
+        ) : workTab === 'help' ? (
           <ChatView
             session={active}
             api={api}

@@ -1,4 +1,7 @@
-// Help, inside the Working screen: hint-first help for the session's assignment.
+// Help, inside the Working screen: help for the session's assignment, shaped by
+// its kind of work. Writing is hint-first with draft follow-ups; practice,
+// study and reading get their own ready questions and an optional sheet link
+// (practice and study) instead of a draft.
 // When a session is new, up to two numbered steps come first (which Doc is your
 // draft, and the one-time AI rule question). Then the proactive hint, the
 // conversation, quick follow-ups, and a docked composer with the research
@@ -12,6 +15,7 @@ import { Icon } from './Icon';
 import { LogoMark } from './Logo';
 import { LinkDocStep, Reference, type ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
+import { askHint, typeCaption, typePrompts } from './workType';
 
 const kindLabel: Record<ChatMessage['kind'], string | null> = {
   question: null,
@@ -42,6 +46,7 @@ export function ChatView({
 }) {
   const { help, assignment, doc } = session;
   const ask = useAction();
+  const [sheetSkipped, setSheetSkipped] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const canAsk = help.availability === 'available' && !help.pending && !ask.busy;
   const thinking = help.pending || ask.busy;
@@ -62,14 +67,26 @@ export function ChatView({
     send(draft);
   };
 
-  const needsDoc = doc.status === 'not-linked';
+  // Writing needs its draft linked. Practice and study may link the teacher's sheet (optional). Reading links nothing.
+  const type = assignment.workType.type;
+  const sheet = type === 'practice' || type === 'study';
+  const needsDoc = doc.status === 'not-linked' && (type === 'writing' || (sheet && !sheetSkipped));
   const needsPolicy = help.availability === 'needs-policy-answer';
   const steps = Number(needsDoc) + Number(needsPolicy);
   const last = help.messages.at(-1);
 
   return (
     <div className="chat">
-      {needsDoc && <LinkDocStep n={steps > 1 ? 1 : undefined} assignmentId={assignment.assignmentId} candidates={doc.candidates} api={api} />}
+      {needsDoc && (
+        <LinkDocStep
+          n={steps > 1 ? 1 : undefined}
+          assignmentId={assignment.assignmentId}
+          candidates={doc.candidates}
+          api={api}
+          purpose={sheet ? 'sheet' : 'draft'}
+          onSkip={sheet ? () => setSheetSkipped(true) : undefined}
+        />
+      )}
       {needsPolicy && <PolicyStep n={steps > 1 ? 2 : undefined} assignmentId={assignment.assignmentId} api={api} />}
       {steps > 0 && (
         <p className="note">
@@ -81,9 +98,7 @@ export function ChatView({
       {hint}
       <Unavailable help={help} api={api} />
 
-      {help.messages.length === 0 && help.availability === 'available' && steps === 0 && !hint && (
-        <p className="caption">Stuck? Ask about this assignment. Loomer starts with a small hint and never writes it for you.</p>
-      )}
+      {help.messages.length === 0 && help.availability === 'available' && steps === 0 && !hint && <p className="caption">{typeCaption[type]}</p>}
 
       {hint && help.messages.length > 0 && <div className="rule" />}
       {help.messages.map((m) => (
@@ -92,7 +107,16 @@ export function ChatView({
 
       {thinking && <Thinking />}
 
-      {canAsk && last?.role === 'loomer' && (
+      {canAsk && type !== 'writing' && (help.messages.length === 0 || last?.role === 'loomer') && (
+        <div className="qr">
+          {typePrompts[type].map((text) => (
+            <button key={text} type="button" className="btn sm" onClick={() => send(text)}>
+              {text}
+            </button>
+          ))}
+        </div>
+      )}
+      {canAsk && type === 'writing' && last?.role === 'loomer' && (
         <div className="qr">
           <button type="button" className="btn sm" onClick={() => send('Can you explain more?')}>
             Explain more
@@ -122,7 +146,7 @@ export function ChatView({
                   if (canAsk) send(draft);
                 }
               }}
-              placeholder={composerPlaceholder(help)}
+              placeholder={help.availability === 'available' && !help.pending ? askHint[type] : composerPlaceholder(help)}
               disabled={help.availability !== 'available'}
               rows={1}
               maxLength={2000}

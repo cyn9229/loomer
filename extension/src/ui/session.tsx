@@ -1,6 +1,8 @@
-// The Working screen's pieces. WorkHeader: which assignment, what Loomer last
-// read, a stat strip (words, sources, checklist marks), and the Help | Sources
-// switch. SourcesBody: the draft, saved pages and
+// The Working screen's pieces. WorkHeader: which assignment and what kind of
+// work, then by type: writing gets what Loomer last read and a stat strip
+// (words, sources, next to fix); practice and study get the topics on the
+// linked sheet to tick off; reading gets neither; a quiz gets only the title.
+// Then the Help | Sources switch (not for a quiz, see QuizNote). SourcesBody: the draft, saved pages and
 // screenshots, what happened this session, and Pause / End. HintCard,
 // SuggestionRow and LinkDocStep render inside Help. Every change goes through
 // PanelApi messages.
@@ -10,6 +12,7 @@ import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { DiscoverySuggestion, DocReadState, DocState, ProactiveHint, SessionModel, SourceItem } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { observedAt, timeOf } from './format';
+import { typeLabel } from './workType';
 import { Icon } from './Icon';
 import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
@@ -24,11 +27,19 @@ const readLine: Record<DocReadState, string> = {
   unreadable: 'Loomer couldn’t read your Doc. It’ll try again',
 };
 
-/** One line about the draft, under the title. */
-function draftLine(doc: DocState, now: Date): string {
-  if (doc.status === 'not-linked') return 'No draft linked yet';
-  if (doc.readState !== 'ok') return readLine[doc.readState];
-  const parts = [doc.lastReadAt ? `Draft read ${observedAt(doc.lastReadAt, now)}` : 'Draft linked', doc.studentWords !== null ? `${doc.studentWords} of your words` : null];
+/** The linked Doc is the student's draft (writing) or the teacher's sheet (practice, study). */
+type DocKind = 'draft' | 'sheet';
+
+function docKind(session: ActiveSession): DocKind {
+  return session.assignment.workType.type === 'practice' || session.assignment.workType.type === 'study' ? 'sheet' : 'draft';
+}
+
+/** One line about the linked Doc. A sheet never gets a word count: the words aren't the student's. */
+function draftLine(doc: DocState, now: Date, kind: DocKind = 'draft'): string {
+  if (doc.status === 'not-linked') return kind === 'sheet' ? 'No sheet linked' : 'No draft linked yet';
+  if (doc.readState !== 'ok') return kind === 'sheet' && doc.readState === 'waiting' ? 'Sheet linked. Loomer reads it soon' : readLine[doc.readState];
+  const name = kind === 'sheet' ? 'Sheet' : 'Draft';
+  const parts = [doc.lastReadAt ? `${name} read ${observedAt(doc.lastReadAt, now)}` : `${name} linked`, kind === 'draft' && doc.studentWords !== null ? `${doc.studentWords} of your words` : null];
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -116,24 +127,116 @@ type WorkHeaderProps = {
   detail: AssignmentDetailModel | undefined;
   /** Opens the assignment's detail (the full checklist). */
   onChecklist: () => void;
+  api: PanelApi;
 };
 
-export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist }: WorkHeaderProps) {
+/**
+ * The topics on a linked practice or study sheet. The student ticks them
+ * (topic:toggle); Loomer never marks one done. Each topic's quote from the
+ * sheet is its tooltip.
+ */
+function TopicsList({ topics, item, send }: { topics: NonNullable<ActiveSession['topics']>; item: ActiveSession['assignment']; send: PanelApi['send'] }) {
+  const toggle = useAction();
+  const title = item.workType.type === 'study' ? 'What’s on the test' : 'Topics on your sheet';
+  const done = topics.items.filter((t) => t.done).length;
+  return (
+    <section className="topics" aria-label={title}>
+      <div className="topics-k">
+        <b>{title}</b>
+        {topics.status === 'ok' && topics.items.length > 0 && (
+          <span>
+            {done} of {topics.items.length} ticked
+          </span>
+        )}
+      </div>
+      {topics.status === 'reading' && <p className="topics-note">Loomer is reading your sheet…</p>}
+      {topics.status === 'failed' && <p className="topics-note">Loomer couldn’t find topics on your sheet. Help still works.</p>}
+      {topics.status === 'ok' && topics.items.length === 0 && <p className="topics-note">No topics found on your sheet.</p>}
+      {topics.status === 'ok' &&
+        topics.items.map((t) => (
+          <label className={t.done ? 'topic done' : 'topic'} key={t.text} title={`“${t.quote}”`}>
+            <input
+              type="checkbox"
+              checked={t.done}
+              disabled={toggle.busy}
+              onChange={(e) => toggle.run(() => send({ type: 'topic:toggle', assignmentId: item.assignmentId, topic: t.text, done: e.target.checked }))}
+            />
+            <span className="cbx" aria-hidden="true">
+              {t.done && <Icon name="check" />}
+            </span>
+            <span className="grow">{t.text}</span>
+          </label>
+        ))}
+      {topics.status === 'ok' && topics.items.length > 0 && <p className="topics-note">You tick these. Loomer never marks one done.</p>}
+      {toggle.error && <p className="status-line error">{toggle.error}</p>}
+    </section>
+  );
+}
+
+/**
+ * A quiz or test in a work session: one calm note, no help box. Ask Loomer is
+ * paused everywhere until the session ends.
+ */
+export function QuizNote({ api }: { api: PanelApi }) {
+  const end = useAction();
+  return (
+    <section className="state">
+      <span className="subject lg gray">
+        <Icon name="lock" />
+      </span>
+      <h2>Loomer doesn’t help during a quiz or test</h2>
+      <p>Study for it before you start. Your plan and saved sources still work.</p>
+      <p className="paused-line">
+        <Icon name="pauseCircle" size="sm" />
+        Ask Loomer is paused while this is open.
+      </p>
+      <button type="button" className="btn sm" disabled={end.busy} aria-busy={end.busy} onClick={() => end.run(() => api.send({ type: 'session:end' }))}>
+        {end.busy ? 'Ending…' : 'End session'}
+      </button>
+      {end.error && <p className="status-line error">{end.error}</p>}
+    </section>
+  );
+}
+
+export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist, api }: WorkHeaderProps) {
+  const item = session.assignment;
+  const kind = typeLabel(item);
+  const writing = !item.quiz && item.workType.type === 'writing';
   return (
     <>
-      <h1 className="w-title">{session.assignment.title}</h1>
-      <p className="w-meta">{session.status === 'paused' ? 'Paused. Loomer isn’t reading your draft or saving pages.' : draftLine(session.doc, now)}</p>
-      <StatStrip session={session} detail={detail} onSources={() => onTab('sources')} onChecklist={onChecklist} />
-      <div className="seg" role="tablist" aria-label="Working">
-        <button type="button" role="tab" aria-selected={tab === 'help'} onClick={() => onTab('help')}>
-          Help
-          {hintWaiting && tab !== 'help' && <span className="dot" aria-label="1 hint ready" />}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'sources'} onClick={() => onTab('sources')}>
-          Sources <span className="n">{session.sources.length}</span>
-        </button>
-      </div>
+      <h1 className="w-title">{item.title}</h1>
+      <p className="w-meta">
+        <span className="wtype">
+          <Icon name={kind.icon} size="xs" />
+          {kind.word}
+        </span>
+        {' · '}
+        {session.status === 'paused' ? 'Paused. Loomer isn’t reading your Doc or saving pages.' : writing ? draftLine(session.doc, now) : (item.courseName ?? 'No class')}
+      </p>
+      {item.quiz ? null : (
+        <>
+          {writing && <StatStrip session={session} detail={detail} onSources={() => onTab('sources')} onChecklist={onChecklist} />}
+          {(item.workType.type === 'practice' || item.workType.type === 'study') && session.topics && (
+            <TopicsList topics={session.topics} item={item} send={api.send} />
+          )}
+          <WorkTabs session={session} tab={tab} onTab={onTab} hintWaiting={hintWaiting} />
+        </>
+      )}
     </>
+  );
+}
+
+function WorkTabs({ session, tab, onTab, hintWaiting }: { session: ActiveSession; tab: WorkTab; onTab: (t: WorkTab) => void; hintWaiting: boolean }) {
+  return (
+    <div className="seg" role="tablist" aria-label="Working">
+      <button type="button" role="tab" aria-selected={tab === 'help'} onClick={() => onTab('help')}>
+        Help
+        {hintWaiting && tab !== 'help' && <span className="dot" aria-label="1 hint ready" />}
+      </button>
+      <button type="button" role="tab" aria-selected={tab === 'sources'} onClick={() => onTab('sources')}>
+        Sources <span className="n">{session.sources.length}</span>
+      </button>
+    </div>
   );
 }
 
@@ -352,8 +455,27 @@ export function Reference({ quote, from }: { quote: string; from: 'your draft' |
 
 const DOC_URL = /^https:\/\/docs\.google\.com\/document\/d\/[\w-]+/;
 
-/** Asks once which Doc is the draft. One click per candidate, or paste a link. Never links on its own. */
-export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; assignmentId: string; candidates: { docId: string; url: string }[]; api: PanelApi }) {
+/**
+ * Asks once which Doc to link. One click per candidate, or paste a link; never
+ * links on its own. `draft`: the student's own draft (writing, required for
+ * draft help). `sheet`: the teacher's sheet for practice or study, optional,
+ * so it offers Not now and never counts words.
+ */
+export function LinkDocStep({
+  n,
+  assignmentId,
+  candidates,
+  api,
+  purpose = 'draft',
+  onSkip,
+}: {
+  n?: number;
+  assignmentId: string;
+  candidates: { docId: string; url: string }[];
+  api: PanelApi;
+  purpose?: 'draft' | 'sheet';
+  onSkip?: () => void;
+}) {
   const action = useAction();
   const [pasted, setPasted] = useState('');
   const [linking, setLinking] = useState<string | null>(null);
@@ -367,7 +489,7 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
         .then((granted) =>
           granted
             ? api.send({ type: 'doc:link', assignmentId, docUrl })
-            : { ok: false as const, error: 'Chrome didn’t allow access to Google Docs. Your draft isn’t linked.' },
+            : { ok: false as const, error: `Chrome didn’t allow access to Google Docs. Your ${purpose} isn’t linked.` },
         )
         .finally(() => setLinking(null)),
     );
@@ -384,11 +506,17 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
   };
 
   return (
-    <section className="step" aria-label="Link your draft">
+    <section className="step" aria-label={purpose === 'sheet' ? 'Link your sheet' : 'Link your draft'}>
       <span className="num">{n ?? <Icon name="doc" size="xs" />}</span>
       <div className="grow">
-        <div className="step-t">Which Doc is your draft?</div>
-        <div className="step-s">{candidates.length > 0 ? 'We found these in the instructions. Pick yours.' : 'Paste the link to your Google Doc.'}</div>
+        <div className="step-t">{purpose === 'sheet' ? 'Working from a Doc? Link your sheet' : 'Which Doc is your draft?'}</div>
+        <div className="step-s">
+          {purpose === 'sheet'
+            ? 'It’s the teacher’s sheet, not your draft. Loomer lists its topics so you can tick them off.'
+            : candidates.length > 0
+              ? 'We found these in the instructions. Pick yours.'
+              : 'Paste the link to your Google Doc.'}
+        </div>
         {candidates.map((c) => (
           <div className="pick" key={c.docId}>
             <Icon name="doc" />
@@ -410,6 +538,11 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
             Link
           </button>
         </form>
+        {onSkip && (
+          <button type="button" className="link muted" style={{ marginTop: 8 }} onClick={onSkip}>
+            Not now
+          </button>
+        )}
         {action.error && <p className="status-line error" style={{ marginTop: 6 }}>{action.error}</p>}
       </div>
     </section>
@@ -419,7 +552,7 @@ export function LinkDocStep({ n, assignmentId, candidates, api }: { n?: number; 
 type SessionVerb = 'pause' | 'resume' | 'end';
 const busyLabel: Record<SessionVerb, string> = { pause: 'Pausing…', resume: 'Resuming…', end: 'Ending…' };
 
-/** The Sources tab: the draft, saved pages, what happened, and Pause / End. */
+/** The Sources tab: the draft or sheet, saved pages, what happened, and Pause / End. */
 export function SourcesBody({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
   const action = useAction();
   const [verb, setVerb] = useState<SessionVerb | null>(null);
@@ -428,15 +561,22 @@ export function SourcesBody({ session, now, api }: { session: ActiveSession; now
     action.run(() => api.send({ type: v === 'end' ? 'session:end' : v === 'pause' ? 'session:pause' : 'session:resume' }).finally(() => setVerb(null)));
   };
   const paused = session.status === 'paused';
+  const kind = docKind(session);
+  // Reading has no Doc to link; show one only if it is already linked.
+  const showDoc = session.assignment.workType.type !== 'reading' || session.doc.status === 'linked';
   return (
     <>
-      <div className="sec">
-        <h2>Your draft</h2>
-      </div>
-      {session.doc.status === 'linked' ? (
-        <LinkedDoc doc={session.doc} now={now} api={api} />
-      ) : (
-        <LinkDocStep assignmentId={session.assignment.assignmentId} candidates={session.doc.candidates} api={api} />
+      {showDoc && (
+        <>
+          <div className="sec">
+            <h2>{kind === 'sheet' ? 'Your sheet' : 'Your draft'}</h2>
+          </div>
+          {session.doc.status === 'linked' ? (
+            <LinkedDoc doc={session.doc} now={now} api={api} kind={kind} />
+          ) : (
+            <LinkDocStep assignmentId={session.assignment.assignmentId} candidates={session.doc.candidates} api={api} purpose={kind} />
+          )}
+        </>
       )}
 
       <div className="sec">
@@ -479,7 +619,7 @@ export function SourcesBody({ session, now, api }: { session: ActiveSession; now
   );
 }
 
-function LinkedDoc({ doc, now, api }: { doc: Extract<DocState, { status: 'linked' }>; now: Date; api: PanelApi }) {
+function LinkedDoc({ doc, now, api, kind }: { doc: Extract<DocState, { status: 'linked' }>; now: Date; api: PanelApi; kind: DocKind }) {
   const trouble = doc.readState === 'no-access' || doc.readState === 'unreadable' || doc.readState === 'rate-limited';
   return (
     <>
@@ -487,7 +627,7 @@ function LinkedDoc({ doc, now, api }: { doc: Extract<DocState, { status: 'linked
         <Icon name="doc" />
         <span className="grow">
           <span className="row-title">Google Doc</span>
-          <span className={trouble ? 'row-sub danger-text' : 'row-sub'}>{draftLine(doc, now)}</span>
+          <span className={trouble ? 'row-sub danger-text' : 'row-sub'}>{draftLine(doc, now, kind)}</span>
         </span>
         <a className="link" href={doc.url} target="_blank" rel="noreferrer">
           Open

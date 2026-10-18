@@ -15,6 +15,7 @@ import { Icon } from './Icon';
 import { LogoMark } from './Logo';
 import { AiServiceDown, SubjectTile } from './parts';
 import { PlanChangeCard } from './planChange';
+import { usePopover } from './usePopover';
 
 type AskProps = {
   model: ChatModel | undefined;
@@ -29,9 +30,12 @@ type AskProps = {
   aiDown: boolean;
   /** Home's items and day room, for plan-change cards. */
   room: DayRoom[];
+  /** A work session on a quiz or test is open: Ask Loomer is paused everywhere until it ends. */
+  quizOpen: boolean;
+  onEndQuiz: () => void;
 };
 
-export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room }: AskProps) {
+export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz }: AskProps) {
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
@@ -39,7 +43,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const endRef = useRef<HTMLDivElement>(null);
   const turns = model?.turns ?? [];
   const last = turns.at(-1);
-  const available = model?.availability === 'available';
+  const available = model?.availability === 'available' && !quizOpen;
   const canSend = available && !model.streaming && !ask.busy;
 
   // A new turn scrolls into view; a growing reply follows only while the student is at the bottom.
@@ -79,13 +83,25 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
         )}
       </div>
 
-      {model && model.availability !== 'available' ? (
+      {quizOpen ? (
+        <section className="state">
+          <span className="subject lg gray">
+            <Icon name="pauseCircle" />
+          </span>
+          <h2>Ask Loomer is paused</h2>
+          <p>You have a quiz or test open. Loomer comes back when you end that session.</p>
+          <button type="button" className="btn sm" onClick={onEndQuiz}>
+            Go to the quiz session
+          </button>
+        </section>
+      ) : model && model.availability !== 'available' ? (
         <NotAvailable availability={model.availability} assignment={assignment} threadKey={threadKey} api={api} onGeneral={() => onThread(GENERAL_THREAD)} />
       ) : turns.length === 0 ? (
         <Starters assignment={assignment} onAsk={send} disabled={!canSend} />
       ) : null}
 
-      {model?.availability !== 'blocked' &&
+      {!quizOpen &&
+        model?.availability !== 'blocked' &&
         turns.map((turn) => (
           <Turn
             key={turn.id}
@@ -125,7 +141,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
                     send(draft);
                   }
                 }}
-                placeholder={placeholder(model?.availability, turns.length > 0, assignment)}
+                placeholder={quizOpen ? 'Paused during your quiz' : placeholder(model?.availability, turns.length > 0, assignment)}
                 disabled={!available}
                 rows={1}
                 maxLength={4000}
@@ -169,21 +185,7 @@ function shortTitle(title: string): string {
 
 /** The thread switcher: General, then each assignment. Closes on pick, Escape, or a click outside. */
 function ThreadMenu({ threadKey, assignment, threads, now, onThread }: { threadKey: string; assignment: WorkItem | null; threads: WorkItem[]; now: Date; onThread: (key: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  const { open, setOpen, ref } = usePopover<HTMLDivElement>();
   const pick = (key: string) => {
     setOpen(false);
     onThread(key);
@@ -281,11 +283,14 @@ function NotAvailable({
       </section>
     );
   }
-  const title = availability === 'blocked' ? 'No AI on this one' : availability === 'limited' ? 'Only some AI help on this one' : 'AI help is on hold';
+  const title =
+    availability === 'quiz' ? 'No AI help on a quiz or test' : availability === 'blocked' ? 'No AI on this one' : availability === 'limited' ? 'Only some AI help on this one' : 'AI help is on hold';
   const text =
-    availability === 'unresolved'
-      ? 'Loomer will help once the AI rule for this assignment is clear.'
-      : 'Your teacher’s rule says to do this one on your own, so Loomer won’t help with it here.';
+    availability === 'quiz'
+      ? 'Study for it before you start. Ask about the topics in General.'
+      : availability === 'unresolved'
+        ? 'Loomer will help once the AI rule for this assignment is clear.'
+        : 'Your teacher’s rule says to do this one on your own, so Loomer won’t help with it here.';
   return (
     <section className="state">
       <span className="subject lg amber">

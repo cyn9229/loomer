@@ -1,4 +1,5 @@
-// Assignment detail: tap any assignment. Subject icon and class, title, the
+// Assignment detail: tap any assignment. Subject icon, class and kind of work
+// (a menu to change it), title, the
 // instructions in plain words (AI, when allowed), three tiles (start by, due,
 // workload; "you set this" when the student chose them), the student's own
 // time guess, the checkpoint track when the instructions set earlier dates, and
@@ -14,6 +15,7 @@ import { type HomeActions, startControl } from './home';
 import { Icon } from './Icon';
 import { PolicyNote, SizeMeter, SubjectTile } from './parts';
 import { DeleteAssignmentData } from './privacy';
+import { TypeMenu } from './workType';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
 
@@ -25,7 +27,8 @@ export function DetailView({ item, detail, now, actions }: { item: WorkItem; det
     <>
       <div className="d-head">
         <SubjectTile courseName={item.courseName} size="lg" />
-        <span className="d-class">{item.courseName ?? 'No class'}</span>
+        <span className="d-class">{item.courseName ?? 'No class'} ·</span>
+        <TypeMenu item={item} send={actions.send} />
       </div>
       <h1 className="d-title">{item.title}</h1>
       {ok?.plainWords && (
@@ -195,7 +198,9 @@ const notChecked: Record<Exclude<Detail['checkAvailability'], 'available'>, stri
 /** What the assignment asks for. Checks describe what was seen in the draft, never a grade. */
 function Requirements({ detail, now, actions }: { detail: Detail; now: Date; actions: HomeActions }) {
   const check = useAction();
-  const canCheck = detail.checkAvailability === 'available';
+  // The draft check reads the student's own draft, so it exists only for writing.
+  const writing = !detail.item.quiz && detail.item.workType.type === 'writing';
+  const canCheck = writing && detail.checkAvailability === 'available';
   const checking = detail.checkPending || check.busy;
   const run = () => check.run(() => actions.send({ type: 'requirements:check', assignmentId: detail.item.assignmentId }));
   const sorted = [...detail.requirements].sort((a, b) => order[a.state] - order[b.state]);
@@ -238,9 +243,11 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
               </li>
             ))}
           </ul>
-          <p className="hint-line" style={{ paddingTop: 6 }}>
-            {detail.checkAvailability === 'available' ? 'Loomer hasn’t checked your draft yet.' : notChecked[detail.checkAvailability]}
-          </p>
+          {writing && (
+            <p className="hint-line" style={{ paddingTop: 6 }}>
+              {detail.checkAvailability === 'available' ? 'Loomer hasn’t checked your draft yet.' : notChecked[detail.checkAvailability]}
+            </p>
+          )}
         </>
       )}
       {canCheck && detail.requirements.length > 0 && (

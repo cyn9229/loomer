@@ -7,6 +7,8 @@ import type { IconProps } from '@mingcute/react';
 import AddRegular from '@mingcute/react/core-regular/add';
 import ArrowRightRegular from '@mingcute/react/core-regular/arrow-right';
 import ArrowUpRegular from '@mingcute/react/core-regular/arrow-up';
+import Book4Regular from '@mingcute/react/core-regular/book-4';
+import BrainRegular from '@mingcute/react/core-regular/brain';
 import CalendarMonthRegular from '@mingcute/react/core-regular/calendar-month';
 import CalendarRegular from '@mingcute/react/core-regular/calendar';
 import ChartBarRegular from '@mingcute/react/core-regular/chart-bar';
@@ -31,11 +33,14 @@ import ListCheckRegular from '@mingcute/react/core-regular/list-check';
 import LockRegular from '@mingcute/react/core-regular/lock';
 import NotificationRegular from '@mingcute/react/core-regular/notification';
 import PauseRegular from '@mingcute/react/core-regular/pause';
+import PauseCircleRegular from '@mingcute/react/core-regular/pause-circle';
 import PencilRegular from '@mingcute/react/core-regular/pencil';
+import PencilRulerRegular from '@mingcute/react/core-regular/pencil-ruler';
 import PicRegular from '@mingcute/react/core-regular/pic';
 import PlayRegular from '@mingcute/react/core-regular/play';
 import PowerRegular from '@mingcute/react/core-regular/power';
 import QuestionRegular from '@mingcute/react/core-regular/question';
+import QuillPenRegular from '@mingcute/react/core-regular/quill-pen';
 import Refresh2Regular from '@mingcute/react/core-regular/refresh-2';
 import RepeatRegular from '@mingcute/react/core-regular/repeat';
 import RightRegular from '@mingcute/react/core-regular/right';
@@ -45,6 +50,7 @@ import ServerRegular from '@mingcute/react/core-regular/server';
 import Settings3Regular from '@mingcute/react/core-regular/settings-3';
 import StopCircleRegular from '@mingcute/react/core-regular/stop-circle';
 import SunriseRegular from '@mingcute/react/core-regular/sunrise';
+import TaskRegular from '@mingcute/react/core-regular/task';
 import TargetRegular from '@mingcute/react/core-regular/target';
 import TimeRegular from '@mingcute/react/core-regular/time';
 import UpRegular from '@mingcute/react/core-regular/up';
@@ -120,6 +126,13 @@ const icons = {
   edit: PencilRegular,
   repeat: RepeatRegular,
   undo: HistoryAnticlockwiseRegular,
+  pauseCircle: PauseCircleRegular,
+  // Work types, picked by workTypeIcon().
+  writing: QuillPenRegular,
+  practice: PencilRulerRegular,
+  study: BrainRegular,
+  reading: Book4Regular,
+  quiz: TaskRegular,
   // Subjects, picked from the class name by subjectIcon(). Filled, shown in a tinted square.
   subjectDoc: Document2Filled,
   book: Book2Filled,
