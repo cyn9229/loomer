@@ -40,7 +40,10 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const canSend = available && !model.streaming && !ask.busy;
 
   // A new turn scrolls into view; a growing reply follows only while the student is at the bottom.
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [turns.length]);
+  // Braces matter: Chrome's scrollIntoView now returns a Promise, and an effect must not return one.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [turns.length]);
   const growth = last ? last.blocks.length * 100_000 + last.blocks.reduce((n, b) => n + (b.kind === 'markdown' ? b.text.length : 1), 0) : 0;
   useLayoutEffect(() => {
     if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160) endRef.current?.scrollIntoView({ block: 'end' });

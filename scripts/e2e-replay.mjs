@@ -146,7 +146,24 @@ try {
     check('chat: makes a visual', visual?.status === 'done' && visual.blocks.some((b) => b.kind === 'visual'), visual?.error ?? visual?.blocks.map((b) => b.kind).join(','));
     const quiz = await ask('general', 'Can you quiz me on that?');
     check('chat: makes a quiz', quiz?.status === 'done' && quiz.blocks.some((b) => b.kind === 'quiz'), quiz?.error ?? quiz?.blocks.map((b) => b.kind).join(','));
-    await shot(4, 'chat');
+    const demo = await ask('general', 'Show me a small interactive demo: a slider for tree canopy percent that shows how street temperature changes.');
+    const interactive = demo?.blocks.some((b) => b.kind === 'visual' && b.visual.type === 'interactive');
+    check('chat: makes an interactive demo', demo?.status === 'done' && interactive ? true : demo?.status === 'done' ? null : false, demo?.blocks.map((b) => b.kind).join(','));
+    // Open the real chat screen and confirm the visuals render there.
+    const askBar = panel.getByText(/Ask Loomer anything/i).first();
+    if (await askBar.count()) {
+      await askBar.click();
+      await panel.waitForTimeout(1_500);
+      await shot(4, 'chat');
+      const svgCount = await panel.locator('.vis-svg svg, svg[role="img"]').count();
+      check('chat screen renders the diagram', svgCount > 0, `${svgCount} svg`);
+      const frames = await panel.locator('iframe[sandbox]').count();
+      check('chat screen embeds the demo in a sandboxed frame', interactive ? frames > 0 : null, `${frames} sandboxed iframes`);
+      await panel.mouse.wheel(0, 4000);
+      await shot(5, 'chat-bottom');
+    } else {
+      check('chat screen opened', false, 'Ask bar not found');
+    }
   } else {
     check('chat steps', null, 'AI service not available');
   }
@@ -174,7 +191,7 @@ try {
   // 5. End and resume
   check('end session', (await send({ type: 'session:end' })).ok);
   await panel.reload();
-  await shot(5, 'home-after-session');
+  await shot(6, 'home-after-session');
   check('no page errors in the panel', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '));
 } finally {
   await ctx.close();

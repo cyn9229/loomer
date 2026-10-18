@@ -8,6 +8,8 @@ const e2e = process.env.LOOMER_E2E === '1';
 // research pages) is requested at runtime from a user action, never at install.
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  // Readable stack traces in the E2E build.
+  vite: () => (e2e ? { build: { minify: false } } : {}),
   manifest: {
     name: 'loomer',
     description: 'Know what you are getting into, and pick up where you left off.',

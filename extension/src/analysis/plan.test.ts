@@ -35,6 +35,11 @@ describe('checkpoints', () => {
 });
 
 describe('plan', () => {
+  it('keeps checkpoint text lowercase inside the reason sentence', () => {
+    const ranked = plan([entry('essay', 6, 'Substantial', { milestones: [{ text: 'Submit a full draft', quote: 'q', date: null, daysBeforeDue: 2 }] })], now);
+    expect(rankReasons(ranked).get('essay')).toMatch(/heavy workload, submit a full draft by /);
+  });
+
   it('starts from the next checkpoint, not the final due date', () => {
     const [p] = plan([entry('essay', 6, 'Substantial', { milestones: [{ text: 'Draft', quote: 'q', date: null, daysBeforeDue: 2 }] })], now);
     expect(p!.startBy).toEqual({ at: inDays(0), basis: 'checkpoint' });

@@ -101,6 +101,8 @@ export function keepPreviousTop(ranked: Planned[], previousTopId: string | null)
   return [prev, ...ranked.filter((p) => p !== prev)];
 }
 
+/** Checkpoint text arrives as its own sentence ("Submit a draft"); mid-sentence it needs a lowercase start. */
+const lowerFirst = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 const weekday = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });
 /** Matches the panel's "Workload: Light / Medium / Heavy" labels. */
 const effortWords: Record<EffortLabel, string> = { Substantial: 'heavy workload', Moderate: 'medium workload', Short: 'light workload', Unknown: 'workload not known yet' };
@@ -115,7 +117,7 @@ export function startPhrase(p: Planned): string {
 export function rankReasons(ranked: Planned[]): Map<string, string> {
   const reasons = new Map<string, string>();
   ranked.forEach((p, i) => {
-    const target = p.nextCheckpoint ? `${p.nextCheckpoint.text} by ${weekday(p.nextCheckpoint.at)}` : p.due ? `due ${weekday(p.due)}` : 'no due date';
+    const target = p.nextCheckpoint ? `${lowerFirst(p.nextCheckpoint.text)} by ${weekday(p.nextCheckpoint.at)}` : p.due ? `due ${weekday(p.due)}` : 'no due date';
     const base = `${startPhrase(p)}: ${effortWords[p.effort]}, ${target}.`;
     const runnerUp = ranked[1];
     if (i === 0 && runnerUp?.due && p.due && Date.parse(runnerUp.due) < Date.parse(p.due)) {
