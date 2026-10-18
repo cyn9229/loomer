@@ -13,6 +13,7 @@ const base: HintInputs = {
   readOk: true,
   docLinked: true,
   helpAllowed: true,
+  writing: true,
   lastEditAt: t0.getTime(),
   lastHintAt: null,
   hintShowing: false,
@@ -33,6 +34,7 @@ describe('hintEligibility', () => {
     expect(hintEligibility({ ...base, lastEval: { hash: 'h1', studentWords: 110 } })).toMatchObject({ wait: 'no-new-evidence' });
     expect(hintEligibility({ ...base, studentWords: 20 })).toMatchObject({ wait: 'no-new-evidence' });
     expect(hintEligibility({ ...base, helpAllowed: false })).toMatchObject({ wait: 'help-not-allowed' });
+    expect(hintEligibility({ ...base, writing: false })).toMatchObject({ wait: 'not-writing' });
     expect(hintEligibility({ ...base, readOk: false })).toMatchObject({ wait: 'doc-not-readable' });
   });
 

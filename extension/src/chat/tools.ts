@@ -49,7 +49,8 @@ function itemSummary(i: WorkItem) {
     start_day_picked_by_student: i.startBy?.basis === 'student',
     student_guess: i.guessMinutes ? minutesWords(i.guessMinutes) : null,
     checkpoints: i.checkpoints.map((c) => `${c.text}: ${day(c.at)}`),
-    ai_help: i.policy.state === 'blocked' ? 'off (teacher rule)' : 'allowed',
+    work_type: i.workType.type,
+    ai_help: i.quiz ? 'off (quiz or test)' : i.policy.state === 'blocked' ? 'off (teacher rule)' : 'allowed',
     plan_note: i.rankReason,
   };
 }

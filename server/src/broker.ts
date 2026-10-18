@@ -4,6 +4,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  WORK_TYPE_GUIDANCE,
   HELP_ROUTE,
   helpRequestSchema,
   helpResponseSchema,
@@ -93,9 +94,12 @@ Return JSON: kind (hint, explanation, question, example, or redirect when you de
   user: (req) =>
     [
       `Assignment: ${req.title}`,
+      WORK_TYPE_GUIDANCE[req.workType],
       `<instructions>\n${req.instructions}\n</instructions>`,
       `Rubric:\n${rubricText(req.rubric)}`,
-      req.workScope === 'none' ? 'No draft is linked.' : `<draft scope="${req.workScope}">\n${req.studentWork}\n</draft>`,
+      req.workScope === 'none'
+        ? 'Nothing of theirs is linked.'
+        : `<${req.workType === 'writing' ? 'draft' : 'their_work'} scope="${req.workScope}">\n${req.studentWork}\n</${req.workType === 'writing' ? 'draft' : 'their_work'}>`,
       req.history.length ? `Conversation so far:\n${req.history.map((m) => `${m.role}: ${m.text}`).join('\n')}` : null,
       `Student: ${req.question}`,
     ]

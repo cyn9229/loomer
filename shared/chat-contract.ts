@@ -25,6 +25,7 @@ export const chatRequestSchema = z.strictObject({
     z.strictObject({
       kind: z.literal('assignment'),
       title: z.string().max(300),
+      work_type: z.enum(['writing', 'practice', 'study', 'reading']),
       instructions: z.string().max(12_000),
       rubric: z.array(z.string().max(1_000)).max(30),
     }),

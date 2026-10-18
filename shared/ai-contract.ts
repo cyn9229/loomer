@@ -3,6 +3,9 @@
 // import zod.
 import { z } from 'zod';
 
+export const WORK_TYPES = ['writing', 'practice', 'study', 'reading'] as const;
+export type WorkKind = (typeof WORK_TYPES)[number];
+
 export const REQUIREMENTS_ROUTE = '/ai/requirements';
 
 /** Only bounded school-provided text. Never the student's draft. */
@@ -43,7 +46,7 @@ export const requirementsResponseSchema = z.strictObject({
   /** One concrete first step, at most about 9 words, that starts with a verb and does not do the work. */
   firstStep: z.string(),
   /** What kind of work it is, so the session can help the right way. */
-  workType: z.enum(['writing', 'practice', 'study', 'reading']),
+  workType: z.enum(WORK_TYPES),
 });
 
 export type RequirementsRequest = z.infer<typeof requirementsRequestSchema>;
@@ -63,6 +66,17 @@ const rubricItems = z.array(z.strictObject({ description: z.string().max(1_000),
 /** How much of the student's work was readable and sent. Reviews must state it. */
 export const workScope = z.enum(['full', 'partial', 'none']);
 
+/** How to help with each kind of work. Shared by session help and Ask Loomer so both teach the same way. */
+export const WORK_TYPE_GUIDANCE: Record<WorkKind, string> = {
+  writing: 'This is writing work. Help with ideas, structure, evidence, and clarity through hints and questions about their own draft.',
+  practice:
+    'This is practice work: problems or exercises to solve. Explain the concept behind a problem, show a worked example with different numbers or a different problem of the same kind, or ask a guiding question about the step they are on. Never give the answer or the steps for their own problem. Offer a quick check on the topic.',
+  study:
+    'This is study work: preparing for a test or quiz. Help them see what to review, explain topics, and offer to check their understanding. Never answer the actual test or quiz questions.',
+  reading:
+    'This is reading work. Explain key terms and background, and ask questions that check understanding. Never write their annotations or answers, and never replace the reading with a full summary.',
+};
+
 export const HELP_ROUTE = '/ai/help';
 
 /** Hint-first help on the student's own work. Requires the work-help AI check. */
@@ -74,6 +88,7 @@ export const helpRequestSchema = z.strictObject({
   workScope,
   history: z.array(z.strictObject({ role: z.enum(['student', 'loomer']), text: z.string().max(2_000) })).max(8),
   question: z.string().max(2_000),
+  workType: z.enum(WORK_TYPES),
 });
 
 const reference = z.strictObject({ quote: z.string(), from: z.enum(['your draft', 'the instructions']) });

@@ -17,7 +17,7 @@ import { checkAiDispatch, type AiDenyReason } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
 import type { PolicyResult } from '../analysis/policy';
-import { isQuiz } from '../analysis/workType';
+import { isQuiz, storedWorkType } from '../analysis/workType';
 
 const MAX_WORK_CHARS = 15_000;
 
@@ -93,8 +93,10 @@ export async function askHelp({ db, ai, fetch: fetchImpl = fetch }: HelpDeps, as
   }
   const ctx = await workContext(db, assignmentId);
   if (!ctx) return;
+  const a = await db.assignments.get(assignmentId);
   const request: HelpRequest = {
     ...ctx,
+    workType: a ? await storedWorkType(db, a) : 'writing',
     question,
     history: history.filter((m) => m.kind !== 'notice').map((m) => ({ role: m.role, text: m.text.slice(0, 2_000) })),
   };

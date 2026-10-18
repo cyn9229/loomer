@@ -12,6 +12,7 @@ import {
 import { studentText, wordCount } from '../adapters/docs/reader';
 import type { DocRead, LoomerDb } from '../core/db';
 import type { AiSettings, ProactiveSettings } from '../core/settings';
+import { storedWorkType } from '../analysis/workType';
 import { workHelpDecision } from './help';
 import { currentSession } from './session';
 
@@ -26,6 +27,8 @@ export type HintWait =
   | 'no-doc'
   | 'doc-not-readable'
   | 'help-not-allowed'
+  /** Unprompted hints are about writing; other work types get help only when asked. */
+  | 'not-writing'
   | 'still-editing'
   | 'cooldown'
   | 'hint-showing'
@@ -38,6 +41,7 @@ export type HintInputs = {
   readOk: boolean;
   docLinked: boolean;
   helpAllowed: boolean;
+  writing: boolean;
   /** Latest edit signal: a detected Doc change or a keystroke, ms epoch. */
   lastEditAt: number | null;
   lastHintAt: number | null;
@@ -54,6 +58,7 @@ export function hintEligibility(i: HintInputs): HintCheck {
   if (!i.docLinked) return { eligible: false, wait: 'no-doc' };
   if (!i.readOk) return { eligible: false, wait: 'doc-not-readable' };
   if (!i.helpAllowed) return { eligible: false, wait: 'help-not-allowed' };
+  if (!i.writing) return { eligible: false, wait: 'not-writing' };
   if (i.lastEditAt === null || i.now - i.lastEditAt < i.proactive.delaySec * 1000) return { eligible: false, wait: 'still-editing' };
   if (i.hintShowing) return { eligible: false, wait: 'hint-showing' };
   if (i.lastHintAt !== null && i.now - i.lastHintAt < HINT_COOLDOWN_MS) return { eligible: false, wait: 'cooldown' };
@@ -117,6 +122,7 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
     docLinked: Boolean(link),
     readOk: read?.readState === 'ok' && Boolean(read.current),
     helpAllowed: (await workHelpDecision(db, settings, s.assignmentId)).allowed,
+    writing: a ? (await storedWorkType(db, a)) === 'writing' : false,
     lastEditAt: edits.length ? Math.max(...edits) : null,
     lastHintAt: s.lastHintAt ? Date.parse(s.lastHintAt) : null,
     hintShowing: stillShowing > 0,

@@ -6,7 +6,7 @@ import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent } 
 import type { ChatTurnRecord, LoomerDb } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type ChatBlock, type ThreadKey } from '../model/chat';
-import { isQuiz } from '../analysis/workType';
+import { isQuiz, storedWorkType } from '../analysis/workType';
 import { workHelpDecision } from '../session/help';
 import { runTool, type ToolSettings } from './tools';
 
@@ -90,6 +90,7 @@ async function contextFor(db: LoomerDb, threadKey: ThreadKey): Promise<ChatReque
   return {
     kind: 'assignment',
     title: (a?.title ?? 'Assignment').slice(0, 300),
+    work_type: a ? await storedWorkType(db, a) : 'writing',
     instructions: (a?.detail?.text ?? '').slice(0, 12_000),
     rubric: (a?.detail?.rubric ?? []).slice(0, 30).map((r) => r.description.slice(0, 1_000)),
   };

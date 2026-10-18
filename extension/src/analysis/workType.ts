@@ -1,7 +1,7 @@
 // What kind of work an assignment is, and whether it is a quiz taken in Canvas.
 // The student's own choice wins, then the AI's reading of the instructions,
 // then local rules over the Canvas kind, submission type, and title.
-import type { Analysis, Assignment, StudentContext } from '../core/db';
+import type { Analysis, Assignment, LoomerDb, StudentContext } from '../core/db';
 import type { WorkItem, WorkType } from '../model/home';
 
 /** Title words, checked in order. A word must stand alone ("read" matches, "ready" does not). */
@@ -34,6 +34,12 @@ export function workTypeFor(a: Assignment, analysis: Extract<Analysis, { status:
   // A quiz is always study work around the quiz itself, whatever its instructions say.
   if (!isQuiz(a) && analysis?.workType) return { type: analysis.workType, source: 'ai' };
   return { type: ruleType(a), source: 'rule' };
+}
+
+/** The work type from the store, for code outside Home's model (sessions, help, chat). Dexie reads only. */
+export async function storedWorkType(db: LoomerDb, a: Assignment): Promise<WorkType> {
+  const [analysis, ctx] = await Promise.all([db.analyses.get(a.id), db.studentContext.get(a.id)]);
+  return workTypeFor(a, analysis?.status === 'ok' && analysis.detailHash === a.detail?.hash ? analysis : null, ctx).type;
 }
 
 export const WORK_TYPE_WORDS: Record<WorkType, string> = { writing: 'Writing', practice: 'Practice', study: 'Study', reading: 'Reading' };
