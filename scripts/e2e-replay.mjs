@@ -170,6 +170,26 @@ try {
       await shot(4, 'chat');
       const svgCount = await panel.locator('.vis-svg svg, svg[role="img"]').count();
       check('chat screen renders the diagram', svgCount > 0, `${svgCount} svg`);
+      // AI-drawn labels must not overlap each other or run past the diagram's edge.
+      const layout = await panel.evaluate(() => {
+        const svg = document.querySelector('.vis-svg svg, svg[role="img"]');
+        if (!svg) return null;
+        const box = svg.getBoundingClientRect();
+        const texts = [...svg.querySelectorAll('text')].map((t) => ({ text: t.textContent?.trim() ?? '', r: t.getBoundingClientRect() })).filter((t) => t.text && t.r.width > 0);
+        const overlaps = [];
+        for (let i = 0; i < texts.length; i++)
+          for (let j = i + 1; j < texts.length; j++) {
+            const a = texts[i].r, b = texts[j].r;
+            if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) overlaps.push(`${texts[i].text} / ${texts[j].text}`);
+          }
+        const outside = texts.filter((t) => t.r.left < box.left - 1 || t.r.right > box.right + 1).map((t) => t.text);
+        return { labels: texts.length, overlaps, outside };
+      });
+      check(
+        'diagram labels do not overlap or spill',
+        layout ? layout.overlaps.length === 0 && layout.outside.length === 0 : null,
+        layout ? `${layout.labels} labels; overlaps: ${layout.overlaps.join('; ') || 'none'}; outside: ${layout.outside.join('; ') || 'none'}` : 'no diagram',
+      );
       const frames = await panel.locator('iframe[sandbox]').count();
       check('chat screen embeds the demo in a sandboxed frame', interactive ? frames > 0 : null, `${frames} sandboxed iframes`);
       await panel.mouse.wheel(0, 4000);
