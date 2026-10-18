@@ -1,19 +1,34 @@
-// The loomer mark (three overlapping circles: ink, persimmon, light persimmon)
-// and the wordmark.
-export function LogoMark({ size = 20 }: { size?: number }) {
+// The real loomer artwork (cut from the user's logo image, served from
+// public/brand). Logo is the horizontal lockup, mark plus wordmark; LogoMark is
+// the mark alone where space is tight. `onDark` picks the variant whose
+// near-black parts are white, for dark or colored backgrounds. Sources are
+// about 4x the largest size used here, so the browser only ever scales down.
+
+const LOCKUP_RATIO = 954 / 224;
+const MARK_RATIO = 332 / 315;
+
+export function Logo({ height = 22, onDark = false }: { height?: number; onDark?: boolean }) {
   return (
-    <svg className="logo" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="9.6" r="7.4" fill="#23211e" />
-      <circle cx="8.9" cy="21.8" r="7.4" fill="#f2551d" />
-      <circle cx="23.1" cy="21.8" r="7.4" fill="#f7a07c" />
-    </svg>
+    <img
+      className="logo"
+      src={onDark ? '/brand/loomer-lockup-on-dark.png' : '/brand/loomer-lockup.png'}
+      alt="loomer"
+      height={height}
+      width={Math.round(height * LOCKUP_RATIO)}
+    />
   );
 }
 
-export function Wordmark({ size }: { size?: number }) {
+/** The mark alone. Decorative by default (next to text that already names Loomer). */
+export function LogoMark({ size = 18, onDark = false, label }: { size?: number; onDark?: boolean; label?: string }) {
   return (
-    <span className="wordmark" style={size ? { fontSize: size } : undefined}>
-      loomer
-    </span>
+    <img
+      className="logo"
+      src={onDark ? '/brand/loomer-mark-on-dark.png' : '/brand/loomer-mark.png'}
+      alt={label ?? ''}
+      aria-hidden={label ? undefined : true}
+      height={size}
+      width={Math.round(size * MARK_RATIO)}
+    />
   );
 }

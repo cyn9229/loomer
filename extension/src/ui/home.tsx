@@ -417,7 +417,11 @@ function Agenda({ items, now, actions }: { items: WorkItem[]; now: Date; actions
             <div className="day">
               {head.soon ? (
                 <>
-                  <b>{head.label}</b> · {date}
+                  <b>
+                    <Icon name="clock" size="xs" />
+                    {head.label}
+                  </b>{' '}
+                  · {date}
                 </>
               ) : (
                 head.label

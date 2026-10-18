@@ -10,7 +10,7 @@ import { isLoopback, parseSourceUrl } from '../core/url';
 import type { CheckInfo } from '../model/home';
 import { checkProblem, observedAt } from './format';
 import { Icon, type IconName } from './Icon';
-import { LogoMark, Wordmark } from './Logo';
+import { Logo } from './Logo';
 import { Pill, ReplayPill } from './parts';
 import { ConfirmBox, exclusionScope } from './privacy';
 import { useAction } from './api';
@@ -36,8 +36,7 @@ export function OptionsPage({ settings, ai, proactive, discovery, notify, lastCh
     <div className="options">
       <aside className="options-side">
         <div className="options-brand">
-          <LogoMark size={24} />
-          <Wordmark />
+          <Logo height={26} />
         </div>
         <nav aria-label="Settings">
           <NavItem icon="link" label="Get started" active={current === 'start'} onClick={() => setView('start')} />

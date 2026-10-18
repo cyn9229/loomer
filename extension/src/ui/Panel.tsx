@@ -13,7 +13,7 @@ import { ChatView } from './chat';
 import { DetailView } from './detail';
 import { type HomeActions, HomeView } from './home';
 import { Icon } from './Icon';
-import { LogoMark, Wordmark } from './Logo';
+import { Logo } from './Logo';
 import { ScreenshotView } from './screenshot';
 import { HintCard, sessionClock, SourcesBody, SuggestionRow, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
@@ -110,8 +110,7 @@ export function Panel({ home, session, useDetail, screenshot, now, api, onRefres
   );
   const brand = (
     <>
-      <LogoMark />
-      <Wordmark />
+      <Logo />
       <span className="grow" />
       {replay && <span className="tag">Replay data</span>}
     </>

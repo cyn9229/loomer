@@ -1,6 +1,9 @@
 /* Loomer design system ("Agenda"). Shared by the side panel and the options
-   page. White page, Geist, warm ink, hairlines, and one persimmon accent for
-   the main action and anything due today or tomorrow. Hierarchy comes from
+   page. White page, Geist, the logo's near-black ink, hairlines, and the logo
+   orange as the one accent. Orange (#fc4811) is 3.4:1 on white, so it is used
+   for fills, icons and focus; links and small accent text use --acc-text
+   (5.4:1), and text on orange is near-black (5.5:1), never white. Urgency
+   (due today or tomorrow) is a separate crimson with a clock icon and words. Hierarchy comes from
    type size, weight, alignment and a time column, not from containers: no
    pills on rows, no gradients, no side stripes, no black fills.
    Motion is one-shot only: things ease in when they appear, controls answer a
@@ -15,9 +18,9 @@
   color-scheme: light;
 
   /* Text */
-  --ink: #23211e;
+  --ink: #111018;
   --text: #55524c;
-  --muted: #8b877f;
+  --muted: #736f68;
   --faint: #b6b2aa;
 
   /* Surfaces and lines */
@@ -28,14 +31,19 @@
   --line-strong: #e4e1dc;
 
   /* Accent */
-  --acc: #f2551d;
-  --acc-deep: #d9440f;
+  --acc: #fc4811;
+  --acc-deep: #e23d0b;
+  --acc-text: #c2380a;
+  --acc-text-hover: #9e2d07;
+  --on-acc: #111018;
+  --acc-soft: #fdc4b0;
 
   /* Status */
   --amber: #b86a00;
   --amber-dot: #e9a23b;
   --amber-tint: #fdf1e0;
   --red: #d63a2f;
+  --urgent: #c8102e;
   --red-tint: #fcebea;
   --green: #2fae66;
   --green-ink: #1d7a46;
@@ -43,7 +51,7 @@
   /* Shape */
   --r: 12px;
   --r-sm: 8px;
-  --focus: 0 0 0 3px rgba(242, 85, 29, 0.3);
+  --focus: 0 0 0 3px rgba(252, 72, 17, 0.35);
 
   /* Motion (strong curves from the animate skill; UI stays under 300ms) */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -145,13 +153,7 @@ blockquote {
 }
 .logo {
   flex: none;
-}
-.wordmark {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.4px;
-  color: var(--ink);
-  line-height: 1;
+  display: block;
 }
 
 /* ---------- Panel shell ---------- */
@@ -188,7 +190,7 @@ blockquote {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  color: var(--acc);
+  color: var(--acc-text);
   font-weight: 600;
   font-size: 14px;
 }
@@ -196,7 +198,7 @@ blockquote {
   margin-left: -6px;
 }
 .back:hover {
-  color: var(--acc-deep);
+  color: var(--acc-text-hover);
 }
 .live {
   display: inline-flex;
@@ -258,7 +260,7 @@ blockquote {
 .eyebrow {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--acc);
+  color: var(--acc-text);
 }
 .eyebrow.muted {
   color: var(--muted);
@@ -342,7 +344,7 @@ button.focus-sub:hover {
   height: 46px;
   border-radius: var(--r);
   background: var(--acc);
-  color: #fff;
+  color: var(--on-acc);
   font-weight: 600;
   font-size: 15px;
   align-items: center;
@@ -350,13 +352,14 @@ button.focus-sub:hover {
   gap: 8px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 6px 16px -8px rgba(242, 85, 29, 0.7);
+    0 6px 16px -8px rgba(252, 72, 17, 0.55);
 }
 .btn-primary:hover {
   background: var(--acc-deep);
 }
 .btn-primary:disabled {
-  background: #f6b49b;
+  background: var(--acc-soft);
+  color: rgba(17, 16, 24, 0.5);
   box-shadow: none;
 }
 .btn-primary .icon {
@@ -390,7 +393,7 @@ button.focus-sub:hover {
 .btn.accent {
   box-shadow: none;
   background: var(--acc);
-  color: #fff;
+  color: var(--on-acc);
 }
 .btn.accent:hover {
   background: var(--acc-deep);
@@ -409,12 +412,12 @@ button.focus-sub:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--acc);
+  color: var(--acc-text);
   font-weight: 600;
   font-size: 13.5px;
 }
 .link:hover {
-  color: var(--acc-deep);
+  color: var(--acc-text-hover);
 }
 .link.muted {
   color: var(--muted);
@@ -551,7 +554,7 @@ details.notice-fold[open] > summary > .icon {
 }
 .day b {
   font-weight: 600;
-  color: var(--acc);
+  color: var(--urgent);
 }
 .item {
   display: grid;
@@ -562,7 +565,7 @@ details.notice-fold[open] > summary > .icon {
   text-align: left;
 }
 .item:hover .item-title {
-  color: var(--acc-deep);
+  color: var(--acc-text);
 }
 .item-t {
   font-size: 13px;
@@ -572,7 +575,7 @@ details.notice-fold[open] > summary > .icon {
   white-space: nowrap;
 }
 .item-t.soon {
-  color: var(--acc);
+  color: var(--urgent);
   font-weight: 600;
 }
 .item-body {
@@ -705,7 +708,7 @@ details.fold[open] {
   color: var(--muted);
 }
 .source a {
-  color: var(--acc);
+  color: var(--acc-text);
   font-weight: 600;
 }
 .policy {
@@ -917,7 +920,7 @@ details.fold[open] {
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--acc);
+  color: var(--acc-text);
 }
 .hint-k .icon {
   width: 14px;
@@ -947,7 +950,7 @@ details.fold[open] {
   gap: 6px;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--acc);
+  color: var(--acc-text);
 }
 .hint-row-open .icon {
   width: 14px;
@@ -1096,13 +1099,13 @@ details.fold[open] {
   height: 34px;
   border-radius: 9px;
   background: var(--acc);
-  color: #fff;
+  color: var(--on-acc);
   display: grid;
   place-items: center;
   flex: none;
 }
 .send-btn:disabled {
-  background: #f6b49b;
+  background: var(--acc-soft);
 }
 
 /* Setup steps (which Doc, the AI rule question). */
@@ -1221,7 +1224,7 @@ details.fold[open] {
   text-overflow: ellipsis;
 }
 a.row-title:hover {
-  color: var(--acc-deep);
+  color: var(--acc-text);
 }
 .row-sub {
   display: block;
@@ -1410,7 +1413,7 @@ a.row-title:hover {
   margin: 8px 0 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--acc-deep);
+  color: var(--acc-text);
 }
 
 /* ---------- Options page ---------- */
@@ -1471,7 +1474,7 @@ a.row-title:hover {
 .kicker {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--acc);
+  color: var(--acc-text);
 }
 .page-title {
   margin: 4px 0 6px;
@@ -1700,7 +1703,7 @@ a.row-title:hover {
   padding: 0 18px;
   border-radius: var(--r);
   background: var(--acc);
-  color: #fff;
+  color: var(--on-acc);
   font-weight: 600;
   font-size: 14.5px;
   white-space: nowrap;
@@ -1709,7 +1712,8 @@ a.row-title:hover {
   background: var(--acc-deep);
 }
 .cta:disabled {
-  background: #f6b49b;
+  background: var(--acc-soft);
+  color: rgba(17, 16, 24, 0.5);
 }
 .switch {
   position: relative;
@@ -1935,4 +1939,17 @@ details > summary .icon {
 /* Hint header links sit apart. */
 .hint-k .link + .link {
   margin-left: 10px;
+}
+
+/* Icons inside accent text keep the full logo orange. */
+.hint-k .icon,
+.hint-row-open .icon,
+.eyebrow .icon {
+  color: var(--acc);
+}
+/* Today / Tomorrow: urgency is crimson, with a clock and the word, never color alone. */
+.day b {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

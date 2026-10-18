@@ -251,7 +251,7 @@ function Message({ message }: { message: ChatMessage }) {
   const label = kindLabel[message.kind];
   return (
     <div className="msg">
-      <LogoMark size={18} />
+      <LogoMark size={17} />
       <div className="grow">
         {label && <span className="msg-k">{label}</span>}
         <p className="msg-text">{message.text}</p>
