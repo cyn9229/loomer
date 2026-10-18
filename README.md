@@ -2,7 +2,7 @@
 
 **Know what you're getting into, and pick up where you left off.**
 
-Loomer is a Chrome extension (Manifest V3, side panel) for students who use Canvas and Google Docs. It collects assignments in the background, reads their requirements before suggesting anything, recommends one concrete next step with the evidence behind it, gives hint-first help without doing the work, offers a quiet hint after you pause writing, and helps you resume where you left off. It is local-first and open source (MIT).
+Loomer is a Chrome extension (Manifest V3, side panel) for students who use Canvas and Google Docs. It collects assignments in the background, reads their requirements before suggesting anything, plans when to start each one, recommends one concrete next step with the evidence behind it, explains concepts (with diagrams, charts, small interactive demos, and quick checks) without doing the work, offers a quiet hint after you pause writing, and helps you resume where you left off. It is local-first and open source (MIT).
 
 Hackathon prototype for Neighborhood Hacks 2026. Read [SECURITY.md](SECURITY.md) for exactly what leaves the device and the known limits.
 
@@ -12,8 +12,10 @@ Hackathon prototype for Neighborhood Hacks 2026. Read [SECURITY.md](SECURITY.md)
 | --- | --- |
 | Discover | Approve your school's Canvas address once. Loomer reads your planner and course assignment lists every 15 minutes while Chrome is open, including unopened assignments. |
 | Understand | Reads instructions, rubrics, quiz descriptions, discussion prompts, and syllabi. Finds due dates written in instructions. Checks each assignment's AI policy locally before any AI is used. |
-| Prioritize | One next action, ranked by inspectable rules (due date minus lead time for the requirement-based effort), with "Why this?" quoting the source. No top pick until requirements are checked. |
-| Work | Start a session, link your Google Doc, save research pages with a right-click (or Alt+Shift+L), ask for a hint or a review. Help never writes your work. |
+| Prioritize | A plan by start date: each item gets "start today / tomorrow / by Wed" from its next checkpoint (or due date) minus a lead time for its requirement-based workload. Checkpoints such as "draft due for peer review" come from the instructions. Every rank has a plain reason; a busy-days note flags when two heavier items need a start close together; the top stays steady unless the evidence changes, and one line says what moved. A short daily brief on the first open. No top pick until requirements are checked. |
+| Understand, simply | "Plain words" rewrites the instructions in two or three simple sentences. Requirements show Observed / Needs review / Unknown against your draft when you ask Loomer to check. |
+| Work | Start a session, link your Google Doc, save research pages with a right-click (or Alt+Shift+L), or capture a screenshot with preview and crop. Ask for a hint or a review. Help never writes your work. |
+| Ask Loomer | Chat anywhere, about a concept or one assignment. Replies stream in with Markdown and math. Loomer can look at your assignments (read-only), draw a diagram or chart, build a small interactive demo, or give a quick multiple-choice check on a concept. |
 | Proactively guide | After you pause writing (default 90 s) and have written something new, Loomer may show one quiet hint that quotes your draft. Usually it shows nothing. Opt-in research suggestions notice a related tab and offer "Add this page." |
 | Resume | When you come back, Home shows what you did last time and one tap to continue. |
 
@@ -28,7 +30,7 @@ npm run dev:server                   # local AI service and Canvas replay on htt
 npm run build                        # extension in extension/.output/chrome-mv3
 ```
 
-Load it: `chrome://extensions` → Developer mode → Load unpacked → `extension/.output/chrome-mv3` (it is a hidden folder; press Cmd+Shift+. in the file picker). Pin loomer, open its options, connect Canvas, and turn on AI help if you want it.
+Load it: `chrome://extensions` → Developer mode → Load unpacked → `extension/.output/chrome-mv3` (it is a hidden folder; press Cmd+Shift+. in the file picker). Pin loomer, open its options, connect Canvas, and turn on AI help if you want it. Optional switches, all off by default: research suggestions, desktop notifications (deadline changes only).
 
 ## Repeatable demo (labeled replay)
 
@@ -40,13 +42,16 @@ Students cannot create Canvas assignments, and Canvas Free-for-Teacher was disco
 4. Start the essay session and link the Doc. Write; the activity list records factual edits.
 5. Open the demo sources `http://localhost:8787/sources/heat-islands` and `/sources/tree-cover` (labeled demonstration material). Right-click → Add page to Loomer, or turn on Research suggestions and wait 30 s for "Add this page".
 6. Ask a question (hint first), request a review, then stop typing for 90 s to allow a proactive hint.
-7. End the session; Home shows the resume briefing.
-8. "Personal narrative" contains a no-AI rule: AI help is blocked with the quoted rule, while organizing still works.
-9. Gmail and sign-in pages are never captured, even with a right-click.
+7. Ask Loomer: "What should I work on this week?", "Explain the urban heat island effect with a diagram", "Quiz me on that".
+8. End the session; Home shows the resume briefing.
+9. "Personal narrative" contains a no-AI rule: AI help is blocked with the quoted rule, while organizing still works.
+10. Gmail and sign-in pages are never captured, even with a right-click.
+
+Rehearse it automatically: `npm run e2e:replay` (first time: `npx playwright install chromium`). It resets the replay, builds the extension, runs the flow in Chromium, and writes screenshots and a pass/fail report to `e2e-out/`. It passed 17 of 17 checks twice in a row from a reset. AI steps use `server/.env` and cost a few cents.
 
 ## Support matrix
 
-Evidence classes: **unit** = focused automated tests (`npm test`, 65 tests); **replay** = the built extension driven in Chromium against the local replay; **live** = a real signed-in account, read-only.
+Evidence classes: **unit** = focused automated tests (`npm test`, 96 tests); **replay** = the built extension driven in Chromium against the local replay (`npm run e2e:replay`); **live** = a real signed-in account, read-only.
 
 | Capability | Evidence | Notes |
 | --- | --- | --- |
@@ -61,9 +66,16 @@ Evidence classes: **unit** = focused automated tests (`npm test`, 65 tests); **r
 | AI policy detection | unit | Bans, permissions, mixed rules, quotations, ambiguous mentions, unreadable sources. |
 | Research discovery | unit, replay | Suggestion after the dwell and one-shot capture verified in Chromium; Chrome's permission prompts not yet tested in a real profile. |
 | Pause, exclusions, delete, clear all | unit, replay | |
-| Google Classroom, screenshots, desktop notifications, sync | not supported | Cut for the MVP. |
+| Planner (start-by, checkpoints, reasons, busy days, calm re-ranking, daily brief) | unit, replay | Live check on the 53-item account pending. |
+| Plain words, requirement check (Observed / Needs review / Unknown) | unit | Statements must quote the draft or become Unknown. |
+| Ask Loomer chat with tools, visuals, quizzes | unit, replay | Live through the broker: planning answer from list_work, an SVG diagram, a 3-question quiz, and an instant refusal on the no-AI assignment. |
+| Interactive widget sandbox | replay | A hostile widget ran its script but could not reach extension APIs, cookies, storage, the parent page, or the network. |
+| Desktop notifications (deadline changes), screenshot capture | unit | Chrome prompts and the OS notification not yet tested in a real profile. |
+| AI service status | replay | Health check of the local service, shown before asking. |
+| Google Classroom | not supported | Feasibility probe in `probes/classroom/`; no account with assignments to prove it. |
+| Cross-device sync | not supported | Local-only by choice for the MVP. |
 
-`probes/g0/` holds the read-only probe used for the live validation. It is never shipped.
+`probes/g0/` and `probes/classroom/` hold the read-only probes used for live validation. They are never shipped.
 
 ## Architecture
 
@@ -76,10 +88,14 @@ extension/
   src/adapters/    canvas (gated API client, collector), docs (paced export reader)
   src/analysis/    deadlines, AI policy rules, requirement analysis, recommendation rules
   src/session/     sessions, help and review, proactive hints, resume packets
-  src/capture/, src/discovery/, src/privacy/
-  src/model/       typed contracts the UI renders (HomeModel, SessionModel)
-server/            local Hono service: AI broker (OpenRouter) and the labeled Canvas replay
-shared/            AI request and response contract used by both sides
+  entrypoints/widget.sandbox/     sandboxed page for AI-made interactive demos (no extension APIs, no network)
+  src/analysis/plan.ts           the planner: checkpoints, start-by buckets, reasons, busy days, daily brief
+  src/chat/        Ask Loomer engine (streaming, tool loop), read-only tools, SVG cleaning, widget frame helper
+  src/capture/, src/discovery/, src/privacy/, src/notify/
+  src/model/       typed contracts the UI renders (HomeModel, SessionModel, AssignmentDetailModel, ChatModel)
+server/            local Hono service: AI broker and streaming chat (OpenRouter), the labeled Canvas replay, demo sources
+shared/            AI and chat contracts used by both sides
+scripts/           e2e-replay.mjs rehearsal
 ```
 
 Data flow: approved source → gate → local extraction → local policy check → normalized evidence in IndexedDB → AI check → minimal request through the local broker → validated, quote-grounded result → local store → side panel.
@@ -90,10 +106,12 @@ Data flow: approved source → gate → local extraction → local policy check 
 npm run typecheck
 npm test
 npm run dev        # WXT dev mode with reload
+npm run e2e:replay # full rehearsal in Chromium against the replay
 ```
 
 Rules worth knowing before changing things:
 - Every network read goes through `checkCollect` in `src/core/gate.ts`; every AI call goes through `checkAiDispatch`.
+- Model output is untrusted: Markdown renders without raw HTML or images, SVG is cleaned in the worker and again in the panel, and interactive HTML runs only in the sandboxed widget page.
 - Inside a Dexie live query, read only Dexie. A non-Dexie await stops change tracking and the panel lags; read settings with `useStorageItem`.
 - The service worker can stop at any time: keep state in storage, schedule with alarms.
 
