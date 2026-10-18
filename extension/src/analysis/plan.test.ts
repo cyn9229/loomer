@@ -79,7 +79,9 @@ describe('reasons, crowded week, brief', () => {
   });
 
   it('warns when two big assignments need a start within two days', () => {
-    expect(crowdedWeek(ranked, now)).toMatchObject({ assignmentIds: ['Essay', 'Lab report'] });
+    const crowded = crowdedWeek(ranked, now);
+    expect(crowded).toMatchObject({ assignmentIds: ['Essay', 'Lab report'] });
+    expect(crowded?.text).toMatch(/busy: Essay and Lab report both need a start\. Plan time for both\.$/);
     expect(crowdedWeek(plan([entry('Essay', 4, 'Substantial'), entry('Lab report', 12, 'Substantial')], now), now)).toBeNull();
   });
 

@@ -125,7 +125,7 @@ export function rankReasons(ranked: Planned[]): Map<string, string> {
   return reasons;
 }
 
-/** Two bigger items needing a start within two days of each other in the coming week. */
+/** Two bigger items needing a start within two days of each other in the coming week: a heads-up, not a rule. */
 export function crowdedWeek(ranked: Planned[], now: Date): { text: string; assignmentIds: string[] } | null {
   const horizon = now.getTime() + CROWDED_LOOKAHEAD_DAYS * DAY_MS;
   const big = ranked
@@ -134,12 +134,12 @@ export function crowdedWeek(ranked: Planned[], now: Date): { text: string; assig
   for (let i = 0; i + 1 < big.length; i++) {
     const a = big[i]!;
     const b = big[i + 1]!;
-    if (Math.abs(dayIndex(Date.parse(b.startBy!.at)) - dayIndex(Date.parse(a.startBy!.at))) <= CROWDED_WINDOW_DAYS) {
-      const later = time(a.due) > time(b.due) ? a : b;
-      return {
-        text: `${a.title} and ${b.title} both need a start by ${weekday(b.startBy!.at)}. Starting ${later.title} sooner gives each its own days.`,
-        assignmentIds: [a.id, b.id],
-      };
+    const dayA = dayIndex(Date.parse(a.startBy!.at));
+    const dayB = dayIndex(Date.parse(b.startBy!.at));
+    if (Math.abs(dayB - dayA) <= CROWDED_WINDOW_DAYS) {
+      // Several things can start on one day; this only flags the load so the student plans time for it.
+      const when = dayA === dayB ? `${weekday(a.startBy!.at)} is busy` : `${weekday(a.startBy!.at)} and ${weekday(b.startBy!.at)} are busy`;
+      return { text: `${when}: ${a.title} and ${b.title} both need a start. Plan time for both.`, assignmentIds: [a.id, b.id] };
     }
   }
   return null;
