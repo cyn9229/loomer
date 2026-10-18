@@ -14,6 +14,10 @@ export function cleanSvg(input: string): string | null {
     .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     // Only in-document references (#id) and data: images survive.
     .replace(/\s(?:xlink:)?href\s*=\s*("(?!#|data:image\/)[^"]*"|'(?!#|data:image\/)[^']*')/gi, '')
-    .replace(/url\(\s*['"]?(?!#)[^)]*\)/gi, 'none');
+    .replace(/url\(\s*['"]?(?!#)[^)]*\)/gi, 'none')
+    // CSS imports fetch from the network.
+    .replace(/@import[^;>]*;?/gi, '')
+    // SMIL animations can rewrite a link at runtime (a known SVG XSS vector).
+    .replace(/<(set|animate|animateMotion|animateTransform)\b[^>]*\battributeName\s*=\s*["']?(?:xlink:)?href[\s\S]*?(?:\/>|<\/\1>)/gi, '');
   return /<script|javascript:|<iframe|<object|<embed/i.test(cleaned) ? null : cleaned;
 }

@@ -3,6 +3,7 @@
 // only and is never deployed as part of the extension.
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { brokerRoutes, type ReasoningEffort } from './broker.ts';
 import { chatRoutes } from './chat.ts';
@@ -21,6 +22,8 @@ const aiEnv = {
 };
 
 const app = new Hono()
+  // AI requests are bounded text; anything larger is refused before parsing.
+  .use('/ai/*', bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ ok: false, error: 'request too large' }, 413) }))
   .get('/health', (c) => c.json({ ok: true }))
   .route('/', replayRoutes(demoDocUrl))
   .route('/', sourceRoutes)

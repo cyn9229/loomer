@@ -2,7 +2,9 @@
 // never change anything. Each returns text for the model and, for display
 // tools, one validated block for the panel. Arguments are untrusted model output.
 import { chatTools, type ChatToolName } from '../../../shared/chat-contract';
+import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
 import { buildHomeModel, type RecommendInput } from '../analysis/recommend';
+import { checkAiDispatch } from '../core/gate';
 import type { LoomerDb } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
@@ -81,6 +83,12 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
       // A teacher's no-AI rule: share only that help is off, never the content.
       if (item.policy.state === 'blocked') {
         return { forModel: JSON.stringify({ ...itemSummary(item), blocked: true, rule: item.policy.quote ?? 'The teacher does not allow AI help.' }), label };
+      }
+      // Instructions go to AI under the same rule as requirement analysis (not when the policy is unclear or unreadable).
+      const context = new Map((await db.studentContext.bulkGet([a.id, courseKey(a)])).filter((c) => c !== undefined).map((c) => [c.key, c]));
+      const policy = assignmentPolicy(a, await db.courses.get(courseKey(a)));
+      if (!checkAiDispatch({ aiEnabled: true, policy, answer: policyAnswer(a, context), purpose: 'requirements-analysis' }).allowed) {
+        return { forModel: JSON.stringify({ ...itemSummary(item), paused: true, note: 'Loomer is not sure AI help is allowed here, so the instructions are not shared.' }), label };
       }
       const analysis = await db.analyses.get(a.id);
       return {

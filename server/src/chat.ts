@@ -112,7 +112,13 @@ export function chatRoutes(env: { apiKey: string | undefined; model: string; eff
             if (!line.startsWith('data:')) continue; // comments and keep-alives
             const data = line.slice(5).trim();
             if (data === '[DONE]') continue;
-            const chunk = sseChunk.safeParse(JSON.parse(data));
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(data);
+            } catch {
+              continue; // one malformed line must not end the reply
+            }
+            const chunk = sseChunk.safeParse(parsed);
             if (!chunk.success) continue;
             if (chunk.data.error) {
               await send({ type: 'error', error: `provider error ${chunk.data.error.code ?? ''}`.trim() });

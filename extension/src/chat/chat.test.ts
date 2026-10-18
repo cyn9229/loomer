@@ -50,6 +50,8 @@ describe('cleanSvg', () => {
     expect(out).toBe('<svg viewBox="0 0 10 10"><a><rect/></a><use href="#a"/></svg>');
     expect(cleanSvg('<div>hi</div>')).toBeNull();
     expect(cleanSvg('<svg><a href="javascript:alert(1)">x</a></svg>')).not.toMatch(/javascript/);
+    const sneaky = cleanSvg('<svg><style>@import "https://evil.test/x.css";</style><a><set attributeName="href" to="https://evil.test"/><text>t</text></a></svg>');
+    expect(sneaky).not.toMatch(/evil\.test/);
   });
 });
 
@@ -58,6 +60,13 @@ describe('runTool', () => {
     const r = await runTool(db, settings, 'get_assignment', JSON.stringify({ assignment_id: 'banned' }), now);
     expect(JSON.parse(r.forModel)).toMatchObject({ blocked: true });
     expect(r.forModel).not.toContain('instructions');
+  });
+
+  it('withholds instructions when the AI policy is unclear', async () => {
+    await db.assignments.put(assignment('unclear', 'We will discuss AI in class.'));
+    const r = JSON.parse((await runTool(db, settings, 'get_assignment', JSON.stringify({ assignment_id: 'unclear' }), now)).forModel) as Record<string, unknown>;
+    expect(r).toMatchObject({ paused: true });
+    expect(r.instructions).toBeUndefined();
   });
 
   it('validates visuals and quizzes before showing them', async () => {
