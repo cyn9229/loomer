@@ -35,7 +35,8 @@ export function editFromItem(c: PlanChangeItem, now: Date): PlanEdit | string {
         : c.repeat
           ? roomKey.weekday(WEEKDAY_INDEX[c.weekday!])
           : roomKey.date(nextDateFor(WEEKDAY_INDEX[c.weekday!], now));
-      return { kind: 'room', key, level: c.level, minutes: c.minutes };
+      // A busy day has no starts, so a number with it is not the student's; drop it.
+      return { kind: 'room', key, level: c.level, minutes: c.level === 'busy' ? null : c.minutes };
     }
     case 'workload':
       return { kind: 'workload', assignmentId: c.assignment_id, label: STUDENT_WORKLOAD[c.label] };

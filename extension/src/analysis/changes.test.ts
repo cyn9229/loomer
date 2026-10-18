@@ -47,7 +47,7 @@ beforeEach(async () => {
 });
 
 const propose = (changes: object[]) => runTool(db, settings, 'propose_plan_change', JSON.stringify({ changes }), now, 'general');
-const busy = (date: string) => ({ kind: 'room', date, weekday: null, repeat: false, level: 'busy', minutes: null });
+const busy = (date: string) => ({ kind: 'room', date, weekday: null, repeat: false, level: 'busy', minutes: 0 });
 
 describe('propose_plan_change', () => {
   it('rejects unknown ids and past dates without storing anything', async () => {
@@ -62,6 +62,7 @@ describe('propose_plan_change', () => {
     expect(r.block?.kind).toBe('plan-change');
     const [change] = await db.planChanges.toArray();
     expect(change!.status).toBe('proposed');
+    expect(change!.preview.lines[0]).not.toMatch(/you have/);
     expect(change!.preview.days).toEqual([{ date: dateIn(4), before: expect.objectContaining({ level: 'free' }), after: expect.objectContaining({ level: 'busy' }) }]);
     expect(change!.preview.moves.map((m) => [m.assignmentId, localDay(new Date(m.from!)), localDay(new Date(m.to!))])).toEqual([['essay', dateIn(4), dateIn(3)]]);
     // Nothing is written until apply.
