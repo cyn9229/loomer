@@ -133,6 +133,8 @@ export type NextAction = {
   loomerPick: { item: WorkItem; reason: string } | null;
   /** One line when the top of the plan moved since the last check, and why. Null when nothing moved. */
   change: string | null;
+  /** The best thing Loomer found about this step, shown under it. Always set; 'countdown' is the fallback. */
+  insight: Insight;
   /**
    * For practice or study work with a sheet: the topic to do next and why. When
    * set, `action` is "Review <topic>" (explain) or "Check <topic>" (quick
@@ -140,6 +142,18 @@ export type NextAction = {
    */
   topic: TopicNext;
 };
+
+/**
+ * What kind of find leads Home's why, picked in this order:
+ * - change: the top of the plan moved since the student last looked.
+ * - hidden-deadline: the instructions set a step before the due date.
+ * - busy-day: the start moved earlier because the student said a day had little room.
+ * - weak-topic: practice or study work with a shaky topic from quick checks.
+ * - countdown: nothing new; the due date and days left.
+ */
+export type InsightKind = 'change' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
+/** One sentence that names the assignment and gives the concrete fact. `aiFound` is true only when the AI read the fact from the instructions. */
+export type Insight = { kind: InsightKind; text: string; aiFound: boolean };
 
 /** Two or more bigger assignments need a start within two days of each other. */
 export type CrowdedWeek = { text: string; assignmentIds: string[] } | null;

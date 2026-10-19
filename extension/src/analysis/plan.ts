@@ -81,7 +81,7 @@ export type RoomFor = (date: string) => DayRoom;
 export const freeRoom: RoomFor = (date) => ({ date, level: 'free', minutes: null, repeating: false });
 
 /** Local calendar day index, so "today" means the student's today, not UTC. */
-const dayIndex = (t: number) => {
+export const dayIndex = (t: number) => {
   const d = new Date(t);
   return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY_MS));
 };
@@ -256,11 +256,11 @@ export function keepPreviousTop(ranked: Planned[], previousTopId: string | null)
 }
 
 /** Checkpoint text arrives as its own sentence ("Submit a draft"); mid-sentence it needs a lowercase start. */
-const lowerFirst = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+export const lowerFirst = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 /** "Wed", for tight spots. */
 const weekday = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });
 /** "Wednesday", for sentences. */
-const weekdayLong = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long' });
+export const weekdayLong = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long' });
 
 /** "45 min", "2 h", "1 h 30 min": the student's own number, said back. */
 export function minutesWords(n: number): string {
@@ -303,8 +303,8 @@ export function startPhrase(p: Planned): string {
   return `Start by ${weekdayLong(p.startBy.at)}`;
 }
 
-const dayName = (ymd: string) => weekdayLong(new Date(noonOf(dayOfDate(ymd))).toISOString());
-const roomWords: Record<RoomLevel, string> = { busy: 'is busy', little: 'has little room', some: 'only has some room', free: 'is free' };
+export const dayName = (ymd: string) => weekdayLong(new Date(noonOf(dayOfDate(ymd))).toISOString());
+export const roomWords: Record<RoomLevel, string> = { busy: 'is busy', little: 'has little room', some: 'only has some room', free: 'is free' };
 
 /**
  * The reason for one item's start, as one friendly sentence with the reason in

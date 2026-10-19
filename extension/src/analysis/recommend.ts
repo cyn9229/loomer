@@ -7,9 +7,10 @@ import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
 import type { PlanChangeView } from '../model/plan';
-import { comparePlanned, crowdedWeek, dailyBrief, dueWords, keepPreviousTop, localDay, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
+import { comparePlanned, crowdedWeek, dailyBrief, dueWords, keepPreviousTop, localDay, lowerFirst, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
 import { nextTopic, topicItems } from './topicStanding';
+import { assignmentNoun, insightFor, weakTopicInsight } from './insight';
 import { isQuiz, workTypeFor } from './workType';
 import type { PolicyResult } from './policy';
 
@@ -125,13 +126,15 @@ function withTopic(input: RecommendInput, core: CoreModel): CoreModel {
   const topic = nextTopic(items);
   if (!topic) return core;
   const t = items.find((x) => x.text === topic.topic)!;
+  // A shaky topic outranks only the plain countdown (change, hidden deadline, and busy day come first).
+  const weak = core.next.insight.kind === 'countdown' && a ? weakTopicInsight(a, t, effectiveDue(a, input.now), input.now) : null;
   const evidence: Evidence =
     topic.mode === 'explain'
       ? { kind: 'student-context', text: topic.reason, sourceLabel: 'Your quick checks' }
       : { kind: 'ai-interpretation', text: `${t.text} is on your sheet, and you haven't checked it yet.`, quote: t.quote, sourceLabel: t.sheet ?? 'Your sheet' };
   return {
     ...core,
-    next: { ...core.next, action: `${topic.mode === 'explain' ? 'Review' : 'Check'} ${topic.topic}`, aiGenerated: true, topic, evidence: [...core.next.evidence, evidence] },
+    next: { ...core.next, action: `${topic.mode === 'explain' ? 'Review' : 'Check'} ${topic.topic}`, aiGenerated: true, topic, evidence: [...core.next.evidence, evidence], insight: weak ?? core.next.insight },
   };
 }
 
@@ -267,18 +270,19 @@ export function nextPlanSnapshot(input: RecommendInput, prev: PlanSnapshot): Pla
   for (const c of r.ranked) entries[c.a.id] = { title: c.a.title, due: c.due.at, startBy: c.planned?.startBy?.at ?? null };
   const topId = top?.a.id ?? null;
   const moved = prev?.topId && topId && prev.topId !== topId;
-  return { topId, entries, change: moved ? { text: describeMove(prev, topId, entries), at: input.now.toISOString() } : (prev?.change ?? null) };
+  return { topId, entries, change: moved ? { text: describeMove(prev, topId, entries, assignmentNoun(top!.a)), at: input.now.toISOString() } : (prev?.change ?? null) };
 }
 
-function describeMove(prev: NonNullable<PlanSnapshot>, topId: string, entries: NonNullable<PlanSnapshot>['entries']): string {
+/** Why the top moved, naming both assignments: "Your teacher moved Lab 4 to Friday, so this essay is first now." */
+function describeMove(prev: NonNullable<PlanSnapshot>, topId: string, entries: NonNullable<PlanSnapshot>['entries'], noun: string): string {
   const was = prev.entries[prev.topId!];
   const now = entries[topId]!;
   const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'long' }) : 'no date');
-  if (!entries[prev.topId!]) return `${was?.title ?? 'Your last top item'} is off your list now, so ${now.title} is next.`;
-  if (!prev.entries[topId]) return `${now.title} is new from Canvas.`;
-  if (prev.entries[topId]!.due !== now.due) return `${now.title} is now due ${day(now.due)}.`;
-  if (was && was.due !== entries[prev.topId!]!.due) return `${was.title} moved to ${day(entries[prev.topId!]!.due)}, so ${now.title} is next.`;
-  return `${now.title} now needs to start sooner.`;
+  if (!entries[prev.topId!]) return `${was?.title ?? 'Your last top item'} is off your list now, so ${noun} is first.`;
+  if (!prev.entries[topId]) return `${now.title} is new from Canvas and needs to start first.`;
+  if (prev.entries[topId]!.due !== now.due) return `${now.title} is now due ${day(now.due)}, so Loomer moved ${noun} to the top.`;
+  if (was && was.due !== entries[prev.topId!]!.due) return `Your teacher moved ${was.title} to ${day(entries[prev.topId!]!.due)}, so ${noun} is first now.`;
+  return `${now.title} now needs to start sooner, so Loomer moved ${noun} to the top.`;
 }
 
 type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext> };
@@ -374,14 +378,14 @@ function limitationFor(c: Candidate): Evidence[] {
 }
 
 function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 'loomerPick' | 'change'>, now: Date): NextAction {
-  const { a, item, analysis, due } = top;
+  const { a, item, analysis, due, planned } = top;
   const dueText = due.at ? dueWords(due.at, now) : null;
   const reason = extra.chosenByStudent
     ? dueText
       ? `You picked this one, and it's due ${dueText}.`
       : "You picked this one, and Loomer didn't find a due date."
     : (item.rankReason ?? (dueText ? `It's due ${dueText}.` : "Loomer didn't find a due date for this one."));
-  const choice = extra;
+  const choice = { ...extra, insight: insightFor({ a, planned, due, change: extra.change, now }) };
 
   const evidence: Evidence[] = [
     !due.at
@@ -402,7 +406,7 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
   for (const c of item.checkpoints) {
     evidence.push({
       kind: 'ai-interpretation',
-      text: `The instructions set an earlier step, ${lowerFirstWord(c.text)}, for ${dueWords(c.at, now)}.`,
+      text: `The instructions set an earlier step, ${lowerFirst(c.text)}, for ${dueWords(c.at, now)}.`,
       quote: c.quote,
       sourceLabel: 'Canvas assignment',
     });
@@ -478,5 +482,3 @@ function byDue(x: WorkItem, y: WorkItem): number {
   return Date.parse(x.due.at) - Date.parse(y.due.at);
 }
 
-/** "Draft for peer review" mid-sentence: "draft for peer review" (a name such as "MLA" keeps its capitals). */
-const lowerFirstWord = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);

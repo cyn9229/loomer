@@ -92,6 +92,27 @@ describe('buildHomeModel', () => {
       }),
     );
     expect(m.status === 'ready' && [m.next.action, m.next.topic]).toEqual(['Review Hyperbolas', { topic: 'Hyperbolas', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' }]);
+    expect(m.status === 'ready' && m.next.insight).toEqual({ kind: 'weak-topic', text: 'You missed 2 of 3 on hyperbolas last time, and this worksheet is due Monday, so start with that topic.', aiFound: false });
+  });
+
+  it('leads the why with a step the instructions set before the due date', () => {
+    const essay = { ...assignment('essay', 6), title: 'Persuasive essay' };
+    const read = { ...analysis(essay, 'Substantial'), milestones: [{ text: 'Draft for peer review', quote: 'Bring a draft two days before.', daysBeforeDue: 2 }] };
+    const m = buildHomeModel(input({ assignments: [essay], analyses: [read] }));
+    expect(m.status === 'ready' && m.next.insight).toEqual({
+      kind: 'hidden-deadline',
+      text: 'Canvas says this essay is due Friday, but the instructions ask for a draft for peer review by Wednesday, so today is a good day to start.',
+      aiFound: true,
+    });
+  });
+
+  it('says when a busy day moved the start, and falls back to the days left', () => {
+    const reflection = { ...assignment('r', 2), title: 'Reading reflection' };
+    const room = [{ key: 'date:2026-10-18', level: 'busy' as const, minutes: null, setAt: now.toISOString() }];
+    const busy = buildHomeModel(input({ assignments: [reflection], analyses: [analysis(reflection, 'Short')], room }));
+    expect(busy.status === 'ready' && busy.next.insight).toEqual({ kind: 'busy-day', text: 'This reflection is due Monday, and since you said Sunday is busy, Loomer moved its start up to today.', aiFound: false });
+    const plain = buildHomeModel(input({ assignments: [reflection], analyses: [analysis(reflection, 'Short')] }));
+    expect(plain.status === 'ready' && plain.next.insight).toEqual({ kind: 'countdown', text: 'This reflection is due Monday, 2 days from now, so tomorrow is a good day to start.', aiFound: false });
   });
 
   it('lets a genuinely urgent short task beat a larger assignment due later', () => {

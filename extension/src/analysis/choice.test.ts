@@ -118,8 +118,8 @@ describe('plan snapshot', () => {
     const first = nextPlanSnapshot(input({ assignments: [soon, essay] }), null);
     expect(first).toMatchObject({ topId: 'soon', change: null });
     const second = nextPlanSnapshot(input({ assignments: [soon, essay], context: [ctx('soon', { correction: 'done-offline' })] }), first);
-    expect(second).toMatchObject({ topId: 'essay', change: { text: 'soon is off your list now, so essay is next.' } });
+    expect(second).toMatchObject({ topId: 'essay', change: { text: 'soon is off your list now, so this essay is first.' } });
     const m = buildHomeModel(input({ assignments: [soon, essay], context: [ctx('soon', { correction: 'done-offline' })], snapshot: second }));
-    expect(m.status === 'ready' && m.next.change).toBe('soon is off your list now, so essay is next.');
+    expect(m.status === 'ready' && [m.next.change, m.next.insight.kind]).toEqual(['soon is off your list now, so this essay is first.', 'change']);
   });
 });
