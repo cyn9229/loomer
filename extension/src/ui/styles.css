@@ -324,31 +324,30 @@ button.focus-sub:hover {
   font-weight: 500;
   color: var(--text);
 }
-/* Why this one: the plan's own reason, in a plain outline (not AI-made, so no AI mark). */
-.why-block {
-  margin-top: 14px;
-  padding: 11px 13px 12px;
-  border-radius: 14px;
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+/* Under the next step: what Loomer found (a small label says what kind), or how many days are left. */
+.why-line {
+  margin-top: 10px;
 }
 .why-k {
   display: flex;
   align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
   font-size: 12.5px;
   font-weight: 600;
+  color: var(--text);
+}
+.why-k .icon {
   color: var(--muted);
 }
-.why-k .grow {
-  flex: 1;
-}
-.why-k .link {
-  font-size: 12.5px;
+.why-k.ai {
+  color: var(--acc-text);
 }
 .why-text {
-  margin-top: 4px;
-  font-size: 14.5px;
+  font-size: 15.5px;
   line-height: 1.45;
-  color: var(--ink);
+  letter-spacing: -0.1px;
+  color: var(--text);
 }
 .eyebrow .ai-mark {
   margin-right: 5px;
@@ -2032,17 +2031,6 @@ details > summary .icon {
 .notice.busy > .icon {
   margin-top: 1px;
   color: var(--amber-dot);
-}
-.changed {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  font-size: 12.5px;
-  color: var(--text);
-}
-.changed .icon {
-  color: var(--acc);
 }
 .sec .vseg {
   margin-left: auto;

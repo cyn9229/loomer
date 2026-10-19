@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react';
 import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, minutesText, observedAt } from './format';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { AiMark } from './aiBlock';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
 import { YourChanges } from './planChange';
@@ -355,6 +355,42 @@ function Finding() {
   );
 }
 
+/**
+ * What the line under the next step leads with: the best thing Loomer found
+ * (a change, a deadline hidden in the instructions, a busy day it planned
+ * around, a weak topic from quick checks), else how many days are left.
+ * Mirrors the planner's coming NextAction.insight; swap insightOf for it then.
+ */
+type Insight = { kind: 'change' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown'; text: string; aiFound: boolean };
+
+const insightLabel: Record<Exclude<Insight['kind'], 'countdown'>, { icon: IconName; text: string }> = {
+  change: { icon: 'refresh', text: 'Changed since you last looked' },
+  'hidden-deadline': { icon: 'doc', text: 'Found in the instructions' },
+  'busy-day': { icon: 'calendar', text: 'Planned around your week' },
+  'weak-topic': { icon: 'target', text: 'From your quick checks' },
+};
+
+/** Until NextAction.insight exists: a change leads; otherwise the plan's reason, with no label. */
+function insightOf(next: NextAction): Insight {
+  return next.change ? { kind: 'change', text: next.change, aiFound: false } : { kind: 'countdown', text: next.reason, aiFound: false };
+}
+
+/** The label says what kind of find it is; only a find the AI made gets the AI mark. */
+function WhyLine({ insight }: { insight: Insight }) {
+  const label = insight.kind === 'countdown' ? null : insightLabel[insight.kind];
+  return (
+    <div className="why-line">
+      {label && (
+        <p className={insight.aiFound ? 'why-k ai' : 'why-k'}>
+          {insight.aiFound ? <AiMark /> : <Icon name={label.icon} size="xs" />}
+          {label.text}
+        </p>
+      )}
+      <p className="why-text">{insight.text}</p>
+    </div>
+  );
+}
+
 function NextStep({
   next,
   resume,
@@ -397,6 +433,7 @@ function NextStep({
         )}
       </div>
       <h1 className={titleClass(headline)}>{headline}</h1>
+      <WhyLine insight={insightOf(next)} />
       <div className="ctx">
         <SubjectTile courseName={item.courseName} size="lg" />
         <span className="grow">
@@ -408,25 +445,6 @@ function NextStep({
           </span>
         </span>
       </div>
-      {next.change && (
-        <p className="changed">
-          <Icon name="refresh" size="xs" />
-          {next.change}
-        </p>
-      )}
-      {!next.chosenByStudent && (
-        // The reason comes from the plan's rules and the student's own facts, never the AI, so it carries no AI mark.
-        <section className="why-block" aria-label="Why this one">
-          <div className="why-k">
-            Why this one
-            <span className="grow" />
-            <button type="button" className="link muted" aria-expanded={whyOpen} onClick={onWhy}>
-              {whyOpen ? 'Hide' : 'Details'}
-            </button>
-          </div>
-          <p className="why-text">{next.reason}</p>
-        </section>
-      )}
       {lastFacts.length > 0 && (
         <p className="focus-line ellipsis last-time">
           {lastTime && lastTime.handledHints > 0 && <Icon name="check" size="xs" />}
@@ -439,9 +457,13 @@ function NextStep({
         {start.busy ? 'Starting…' : label}
         <Icon name="arrowRight" />
       </button>
-      {next.chosenByStudent && (
+      {next.chosenByStudent ? (
         <button type="button" className="center-link" disabled={clear.busy} onClick={() => clear.run(() => actions.send({ type: 'choice:clear' }))}>
           {clear.busy ? 'Asking…' : 'Ask Loomer to pick again'}
+        </button>
+      ) : (
+        <button type="button" className="center-link" aria-expanded={whyOpen} onClick={onWhy}>
+          {whyOpen ? 'Hide how Loomer picked this' : 'How Loomer picked this'}
         </button>
       )}
       {pick && (

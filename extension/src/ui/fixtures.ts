@@ -447,7 +447,7 @@ export function buildFixtures(now: Date) {
         aiGenerated: true,
         chosenByStudent: false,
         loomerPick: null,
-        change: 'Moved up: the vocab check is due before the essay needs its start.',
+        change: 'Your vocab check is due before this essay needs to start, so it moved up.',
         topic: null,
       },
       rest: [essay, reflection, lab],
