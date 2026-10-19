@@ -73,6 +73,8 @@ export function buildSessionFixtures(now: Date) {
     activity,
     help: { availability: 'available' as const, messages, pending: false },
     hint: null,
+    focus: { text: 'Build the comparison between your two sources', why: 'Your draft summarizes each source but does not compare them yet.', requirement: 'Compare the two sources' },
+    handledHints: [{ id: 30, text: 'What does the EPA number show about your city?', at: ago(9) }],
     suggestion: null,
   };
 
@@ -107,6 +109,7 @@ export function buildSessionFixtures(now: Date) {
         text: 'Your third paragraph puts both findings side by side. How could the tree cover data explain the temperature gap the EPA describes?',
         reference: { quote: 'The EPA says cities can be 7°F warmer. The city report says shaded blocks are cooler.', from: 'your draft' },
         createdAt: ago(0),
+        requirement: 'Compare the two sources',
       },
     },
 

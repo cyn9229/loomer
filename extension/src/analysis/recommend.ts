@@ -326,6 +326,8 @@ function resumeBriefing(input: RecommendInput, nextAssignmentId: string | null):
     docUrl: packet.docId ? (input.docUrls.get(a.id) ?? null) : null,
     requirements: candidate.analysis?.deliverables ?? [],
     recommendationChanged: nextAssignmentId !== null && nextAssignmentId !== a.id,
+    focus: packet.focus ?? null,
+    handledHints: packet.handledHints ?? 0,
   };
 }
 

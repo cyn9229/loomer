@@ -17,6 +17,8 @@ export type RequirementItem = {
   state: RequirementState;
   /** For observed / needs-review: the passage from the student's draft, and a short note. */
   evidence: { quote: string; note: string } | null;
+  /** The latest hint that served this requirement: still open, or it looks handled. */
+  hint: { text: string; state: 'open' | 'handled' } | null;
 };
 
 export type RequirementsCheck = {

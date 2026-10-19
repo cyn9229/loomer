@@ -84,8 +84,18 @@ export type HelpState = {
   pending: boolean;
 };
 
-/** One proactive hint (M4). Null until the pause rules make one eligible. */
-export type ProactiveHint = { id: number; text: string; reference: ChatReference | null; createdAt: string } | null;
+/** One proactive hint. Null until the pause rules make one eligible. `requirement`: the requirement it serves, when known. */
+export type ProactiveHint = { id: number; text: string; reference: ChatReference | null; createdAt: string; requirement: string | null } | null;
+
+/**
+ * What this writing session works toward, picked near the start ("Build the
+ * comparison between your two sources") with a one-line why. Null until picked,
+ * or when none could be. Hints prefer to serve it.
+ */
+export type SessionFocusView = { text: string; why: string; requirement: string | null } | null;
+
+/** A hint whose passage the student edited so that it now addresses it: show "Looks handled". Newest first, at most 3. */
+export type HandledHint = { id: number; text: string; at: string };
 
 /**
  * Research discovery (opt-in): the foreground tab's title and address share
@@ -186,5 +196,7 @@ export type SessionModel =
       activity: ActivityItem[];
       help: HelpState;
       hint: ProactiveHint;
+      focus: SessionFocusView;
+      handledHints: HandledHint[];
       suggestion: DiscoverySuggestion;
     };

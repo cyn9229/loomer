@@ -4,6 +4,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  FOCUS_ROUTE,
+  focusRequestSchema,
+  focusResponseSchema,
   TOPICS_ROUTE,
   topicsRequestSchema,
   topicsResponseSchema,
@@ -168,8 +171,9 @@ const hintTask = defineTask({
   response: hintResponseSchema,
   system: `You watch a student's draft and may offer one short, quiet hint after they pause. ${BOUNDARY}
 Only raise an issue that is clearly visible in what the student has already written, preferably in <recent> text. Never mention sections they have not reached yet (for example a missing conclusion while they draft the introduction). Never infer anything from text you cannot see.
-If nothing is clearly useful, return useful=false with empty hint and quote. That is the right answer most of the time.
-If useful: hint is one or two sentences under 45 words, phrased as a nudge or question, never replacement text. quote is a short passage copied character for character from the draft. issueKey is the closest type from the schema. Never use an issueKey listed as dismissed.`,
+Continuity: earlier hints are listed. For every earlier hint marked changed, add a followUps item: handled=true only if the draft now clearly addresses it. Never repeat an earlier hint. When a hint was handled, the next useful hint usually builds on it (for example from adding evidence to explaining it). Prefer hints that serve the session focus.
+If nothing new is clearly useful, return useful=false with empty hint and quote (still fill followUps). That is the right answer most of the time.
+If useful: hint is one or two sentences under 45 words, phrased as a nudge or question, never replacement text. quote is a short passage copied character for character from the draft. issueKey is the closest type from the schema; never one listed as dismissed. requirementIndex: the number of the requirement it serves, or null.`,
   user: (req) =>
     [
       `Assignment: ${req.title}`,
@@ -178,6 +182,27 @@ If useful: hint is one or two sentences under 45 words, phrased as a nudge or qu
       `<draft scope="${req.workScope}">\n${req.studentWork}\n</draft>`,
       `<recent>\n${req.recentChange || '(no new lines identified)'}\n</recent>`,
       `Dismissed issue types: ${req.dismissedIssues.join(', ') || 'none'}`,
+      `Session focus: ${req.focus ?? 'none'}`,
+      `Requirements:\n${req.requirements.map((r) => `${r.index}. ${r.text}`).join('\n') || 'none'}`,
+      `Earlier hints:\n${req.earlier.map((h) => `#${h.id} [${h.status}] ${h.hint}`).join('\n') || 'none'}`,
+    ].join('\n\n'),
+});
+
+const focusTask = defineTask({
+  route: FOCUS_ROUTE,
+  name: 'focus',
+  request: focusRequestSchema,
+  response: focusResponseSchema,
+  system: `You pick one focus for a student's writing session, so their work and hints have a direction. ${BOUNDARY}
+Look at the numbered requirements and what the draft already does. Pick the single most useful next target: a requirement the draft has not reached or addresses weakly. If a previous focus is given and the draft now handles it, move on; if not, it can stay.
+Return JSON: focus starts with a verb, at most 10 words, names a part of the work (for example "Build the comparison between your two sources"), never content for it. why: one short sentence grounded in the draft or requirements. requirementIndex: the requirement's number, or null.`,
+  user: (req) =>
+    [
+      `Assignment: ${req.title}`,
+      `<instructions>\n${req.instructions}\n</instructions>`,
+      `Requirements:\n${req.requirements.map((r) => `${r.index}. ${r.text}`).join('\n') || 'none'}`,
+      req.workScope === 'none' || !req.studentWork.trim() ? 'The draft is empty or not linked.' : `<draft scope="${req.workScope}">\n${req.studentWork}\n</draft>`,
+      req.previous ? `Previous focus: ${req.previous.focus} (hints handled then: ${req.previous.handledHints})` : 'No previous focus.',
     ].join('\n\n'),
 });
 
@@ -221,6 +246,7 @@ export function brokerRoutes(env: { apiKey: string | undefined; model: string; e
   register(hintTask);
   register(requirementsCheckTask);
   register(topicsTask);
+  register(focusTask);
   return app;
 }
 

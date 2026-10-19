@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { LoomerDb, type Assignment } from '../core/db';
 import { buildHomeModel } from '../analysis/recommend';
 import { dismissHint, hintEligibility, proactiveStep, type HintInputs } from './proactive';
+import { focusStep } from './focus';
 import { endSession, startSession } from './session';
 
 const t0 = new Date('2026-10-17T12:00:00Z');
@@ -14,6 +15,8 @@ const base: HintInputs = {
   docLinked: true,
   helpAllowed: true,
   writing: true,
+  paragraphDone: false,
+  changedHints: false,
   lastEditAt: t0.getTime(),
   lastHintAt: null,
   hintShowing: false,
@@ -39,7 +42,12 @@ describe('hintEligibility', () => {
   });
 
   it('respects the cooldown, a hint already showing, and the setting', () => {
-    expect(hintEligibility({ ...base, lastHintAt: at(-200).getTime() })).toMatchObject({ wait: 'cooldown' });
+    expect(hintEligibility({ ...base, lastHintAt: at(0).getTime() })).toMatchObject({ wait: 'cooldown' });
+    // A follow-up on an edited passage skips the cooldown.
+    expect(hintEligibility({ ...base, lastHintAt: at(0).getTime(), changedHints: true, lastEval: { hash: 'old', studentWords: 120 } })).toEqual({ eligible: true });
+    // After a finished paragraph, 30 s of pause is enough (now is 91 s after t0).
+    expect(hintEligibility({ ...base, lastEditAt: at(51).getTime(), paragraphDone: true })).toEqual({ eligible: true });
+    expect(hintEligibility({ ...base, lastEditAt: at(51).getTime() })).toMatchObject({ wait: 'still-editing' });
     expect(hintEligibility({ ...base, hintShowing: true })).toMatchObject({ wait: 'hint-showing' });
     expect(hintEligibility({ ...base, proactive: { enabled: false, delaySec: 90 } })).toMatchObject({ wait: 'disabled' });
     expect(hintEligibility({ ...base, proactive: { enabled: true, delaySec: 120 } })).toMatchObject({ wait: 'still-editing' });
@@ -99,13 +107,21 @@ const deps = (fetch: typeof globalThis.fetch) => ({
   typingAt: async () => null,
   fetch,
 });
-const useful = { useful: true, hint: 'How does the shade evidence support your claim?', quote: 'The city article says trees help.', issueKey: 'evidence-unexplained' };
+const useful = {
+  useful: true,
+  hint: 'How does the shade evidence support your claim?',
+  quote: 'The city article says trees help.',
+  issueKey: 'evidence-unexplained',
+  requirementIndex: null,
+  followUps: [] as { id: number; handled: boolean }[],
+};
 
 describe('proactiveStep', () => {
   it('shows one grounded hint after the pause and evaluates the same evidence only once', async () => {
     const f = broker(useful);
-    expect(await proactiveStep(deps(f), at(60))).toBeNull(); // still inside the pause
-    const id = await proactiveStep(deps(f), at(95));
+    expect(await proactiveStep(deps(f), at(20))).toBeNull(); // still inside the pause
+    // The draft ends a full paragraph, so 30 s of pause is enough.
+    const id = await proactiveStep(deps(f), at(35));
     expect(id).not.toBeNull();
     expect(await proactiveStep(deps(f), at(400))).toBeNull(); // hint showing, same evidence
     expect(f.calls).toBe(1);
@@ -123,12 +139,22 @@ describe('proactiveStep', () => {
     expect((await db.studentContext.get(assignment.id))?.dismissedHintIssues).toEqual(['evidence-unexplained']);
   });
 
-  it('withdraws a shown hint once its passage is edited away', async () => {
+  it('keeps a hint whose passage was edited until the next call says it looks handled, and sends earlier hints', async () => {
     const id = (await proactiveStep(deps(broker(useful)), at(95)))!;
     const read = (await db.docReads.get(DOC))!;
-    await db.docReads.put({ ...read, current: { ...read.current!, hash: 'h3', text: 'Completely rewritten paragraph about shade.' } });
-    await proactiveStep(deps(broker({ ...useful, useful: false })), at(100));
-    expect((await db.hints.get(id))?.state).toBe('withdrawn');
+    await db.docReads.put({ ...read, current: { ...read.current!, hash: 'h3', text: `${draft.replaceAll('The city article says trees help.', '')} The canopy study shows shade cut street heat by 5 degrees, which supports my claim.` } });
+    // The edit marks the hint "changed"; the same step judges it, inside the cooldown, with the earlier hint in the request.
+    let sent: { earlier?: { id: number; status: string }[] } = {};
+    const judge = Object.assign(
+      async (_: unknown, init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify({ ok: true, model: 'test', result: { ...useful, useful: false, hint: '', quote: '', followUps: [{ id, handled: true }] } }));
+      },
+      { calls: 0 },
+    );
+    await proactiveStep(deps(judge), at(100));
+    expect(sent.earlier).toEqual([{ id, hint: useful.hint, status: 'changed' }]);
+    expect((await db.hints.get(id))?.state).toBe('handled');
   });
 });
 
@@ -162,5 +188,24 @@ describe('resume briefing', () => {
       topicChecks: [],
     });
     expect(home.status !== 'not-connected' && home.resume).toMatchObject({ facts: ['Edited your draft 1 time (+40 words)'], recommendationChanged: false });
+  });
+});
+
+describe('session focus', () => {
+  it('picks one focus per writing session, from the previous focus, and carries it into the resume packet', async () => {
+    await db.resumePackets.put({ assignmentId: assignment.id, sessionId: 0, at: t0.toISOString(), docId: DOC, edits: 1, wordsDelta: 10, sourceIds: [], paragraphHashes: [], focus: 'Summarize both sources', handledHints: 2, dismissed: false });
+    const bodies: { previous?: unknown }[] = [];
+    const f = async (_: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ ok: true, model: 'test', result: { focus: 'Build the comparison', why: 'Both sources are summarized; none are compared yet.', requirementIndex: null } }));
+    };
+    const ai = async () => ({ enabled: true, brokerOrigin: 'http://127.0.0.1:8787' });
+    await focusStep({ db, ai, fetch: f }, at(5));
+    await focusStep({ db, ai, fetch: f }, at(10));
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]!.previous).toEqual({ focus: 'Summarize both sources', handledHints: 2 });
+    expect((await db.sessions.get(1))?.focus).toMatchObject({ text: 'Build the comparison' });
+    await endSession(db, at(600));
+    expect(await db.resumePackets.get(assignment.id)).toMatchObject({ focus: 'Build the comparison', handledHints: 0 });
   });
 });

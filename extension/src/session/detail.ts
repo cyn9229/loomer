@@ -33,13 +33,16 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
   const own = contextMap.get(a.id);
 
   const done = check?.status === 'ok' ? check : null;
+  const hints = (await db.hints.where('assignmentId').equals(a.id).sortBy('id')).filter((h) => h.requirement && (h.state === 'shown' || h.state === 'changed' || h.state === 'handled'));
   const requirements: RequirementItem[] = requirementList(a, analysis).map((r, index) => {
     const found = done?.items.find((i) => i.index === index);
+    const latest = hints.filter((h) => h.requirement === r.text).at(-1);
     return {
       text: r.text,
       source: { quote: r.quote, label: r.label },
       state: found?.state ?? 'unknown',
       evidence: found && found.state !== 'unknown' ? { quote: found.quote, note: found.note } : null,
+      hint: latest ? { text: latest.text, state: latest.state === 'handled' ? 'handled' : 'open' } : null,
     };
   });
 

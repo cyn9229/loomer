@@ -14,9 +14,18 @@ import { instructionText, type DocRead, type LoomerDb } from '../core/db';
 import type { AiSettings, ProactiveSettings } from '../core/settings';
 import { storedWorkType } from '../analysis/workType';
 import { workHelpDecision } from './help';
+import { requirementList } from './requirements';
 import { currentSession } from './session';
 
-export const HINT_COOLDOWN_MS = 5 * 60 * 1000;
+export const HINT_COOLDOWN_MS = 3 * 60 * 1000;
+/** After a finished paragraph, a shorter pause is enough. */
+const PARAGRAPH_PAUSE_MS = 30_000;
+/** A finished paragraph: a new line of at least this many words ending a sentence. */
+const PARAGRAPH_MIN_WORDS = 25;
+/** A changed passage not judged by then is let go. */
+const CHANGED_STALE_MS = 30 * 60 * 1000;
+/** Earlier hints sent for continuity. */
+const EARLIER_HINTS = 5;
 /** New words since the last evaluation before another one is worth making. */
 export const MIN_NEW_WORDS = 25;
 /** Words in the draft before the first evaluation. */
@@ -49,6 +58,10 @@ export type HintInputs = {
   studentWords: number;
   currentHash: string;
   lastEval: { hash: string; studentWords: number } | null;
+  /** The newest lines include a finished paragraph: a shorter pause is enough. */
+  paragraphDone: boolean;
+  /** A hinted passage was edited and awaits a follow-up judgement: that is new evidence. */
+  changedHints: boolean;
   now: number;
 };
 
@@ -59,12 +72,16 @@ export function hintEligibility(i: HintInputs): HintCheck {
   if (!i.readOk) return { eligible: false, wait: 'doc-not-readable' };
   if (!i.helpAllowed) return { eligible: false, wait: 'help-not-allowed' };
   if (!i.writing) return { eligible: false, wait: 'not-writing' };
-  if (i.lastEditAt === null || i.now - i.lastEditAt < i.proactive.delaySec * 1000) return { eligible: false, wait: 'still-editing' };
+  const pause = i.paragraphDone ? Math.min(PARAGRAPH_PAUSE_MS, i.proactive.delaySec * 1000) : i.proactive.delaySec * 1000;
+  if (i.lastEditAt === null || i.now - i.lastEditAt < pause) return { eligible: false, wait: 'still-editing' };
   if (i.hintShowing) return { eligible: false, wait: 'hint-showing' };
-  if (i.lastHintAt !== null && i.now - i.lastHintAt < HINT_COOLDOWN_MS) return { eligible: false, wait: 'cooldown' };
-  const newEvidence = i.lastEval
-    ? i.lastEval.hash !== i.currentHash && Math.abs(i.studentWords - i.lastEval.studentWords) >= MIN_NEW_WORDS
-    : i.studentWords >= MIN_FIRST_WORDS;
+  // A follow-up on an edited passage is not a new hint, so it skips the cooldown.
+  if (!i.changedHints && i.lastHintAt !== null && i.now - i.lastHintAt < HINT_COOLDOWN_MS) return { eligible: false, wait: 'cooldown' };
+  const newEvidence =
+    (i.changedHints && i.lastEval?.hash !== i.currentHash) ||
+    (i.lastEval
+      ? i.lastEval.hash !== i.currentHash && Math.abs(i.studentWords - i.lastEval.studentWords) >= MIN_NEW_WORDS
+      : i.studentWords >= MIN_FIRST_WORDS);
   if (!newEvidence) return { eligible: false, wait: 'no-new-evidence' };
   return { eligible: true };
 }
@@ -79,6 +96,11 @@ export type ProactiveDeps = {
 };
 
 const normalize = (t: string) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/** The new lines include a finished paragraph: one line of enough words that ends a sentence. */
+function finishedParagraph(added: string): boolean {
+  return added.split('\n').some((line) => wordCount(line) >= PARAGRAPH_MIN_WORDS && /[.?!"”)]\s*$/.test(line.trim()));
+}
 
 /** Lines the student added since the previous read, bounded. */
 function addedLines(read: DocRead, instructions: string): string {
@@ -105,12 +127,15 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
   const instructions = instructionText(a?.detail);
   const own = read?.current ? studentText(read.current.text, instructions) : '';
 
-  // Guidance for an old draft must not linger after the student changed that passage.
-  const shown = await db.hints.where('sessionId').equals(s.id).filter((h) => h.state === 'shown').toArray();
-  for (const h of shown) {
-    if (read?.current && !normalize(own).includes(normalize(h.quote))) await db.hints.update(h.id, { state: 'withdrawn' });
+  // When the student edits the passage a hint points to, the hint waits for a follow-up judgement instead of vanishing.
+  const at = now.toISOString();
+  const open = await db.hints.where('assignmentId').equals(s.assignmentId).filter((h) => h.state === 'shown' || h.state === 'changed').toArray();
+  for (const h of open) {
+    if (h.state === 'shown' && read?.current && !normalize(own).includes(normalize(h.quote))) await db.hints.update(h.id, { state: 'changed', settledAt: at });
+    if (h.state === 'changed' && now.getTime() - Date.parse(h.settledAt ?? h.createdAt) > CHANGED_STALE_MS) await db.hints.update(h.id, { state: 'withdrawn' });
   }
   const stillShowing = await db.hints.where('sessionId').equals(s.id).filter((h) => h.state === 'shown').count();
+  const changed = await db.hints.where('assignmentId').equals(s.assignmentId).filter((h) => h.state === 'changed').toArray();
 
   const settings = await deps.ai();
   const lastChange = (await db.sessionEvents.where('sessionId').equals(s.id).filter((e) => e.kind === 'doc-changed').toArray()).at(-1);
@@ -129,6 +154,8 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
     studentWords: wordCount(own),
     currentHash: read?.current?.hash ?? '',
     lastEval: s.lastHintEval ?? null,
+    paragraphDone: read?.current ? finishedParagraph(addedLines(read, instructions)) : false,
+    changedHints: changed.length > 0,
     now: now.getTime(),
   });
   if (!check.eligible || !read?.current || !a) return null;
@@ -138,6 +165,10 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
   await db.sessions.update(s.id, { lastHintEval: { hash, studentWords: wordCount(own), at: now.toISOString() } });
 
   const dismissed = new Set((await db.studentContext.get(s.assignmentId))?.dismissedHintIssues ?? []);
+  const requirements = requirementList(a, await db.analyses.get(a.id)).map((r, index) => ({ index, text: r.text.slice(0, 1_000) }));
+  const earlier = (await db.hints.where('assignmentId').equals(s.assignmentId).sortBy('id'))
+    .flatMap((h) => (h.state === 'withdrawn' ? [] : [{ id: h.id, hint: h.text.slice(0, 400), status: h.state === 'shown' ? ('open' as const) : h.state }]))
+    .slice(-EARLIER_HINTS);
   const request: HintRequest = {
     title: a.title.slice(0, 300),
     instructions: instructions.slice(0, 12_000),
@@ -146,6 +177,9 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
     workScope: own.length > 15_000 ? 'partial' : 'full',
     recentChange: addedLines(read, instructions),
     dismissedIssues: HINT_ISSUES.filter((k) => dismissed.has(k)),
+    focus: s.focus?.text ?? null,
+    requirements,
+    earlier,
   };
 
   let result: unknown = null;
@@ -161,9 +195,7 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
     return null;
   }
   const parsed = hintResponseSchema.safeParse(result);
-  if (!parsed.success || !parsed.data.useful) return null;
-  const { hint, quote, issueKey } = parsed.data;
-  if (dismissed.has(issueKey) || quote.trim().length < 4 || !normalize(own).includes(normalize(quote))) return null;
+  if (!parsed.success) return null;
 
   // Discard if the draft, session, or permission changed while waiting.
   const fresh = await currentSession(db, now);
@@ -171,8 +203,17 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
   if (fresh?.id !== s.id || fresh.state !== 'active' || freshRead?.current?.hash !== hash) return null;
   if (!(await workHelpDecision(db, await deps.ai(), s.assignmentId)).allowed) return null;
 
-  const at = now.toISOString();
-  const id = await db.hints.add({ sessionId: s.id, assignmentId: s.assignmentId, text: hint.slice(0, 400), quote, issueKey, docHash: hash, createdAt: at, state: 'shown' });
+  // Follow-ups: an edited passage that now addresses its hint "looks handled"; otherwise the hint is let go.
+  const changedIds = new Set(changed.map((h) => h.id));
+  for (const f of parsed.data.followUps) {
+    if (changedIds.has(f.id)) await db.hints.update(f.id, { state: f.handled ? 'handled' : 'withdrawn', settledAt: at });
+  }
+
+  if (!parsed.data.useful) return null;
+  const { hint, quote, issueKey, requirementIndex } = parsed.data;
+  if (dismissed.has(issueKey) || quote.trim().length < 4 || !normalize(own).includes(normalize(quote))) return null;
+  const requirement = requirementIndex !== null ? requirements[requirementIndex]?.text : undefined;
+  const id = await db.hints.add({ sessionId: s.id, assignmentId: s.assignmentId, text: hint.slice(0, 400), quote, issueKey, docHash: hash, createdAt: at, state: 'shown', requirement });
   await db.sessions.update(s.id, { lastHintAt: at });
   return id;
 }

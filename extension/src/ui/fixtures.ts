@@ -268,6 +268,8 @@ export function buildFixtures(now: Date) {
       { text: 'Argue which explanation is stronger.', quote: 'argue which explanation is stronger' },
     ],
     recommendationChanged,
+    focus: 'Build the comparison between your two sources',
+    handledHints: 2,
   });
 
   return {
@@ -600,18 +602,21 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
         source: { quote: 'Compare how two sources explain urban heat islands.', label: 'Assignment instructions' },
         state: checked ? 'observed' : 'unknown',
         evidence: checked ? { quote: 'The EPA says cities can be 7°F warmer. The city report says shaded blocks are cooler.', note: 'Found in paragraph 3' } : null,
+        hint: null,
       },
       {
         text: 'Use at least 3 sources',
         source: { quote: 'Use at least three sources.', label: 'Assignment instructions' },
         state: checked ? 'needs-review' : 'unknown',
         evidence: checked ? { quote: 'According to the EPA…', note: 'You cite 2 so far' } : null,
+        hint: null,
       },
       {
         text: 'Cite in MLA format',
         source: { quote: 'cite them in MLA format', label: 'Assignment instructions' },
         state: 'unknown',
         evidence: null,
+        hint: null,
       },
     ],
     check: checked ? { at: new Date(now.getTime() - 0.3 * HOUR).toISOString(), scope: 'full', stale: false } : null,

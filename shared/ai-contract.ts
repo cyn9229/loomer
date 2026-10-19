@@ -158,6 +158,18 @@ export const hintRequestSchema = z.strictObject({
   recentChange: z.string().max(3_000),
   /** Issue types the student dismissed; never raise them again. */
   dismissedIssues: z.array(z.enum(HINT_ISSUES)).max(HINT_ISSUES.length),
+  /** What this session is working toward, if a focus was set. Prefer hints that serve it. */
+  focus: z.string().max(200).nullable(),
+  /** The assignment's requirements, numbered, so a hint can name the one it serves. */
+  requirements: z.array(z.strictObject({ index: z.number().int().min(0), text: z.string().max(1_000) })).max(20),
+  /**
+   * Earlier hints on this assignment, newest last. open: still showing.
+   * changed: the student edited the passage it pointed to; judge it in followUps.
+   * handled / dismissed: closed. Build on them; never repeat one.
+   */
+  earlier: z
+    .array(z.strictObject({ id: z.number().int(), hint: z.string().max(400), status: z.enum(['open', 'changed', 'handled', 'dismissed']) }))
+    .max(5),
 });
 
 export const hintResponseSchema = z.strictObject({
@@ -167,6 +179,10 @@ export const hintResponseSchema = z.strictObject({
   /** Exact passage from the student's draft the hint points to. */
   quote: z.string(),
   issueKey: z.enum(HINT_ISSUES),
+  /** The requirement this hint serves (its number), or null. */
+  requirementIndex: z.number().int().min(0).nullable(),
+  /** For each earlier hint marked changed: does the edit address it? */
+  followUps: z.array(z.strictObject({ id: z.number().int(), handled: z.boolean() })).max(5),
 });
 
 export type HintRequest = z.infer<typeof hintRequestSchema>;
@@ -227,3 +243,28 @@ export const topicsResponseSchema = z.strictObject({
 
 export type TopicsRequest = z.infer<typeof topicsRequestSchema>;
 export type TopicsResponse = z.infer<typeof topicsResponseSchema>;
+
+export const FOCUS_ROUTE = '/ai/focus';
+
+/** One focus for a writing session, from the requirements and the draft so far. Needs the work-help AI check. */
+export const focusRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  instructions: z.string().max(12_000),
+  requirements: z.array(z.strictObject({ index: z.number().int().min(0), text: z.string().max(1_000) })).max(20),
+  studentWork: z.string().max(15_000),
+  workScope,
+  /** Last session's focus on this assignment and how many hints the student handled then. */
+  previous: z.strictObject({ focus: z.string().max(200), handledHints: z.number().int().min(0) }).nullable(),
+});
+
+export const focusResponseSchema = z.strictObject({
+  /** What to work toward this session: starts with a verb, at most 10 words. Never part of the work itself. */
+  focus: z.string(),
+  /** One short sentence: why this now, from the draft and the requirements. */
+  why: z.string(),
+  /** The requirement it serves, or null. */
+  requirementIndex: z.number().int().min(0).nullable(),
+});
+
+export type FocusRequest = z.infer<typeof focusRequestSchema>;
+export type FocusResponse = z.infer<typeof focusResponseSchema>;

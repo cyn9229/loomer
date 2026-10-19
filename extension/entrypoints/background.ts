@@ -22,6 +22,7 @@ import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
 import { askHelp, requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
+import { focusStep } from '../src/session/focus';
 import { embeddedTopicsStep, findTopic, recordTopicAnswer, setTopicSkipped, topicsStep } from '../src/session/topics';
 import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
@@ -53,7 +54,7 @@ function runSessionLoop() {
       console.error('loomer: session tick failed', error);
       return true;
     });
-    if (more) await Promise.all([runProactive(now), runTopics(now)]);
+    if (more) await Promise.all([runProactive(now), runTopics(now), runFocus(now)]);
     await runDiscovery();
     sessionLoop = more ? setTimeout(step, SESSION_LOOP_MS) : null;
     if (!more) await browser.alarms.clear(SESSION_ALARM);
@@ -67,6 +68,21 @@ async function linkedTypingAt(): Promise<number | null> {
   const s = await currentSession(db);
   const link = s ? await db.docLinks.get(s.assignmentId) : undefined;
   return typingAtFor(link?.docId);
+}
+
+let focusRunning = false;
+
+/** Picks the writing session's focus once; one request in flight. */
+async function runFocus(now: Date) {
+  if (focusRunning) return;
+  focusRunning = true;
+  try {
+    await focusStep({ db, ai: () => aiSettingsItem.getValue() }, now);
+  } catch (error) {
+    console.error('loomer: focus step failed', error);
+  } finally {
+    focusRunning = false;
+  }
 }
 
 let topicsRunning = false;

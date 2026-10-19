@@ -179,6 +179,9 @@ export type ResumeBriefing = {
   requirements: { text: string; quote: string }[];
   /** Home's next action is a different assignment; the UI says why and keeps Continue one tap away. */
   recommendationChanged: boolean;
+  /** Last session's focus, and how many hints the student handled in it. */
+  focus: string | null;
+  handledHints: number;
 };
 
 export type HomeModel =

@@ -280,6 +280,8 @@ export type WorkSession = {
   lastHintAt?: string;
   /** The student said they have time until then. Loomer never stops the session by itself. */
   plannedUntil?: string;
+  /** The session's focus. Absent until picked; null when none could be. */
+  focus?: SessionFocus;
 };
 
 export type SessionEvent = {
@@ -335,6 +337,9 @@ export type ResumePacket = {
   sourceIds: string[];
   /** Fingerprints of the draft's paragraphs at that time; not reversible to text. */
   paragraphHashes: string[];
+  /** The session's focus, and how many hints the student handled in it. Absent on older packets. */
+  focus?: string;
+  handledHints?: number;
   dismissed: boolean;
 };
 
@@ -350,8 +355,20 @@ export type HintRecord = {
   /** Draft version the hint was made from. */
   docHash: string;
   createdAt: string;
-  state: 'shown' | 'dismissed' | 'withdrawn';
+  /**
+   * shown: on screen. changed: the student edited the passage; the next hint
+   * call judges it. handled: the edit addresses it ("Looks handled").
+   * withdrawn: the edit did not, or it went stale. dismissed: the student said no.
+   */
+  state: 'shown' | 'changed' | 'handled' | 'dismissed' | 'withdrawn';
+  /** The requirement it serves, by its text, when the model named one. */
+  requirement?: string;
+  /** When the state last changed (for changed and handled). */
+  settledAt?: string;
 };
+
+/** What a writing session works toward. Null when no focus could be picked. */
+export type SessionFocus = { text: string; why: string; requirement: string | null; at: string } | null;
 
 /** Result of checking the draft against the requirement list, tied to one draft version. */
 export type RequirementCheck =

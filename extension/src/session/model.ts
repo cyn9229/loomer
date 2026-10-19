@@ -31,7 +31,9 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     workHelpDecision(db, ai, a.id),
   ]);
   const read = link ? await db.docReads.get(link.docId) : undefined;
-  const hint = (await db.hints.where('sessionId').equals(session.id).filter((h) => h.state === 'shown').toArray()).at(-1);
+  const sessionHints = await db.hints.where('sessionId').equals(session.id).sortBy('id');
+  const hint = sessionHints.filter((h) => h.state === 'shown').at(-1);
+  const handled = sessionHints.filter((h) => h.state === 'handled');
   const contextMap = new Map(context.filter((c) => c !== undefined).map((c) => [c.key, c]));
 
   const saved = await sourceView(db, a, sources);
@@ -54,7 +56,12 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     },
     // Never show AI guidance once help is no longer allowed (AI off, new restriction).
     suggestion: null,
-    hint: hint && decision.allowed ? { id: hint.id, text: hint.text, reference: { quote: hint.quote, from: 'your draft' }, createdAt: hint.createdAt } : null,
+    hint:
+      hint && decision.allowed
+        ? { id: hint.id, text: hint.text, reference: { quote: hint.quote, from: 'your draft' }, createdAt: hint.createdAt, requirement: hint.requirement ?? null }
+        : null,
+    focus: session.focus ? { text: session.focus.text, why: session.focus.why, requirement: session.focus.requirement } : null,
+    handledHints: handled.slice(-3).reverse().map((h) => ({ id: h.id, text: h.text, at: h.settledAt ?? h.createdAt })),
   };
 }
 
