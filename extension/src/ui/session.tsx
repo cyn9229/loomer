@@ -59,16 +59,16 @@ export function minutesLeft(session: ActiveSession, now: Date): number | null {
 }
 
 /**
- * The top bar's clock: "28 min left" when the student set a time ("warn" in the
- * last 5 minutes), otherwise "24 min" since the start, or "Paused". The panel
- * refreshes `now` once a minute, so this changes once a minute and never animates.
+ * The top bar's state: "28 min left" when the student set a time ("warn" in the
+ * last 5 minutes), otherwise "Working", or "Paused". Never time spent: Loomer
+ * doesn't track it. The panel refreshes `now` once a minute, so a countdown
+ * changes once a minute and never animates.
  */
 export function sessionClock(session: ActiveSession, now: Date): { text: string; paused: boolean; warn: boolean } {
   if (session.status === 'paused') return { text: 'Paused', paused: true, warn: false };
   const left = minutesLeft(session, now);
   if (left !== null) return { text: left > 0 ? `${left} min left` : 'Time’s up', paused: false, warn: left <= 5 };
-  const minutes = Math.max(0, Math.round((now.getTime() - new Date(session.startedAt).getTime()) / 60_000));
-  return { text: minutes < 1 ? 'Just started' : `${minutes} min`, paused: false, warn: false };
+  return { text: 'Working', paused: false, warn: false };
 }
 
 /**
@@ -729,7 +729,7 @@ export function SessionControls({ session, run, busy, end = true }: { session: A
 }
 
 /**
- * Home's session strip: the clock (or "Paused"), the assignment, and a pause
+ * Home's session strip: "Working", "Paused", or the countdown, the assignment, and a pause
  * or resume button. Tapping the strip opens the session.
  */
 export function SessionStrip({
