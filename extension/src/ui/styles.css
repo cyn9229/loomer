@@ -324,8 +324,35 @@ button.focus-sub:hover {
   font-weight: 500;
   color: var(--text);
 }
+/* Why this one: the plan's own reason, in a plain outline (not AI-made, so no AI mark). */
 .why-block {
   margin-top: 14px;
+  padding: 11px 13px 12px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.why-k {
+  display: flex;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.why-k .grow {
+  flex: 1;
+}
+.why-k .link {
+  font-size: 12.5px;
+}
+.why-text {
+  margin-top: 4px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.eyebrow .ai-mark {
+  margin-right: 5px;
+  vertical-align: -3px;
 }
 .last-time .icon {
   margin-right: 4px;

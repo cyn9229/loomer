@@ -11,7 +11,7 @@ import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, Wo
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon } from './Icon';
-import { AiBlock } from './aiBlock';
+import { AiMark } from './aiBlock';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
 import { YourChanges } from './planChange';
 import { PlanSection, startWords, type PlanMode } from './planView';
@@ -386,6 +386,7 @@ function NextStep({
   return (
     <section className="focus" aria-label="Next step">
       <div className="eyebrow">
+        {next.aiGenerated && !lastTime?.focus && <AiMark />}
         {lastTime?.focus ? (
           'Continue'
         ) : (
@@ -414,18 +415,17 @@ function NextStep({
         </p>
       )}
       {!next.chosenByStudent && (
-        <AiBlock
-          className="why-block"
-          label="Why this one"
-          flashKey={`why:${item.assignmentId}:${next.reason}`}
-          right={
+        // The reason comes from the plan's rules and the student's own facts, never the AI, so it carries no AI mark.
+        <section className="why-block" aria-label="Why this one">
+          <div className="why-k">
+            Why this one
+            <span className="grow" />
             <button type="button" className="link muted" aria-expanded={whyOpen} onClick={onWhy}>
               {whyOpen ? 'Hide' : 'Details'}
             </button>
-          }
-        >
-          <p className="ai-text">{next.reason}</p>
-        </AiBlock>
+          </div>
+          <p className="why-text">{next.reason}</p>
+        </section>
       )}
       {lastFacts.length > 0 && (
         <p className="focus-line ellipsis last-time">
