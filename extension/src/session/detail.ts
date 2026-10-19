@@ -7,7 +7,8 @@ import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import { workHelpDecision } from './help';
-import { availability, toSourceItem } from './model';
+import { availability } from './model';
+import { sourceView } from './sources';
 import { requirementList } from './requirements';
 
 /** A pending check older than this is treated as abandoned (worker stopped). */
@@ -43,6 +44,7 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
   });
 
   const ok = analysis?.status === 'ok' && analysis.detailHash === a.detail?.hash && item.policy.state !== 'blocked' ? analysis : null;
+  const saved = await sourceView(db, a, sources);
   return {
     status: 'ok',
     item,
@@ -56,8 +58,9 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
     links: {
       instructions: a.detail?.links ?? [],
       doc: link?.url ?? null,
-      sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
+      sources: saved.items,
     },
+    sourceNeed: saved.need,
     correction: own?.correction ?? null,
     sheets: await loadTeacherSheets(db, a),
     note: own?.note ?? null,

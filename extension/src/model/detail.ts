@@ -1,7 +1,7 @@
 // Data contract for the assignment detail screen inside the panel. Logic owns
 // this file; the UI renders useAssignmentDetail(assignmentId).
 import type { StudentCorrection, WorkItem } from './home';
-import type { HelpAvailability, SourceItem, TeacherSheet } from './session';
+import type { HelpAvailability, SourceItem, SourceNeed, TeacherSheet } from './session';
 
 /**
  * Requirement-level evidence. Observed: relevant content was found (not proof of
@@ -52,6 +52,8 @@ export type AssignmentDetailModel =
        * turned off download).
        */
       sheets: TeacherSheet[];
+      /** "2 of 3 sources saved" when the instructions ask for a number of sources. */
+      sourceNeed: SourceNeed;
       /** The student's own explanation, shown in context only. */
       note: string | null;
     };

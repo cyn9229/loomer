@@ -28,6 +28,7 @@ export function buildSessionFixtures(now: Date) {
       excerptChars: 1840,
       kind: 'page' as const,
       image: null,
+      inDraft: { used: true, matched: ['epa'] },
     },
     {
       id: 's-canopy',
@@ -37,6 +38,7 @@ export function buildSessionFixtures(now: Date) {
       excerptChars: 2210,
       kind: 'page' as const,
       image: null,
+      inDraft: { used: false, matched: [] },
     },
   ];
 
@@ -86,6 +88,7 @@ export function buildSessionFixtures(now: Date) {
     plannedUntil: null,
     topics: null,
     teacherSheets: [],
+    sourceNeed: { required: 3, saved: 2, quote: 'Use at least three sources' },
     doc: linkedDoc,
     sources,
     activity,
@@ -103,6 +106,7 @@ export function buildSessionFixtures(now: Date) {
       plannedUntil: null,
       topics: null,
       teacherSheets: [],
+      sourceNeed: null,
       doc: {
         status: 'not-linked',
         candidates: [
@@ -176,6 +180,7 @@ export function buildSessionFixtures(now: Date) {
         { docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 },
         { docId: '3dForm', url: 'https://docs.google.com/document/d/3dForm/edit', title: 'Formula sheet', state: 'ok', topics: 2 },
       ],
+      sourceNeed: null,
       topics: {
         status: 'ok',
         items: [
@@ -201,6 +206,7 @@ export function buildSessionFixtures(now: Date) {
       activity: [],
       help: { availability: 'available' as const, messages: [], pending: false },
       teacherSheets: [{ docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 }],
+      sourceNeed: null,
       topics: {
         status: 'ok',
         items: [
@@ -226,6 +232,7 @@ export function buildSessionFixtures(now: Date) {
         { docId: '3fSetB', url: 'https://docs.google.com/document/d/3fSetB/edit', title: 'Practice set B', state: 'needs-permission', topics: null },
         { docId: '3gKey', url: 'https://docs.google.com/document/d/3gKey/edit', title: 'Answer key (teacher view)', state: 'no-access', topics: null },
       ],
+      sourceNeed: null,
       topics: { status: 'reading', items: [], next: null },
     },
     'reading-work': {

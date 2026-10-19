@@ -43,7 +43,16 @@ export type SourceItem = {
   kind: 'page' | 'screenshot';
   /** Cropped image as a data URL, for screenshots only. */
   image: string | null;
+  /**
+   * Whether the linked draft mentions this source (its site's name, or two of
+   * its own title words), by local word matching. `matched` shows the words.
+   * Null when no draft is linked and read.
+   */
+  inDraft: { used: boolean; matched: string[] } | null;
 };
+
+/** The teacher asks for a number of sources ("at least 3 sources"): how many, how many are saved, and the words that ask. */
+export type SourceNeed = { required: number; saved: number; quote: string } | null;
 
 /** Factual activity only, e.g. "Edited your draft (+120 words)". Never time spent or progress. */
 export type ActivityItem = { at: string; text: string };
@@ -170,6 +179,8 @@ export type SessionModel =
       topics: SheetTopics;
       /** The teacher's sheets embedded in the instructions, already read by Loomer. Empty when there are none. */
       teacherSheets: TeacherSheet[];
+      /** "2 of 3 sources saved" when the instructions ask for a number of sources. */
+      sourceNeed: SourceNeed;
       doc: DocState;
       sources: SourceItem[];
       activity: ActivityItem[];

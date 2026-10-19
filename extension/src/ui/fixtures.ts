@@ -601,6 +601,7 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     correction: item.correction,
     note: null,
     // The practice sheet's instructions embed a Doc Loomer may not read yet; the reading's embedded Doc was read.
+    sourceNeed: null,
     sheets:
       item.assignmentId === 'a-sheet'
         ? [

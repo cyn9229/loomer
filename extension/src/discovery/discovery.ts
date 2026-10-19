@@ -3,6 +3,7 @@
 // dwell offer "Add this page". Only the current candidate is kept, in
 // chrome.storage.session (memory only); no browsing history is stored.
 import { storage } from 'wxt/utils/storage';
+import { studentText } from '../adapters/docs/reader';
 import { instructionText, type LoomerDb } from '../core/db';
 import { checkCollect, type GateState } from '../core/gate';
 import { canonicalLink, hostMatches } from '../core/url';
@@ -68,7 +69,16 @@ export async function evaluateForeground(input: {
 
   const a = await db.assignments.get(s.assignmentId);
   if (!a) return none;
-  const terms = assignmentTerms(a.title, [instructionText(a.detail), ...(a.detail?.rubric ?? []).map((r) => r.description)].join('\n'));
+  // What the student is actually working on: the teacher's text and sheets, their own part of the linked
+  // draft, and the titles of pages they already saved. Words in that text count when they repeat.
+  const instructions = instructionText(a.detail);
+  const link = await db.docLinks.get(a.id);
+  const draft = link ? (await db.docReads.get(link.docId))?.current?.text : undefined;
+  const savedTitles = saved.map((src) => src.title.split(/\s+[|–—-]\s+/)[0] ?? src.title).join('\n');
+  const terms = assignmentTerms(
+    a.title,
+    [instructions, ...(a.detail?.rubric ?? []).map((r) => r.description), draft ? studentText(draft, instructions) : '', savedTitles].join('\n'),
+  );
   const { suggest, matched } = matchTab(terms, tab.title, tab.url);
   if (!suggest) return none;
 

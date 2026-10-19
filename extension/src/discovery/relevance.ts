@@ -12,7 +12,7 @@ const STOPWORDS = new Set(
     .filter(Boolean),
 );
 
-const tokens = (text: string) =>
+export const tokens = (text: string) =>
   text
     .toLowerCase()
     .normalize('NFKD')
@@ -21,7 +21,7 @@ const tokens = (text: string) =>
     .filter((w) => w.length >= 4 && !STOPWORDS.has(w) && !/^\d+$/.test(w));
 
 /** Crude plural folding so "islands" matches "island". */
-const stem = (w: string) => (w.endsWith('ies') ? `${w.slice(0, -3)}y` : w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+export const stem = (w: string) => (w.endsWith('ies') ? `${w.slice(0, -3)}y` : w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
 
 export type AssignmentTerms = { words: Set<string>; phrases: Set<string> };
 

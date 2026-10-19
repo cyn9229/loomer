@@ -6,6 +6,7 @@ import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
 import type { ActivityItem, DocState, HelpAvailability, SessionModel, SourceItem } from '../model/session';
 import { currentSession } from './session';
+import { sourceView } from './sources';
 import { loadSheetTopics, loadTeacherSheets } from './topics';
 import { workHelpDecision, type HelpDecision } from './help';
 
@@ -33,6 +34,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
   const hint = (await db.hints.where('sessionId').equals(session.id).filter((h) => h.state === 'shown').toArray()).at(-1);
   const contextMap = new Map(context.filter((c) => c !== undefined).map((c) => [c.key, c]));
 
+  const saved = await sourceView(db, a, sources);
   return {
     status: session.state === 'paused' ? 'paused' : 'active',
     sessionId: session.id,
@@ -42,7 +44,8 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     topics: await loadSheetTopics(db, a.id),
     teacherSheets: await loadTeacherSheets(db, a),
     doc: docState(link, read, a.detail, instructionText(a.detail)),
-    sources: sources.sort((x, y) => y.capturedAt.localeCompare(x.capturedAt)).map(toSourceItem),
+    sources: saved.items,
+    sourceNeed: saved.need,
     activity: activity(events),
     help: {
       ...availability(decision),
@@ -52,18 +55,6 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     // Never show AI guidance once help is no longer allowed (AI off, new restriction).
     suggestion: null,
     hint: hint && decision.allowed ? { id: hint.id, text: hint.text, reference: { quote: hint.quote, from: 'your draft' }, createdAt: hint.createdAt } : null,
-  };
-}
-
-export function toSourceItem(s: Source): SourceItem {
-  return {
-    id: s.id,
-    title: s.title,
-    url: s.url,
-    capturedAt: s.capturedAt,
-    excerptChars: s.excerpt.length,
-    kind: s.kind ?? 'page',
-    image: s.image ?? null,
   };
 }
 
