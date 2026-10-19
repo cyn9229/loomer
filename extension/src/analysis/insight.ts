@@ -5,7 +5,7 @@ import type { Assignment } from '../core/db';
 import type { Insight } from '../model/home';
 import type { TopicItem } from '../model/session';
 import type { EffectiveDue } from './facts';
-import { dayIndex, dayName, lowerFirst, minutesLong, roomWords, weekdayLong, type Planned } from './plan';
+import { dayIndex, dayName, dayWords, lowerFirst, roomWords, startClause, startReason, type Planned } from './plan';
 
 /** Title words that name the kind of work, most specific first. */
 const NOUNS = [
@@ -24,29 +24,6 @@ export function assignmentNoun(a: Pick<Assignment, 'title' | 'kind'>): string {
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const daysFrom = (iso: string, now: Date) => dayIndex(Date.parse(iso)) - dayIndex(now.getTime());
-
-/** "today", "tomorrow", "Thursday" in the coming week, else "Thursday, Oct 29". */
-function dayWords(iso: string, now: Date): string {
-  const n = daysFrom(iso, now);
-  if (n === 0) return 'today';
-  if (n === 1) return 'tomorrow';
-  if (n > 1 && n <= 6) return weekdayLong(iso);
-  return new Date(iso).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-}
-
-/** "so today is a good day to start", from the planned start day. */
-function startClause(p: Planned): string {
-  const pl = p.placement;
-  if (pl?.kind === 'student' && p.startBy) return `and you picked ${p.bucket === 'today' ? 'today' : weekdayLong(p.startBy.at)} to start`;
-  const when = !p.startBy || p.bucket === 'today' ? 'today' : p.bucket === 'tomorrow' ? 'tomorrow' : null;
-  if (pl?.kind === 'guess') {
-    const start = when ? `starting ${when}` : `starting by ${weekdayLong(p.startBy!.at)}`;
-    return pl.short
-      ? `so ${start} helps, though your guess of about ${minutesLong(pl.minutes)} is more than the days before it have`
-      : `so ${start} leaves time for your guess of about ${minutesLong(pl.minutes)}`;
-  }
-  return when ? `so ${when} is a good day to start` : `so start by ${weekdayLong(p.startBy!.at)}`;
-}
 
 /** Verbs that open a checkpoint written as a step ("Submit a full draft"). */
 const STEP_VERB = /^(submit|turn in|hand in|write|finish|complete|bring|post|share|upload|choose|pick|meet|present|read|send|sign up|email)\b/i;
@@ -90,16 +67,11 @@ export function insightFor({ a, planned: p, due, change, now }: InsightInput): I
   return { kind: 'countdown', text: countdown(noun, p, due, now), aiFound: false };
 }
 
+/** The plan's own reason when the item is planned; otherwise the due date alone. */
 function countdown(noun: string, p: Planned | null, due: EffectiveDue, now: Date): string {
-  if (!due.at) {
-    return p?.keptActive ? `You kept ${noun} active, so it stays on your plan.` : `Loomer didn't find a due date for ${noun}, so check the instructions for one.`;
-  }
-  const n = daysFrom(due.at, now);
-  if (n < 0) return `${cap(noun)} was due ${dayWords(due.at, now)}, so it's worth finishing soon.`;
-  const at = new Date(due.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (n === 0) return `${cap(noun)} is due today at ${at}, so it's the one to finish first.`;
-  const when = n === 1 ? 'tomorrow' : `${dayWords(due.at, now)}, ${n} days from now`;
-  return `${cap(noun)} is due ${when}, ${p ? startClause(p) : 'so today is a good day to start'}.`;
+  if (p) return startReason(p, now);
+  if (!due.at) return `Loomer didn't find a due date for ${noun}, so check the instructions for one.`;
+  return `${cap(noun)} is due ${dayWords(due.at, now)}.`;
 }
 
 /** For practice or study work: the shaky topic from the student's last quick check. Null when no topic is shaky. */

@@ -14,7 +14,7 @@
 //    day earlier, repeated. Never later, never before today.
 // 4. Items sort into start-by buckets: today, tomorrow, within 3 days, later.
 //    Inside a bucket: earlier due first, then bigger work, then earlier start-by.
-// 5. Every ranked item carries a plain-words reason; the top stays put unless
+// 5. Every ranked item carries a one-sentence reason with the concrete fact; the top stays put unless
 //    the evidence moves it out of its bucket (calm re-ranking).
 import type { Milestone } from '../core/db';
 import type { Checkpoint, DayRoom, EffortLabel, RoomLevel, StartBy } from '../model/home';
@@ -46,6 +46,8 @@ const time = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Number
 export type PlanEntry = {
   id: string;
   title: string;
+  /** How sentences name it: "this essay". */
+  noun: string;
   due: string | null;
   effort: EffortLabel;
   milestones: Milestone[];
@@ -292,59 +294,71 @@ export function dueWords(iso: string, now: Date): string {
 
 /** The panel's workload words for each label. */
 export const WORKLOAD_WORDS: Record<EffortLabel, string> = { Short: 'Light', Moderate: 'Medium', Substantial: 'Heavy', Unknown: 'Unknown' };
-/** "a heavy one" for sentences; null when the size is unknown. */
-const sizeWords: Record<EffortLabel, string | null> = { Substantial: 'a heavy one', Moderate: 'a medium one', Short: 'a light one', Unknown: null };
-
-/** "Start today", "Start tomorrow", or "Start by Wednesday". */
-export function startPhrase(p: Planned): string {
-  if (!p.startBy) return p.keptActive ? 'You kept this active' : 'No due date found';
-  if (p.bucket === 'today') return 'Start today';
-  if (p.bucket === 'tomorrow') return 'Start tomorrow';
-  return `Start by ${weekdayLong(p.startBy.at)}`;
-}
-
 export const dayName = (ymd: string) => weekdayLong(new Date(noonOf(dayOfDate(ymd))).toISOString());
 export const roomWords: Record<RoomLevel, string> = { busy: 'is busy', little: 'has little room', some: 'only has some room', free: 'is free' };
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const daysFrom = (iso: string, now: Date) => dayIndex(Date.parse(iso)) - dayIndex(now.getTime());
 
-/**
- * The reason for one item's start, as one friendly sentence with the reason in
- * it: "Start today because it's a heavy one and it's due Friday." The student's
- * own facts (a busy day, a picked day, their guess) come first when they apply.
- */
-function reasonFor(p: Planned): string {
-  const pl = p.placement;
-  if (pl?.kind === 'student' && p.startBy) {
-    const day = weekdayLong(p.startBy.at);
-    if (pl.daysLeft === null) return `You picked ${day} to start.`;
-    return pl.daysLeft <= 0 ? `You picked ${day}, which is the day it's due.` : `You picked ${day}, which leaves ${pl.daysLeft} ${pl.daysLeft === 1 ? 'day' : 'days'} before it's due.`;
-  }
-  if (pl?.kind === 'moved') return `${startPhrase(p)} because you said ${dayName(pl.from)} ${roomWords[pl.level]}.`;
-  if (pl?.kind === 'guess') {
-    return pl.short
-      ? `${startPhrase(p)}, though your guess of about ${minutesLong(pl.minutes)} is more than the days before it have.`
-      : `${startPhrase(p)} so there's time for your guess of about ${minutesLong(pl.minutes)}.`;
-  }
-  if (!p.startBy) return p.keptActive ? 'You kept this active, so it stays on your plan.' : "Loomer didn't find a due date for this one.";
-  const target = p.nextCheckpoint
-    ? `its next step, ${lowerFirst(p.nextCheckpoint.text)}, is due ${weekdayLong(p.nextCheckpoint.at)}`
-    : p.due
-      ? `it's due ${weekdayLong(p.due)}`
-      : null;
-  const size = sizeWords[p.effort];
-  const why = [size ? `it's ${size}` : null, target].filter(Boolean).join(' and ');
-  return why ? `${startPhrase(p)} because ${why}.` : `${startPhrase(p)}.`;
+/** "today", "tomorrow", "Thursday" in the coming week, else "Thursday, Oct 29". */
+export function dayWords(iso: string, now: Date): string {
+  const n = daysFrom(iso, now);
+  if (n === 0) return 'today';
+  if (n === 1) return 'tomorrow';
+  if (n > 1 && n <= 6) return weekdayLong(iso);
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-/** One plain-words reason per ranked item; the first and second also say how they compare. */
-export function rankReasons(ranked: Planned[]): Map<string, string> {
+/** "today", "tomorrow", or "by Wednesday": when to start, for "starting ___". */
+const startWhen = (p: Planned) => (!p.startBy || p.bucket === 'today' ? 'today' : p.bucket === 'tomorrow' ? 'tomorrow' : `by ${weekdayLong(p.startBy.at)}`);
+
+/** The end of a sentence that says when to start: "so today is a good day to start". */
+export function startClause(p: Planned): string {
+  if (p.placement?.kind === 'student' && p.startBy) return `and you picked ${p.bucket === 'today' ? 'today' : weekdayLong(p.startBy.at)} to start`;
+  const when = startWhen(p);
+  return when.startsWith('by ') ? `so start ${when}` : `so ${when} is a good day to start`;
+}
+
+/**
+ * Why one item starts when it does, as one sentence that names it and gives
+ * the concrete fact: "This essay is due Friday, 6 days from now, so today is a
+ * good day to start." The student's own facts (a picked day, a busy day, their
+ * guess) come first when they apply. Never a workload word.
+ */
+export function startReason(p: Planned, now: Date): string {
+  const pl = p.placement;
+  if (pl?.kind === 'student' && p.startBy) {
+    const picked = `You picked ${weekdayLong(p.startBy.at)} to start ${p.noun}`;
+    if (pl.daysLeft === null) return `${picked}.`;
+    return pl.daysLeft <= 0 ? `${picked}, which is the day it's due.` : `${picked}, which leaves ${pl.daysLeft} ${pl.daysLeft === 1 ? 'day' : 'days'} before it's due.`;
+  }
+  if (pl?.kind === 'moved' && p.startBy) return `${cap(p.noun)} starts ${dayWords(p.startBy.at, now)} because you said ${dayName(pl.from)} ${roomWords[pl.level]}.`;
+  if (pl?.kind === 'guess') {
+    const starting = `Starting ${p.noun} ${startWhen(p)}`;
+    return pl.short
+      ? `${starting} helps, though your guess of about ${minutesLong(pl.minutes)} is more than the days before it have.`
+      : `${starting} leaves time for your guess of about ${minutesLong(pl.minutes)}.`;
+  }
+  if (!p.startBy || !p.due) return p.keptActive ? `You kept ${p.noun} active, so it stays on your plan.` : `Loomer didn't find a due date for ${p.noun}.`;
+  if (p.nextCheckpoint) return `The next step for ${p.noun}, ${lowerFirst(p.nextCheckpoint.text)}, is due ${dayWords(p.nextCheckpoint.at, now)}, ${startClause(p)}.`;
+  const n = daysFrom(p.due, now);
+  if (n < 0) return `${cap(p.noun)} was due ${dayWords(p.due, now)}, so it's worth finishing soon.`;
+  if (n === 0) return `${cap(p.noun)} is due today at ${new Date(p.due).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}, so finish it today.`;
+  return `${cap(p.noun)} is due ${n === 1 ? 'tomorrow' : `${dayWords(p.due, now)}, ${n} days from now`}, ${startClause(p)}.`;
+}
+
+/**
+ * One sentence per ranked item. When the first two follow Loomer's own start
+ * rule, they say how they compare instead.
+ */
+export function rankReasons(ranked: Planned[], now: Date): Map<string, string> {
   const reasons = new Map<string, string>();
+  const [first, second] = ranked;
   ranked.forEach((p, i) => {
-    const base = reasonFor(p);
-    const runnerUp = ranked[1];
-    if (i === 0 && runnerUp?.due && p.due && Date.parse(runnerUp.due) < Date.parse(p.due)) {
-      reasons.set(p.id, `${base} ${runnerUp.title} is due sooner, but this one needs more days.`);
-    } else if (i === 1 && ranked[0]) reasons.set(p.id, `${base} This comes second because ${ranked[0].title} needs to start first.`);
-    else reasons.set(p.id, base);
+    const own = p.placement === null && p.startBy;
+    if (i === 0 && own && second?.due && p.due && Date.parse(second.due) < Date.parse(p.due)) {
+      reasons.set(p.id, `${second.title} is due sooner, but ${p.noun} needs more days, ${startClause(p)}.`);
+    } else if (i === 1 && own && first) reasons.set(p.id, `${cap(p.noun)} comes second because ${first.title} needs to start first.`);
+    else reasons.set(p.id, startReason(p, now));
   });
   return reasons;
 }

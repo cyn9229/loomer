@@ -9,6 +9,7 @@ const inDays = (d: number) => new Date(now.getTime() + d * 86_400_000).toISOStri
 const entry = (id: string, dueDays: number | null, effort: PlanEntry['effort'], over: Partial<PlanEntry> = {}): PlanEntry => ({
   id,
   title: id,
+  noun: `this ${id.toLowerCase()}`,
   due: dueDays === null ? null : inDays(dueDays),
   effort,
   milestones: [],
@@ -41,7 +42,7 @@ describe('checkpoints', () => {
 describe('plan', () => {
   it('keeps checkpoint text lowercase inside the reason sentence', () => {
     const ranked = plan([entry('essay', 6, 'Substantial', { milestones: [{ text: 'Submit a full draft', quote: 'q', date: null, daysBeforeDue: 2 }] })], now);
-    expect(rankReasons(ranked).get('essay')).toMatch(/^Start today because it's a heavy one and its next step, submit a full draft, is due \w+day\.$/);
+    expect(rankReasons(ranked, now).get('essay')).toBe('The next step for this essay, submit a full draft, is due Wednesday, so today is a good day to start.');
   });
 
   it('starts from the next checkpoint, not the final due date', () => {
@@ -82,9 +83,9 @@ describe('reasons, crowded week, brief', () => {
   const ranked = plan([entry('Essay', 4, 'Substantial'), entry('Lab report', 5, 'Substantial'), entry('Quiz', 1, 'Short')], now);
 
   it('gives every ranked item a plain reason, and says why the second is second', () => {
-    const reasons = rankReasons(ranked);
-    expect(reasons.get('Quiz')).toMatch(/^Start today because it's a light one and it's due \w+day\.$/);
-    expect(reasons.get('Essay')).toMatch(/ This comes second because Quiz needs to start first\.$/);
+    const reasons = rankReasons(ranked, now);
+    expect(reasons.get('Quiz')).toBe('This quiz is due tomorrow, so today is a good day to start.');
+    expect(reasons.get('Essay')).toBe('This essay comes second because Quiz needs to start first.');
   });
 
   it('warns when two big assignments need a start within two days', () => {
@@ -116,7 +117,7 @@ describe('room placement', () => {
     // Essay: due day 6, Heavy, starts day 2.
     const ranked = plan([entry('Essay', 6, 'Substantial')], now, rooms({ 2: 'busy' }));
     expect(startDays(ranked)).toEqual({ Essay: 1 });
-    expect(rankReasons(ranked).get('Essay')).toMatch(/^Start tomorrow because you said Monday is busy\.$/);
+    expect(rankReasons(ranked, now).get('Essay')).toBe('This essay starts tomorrow because you said Monday is busy.');
   });
 
   it('fills a day by workload dots, moving the latest-due start, and one start always fits', () => {
@@ -148,7 +149,7 @@ describe('room placement', () => {
   it('keeps a start day the student picked, even on a full day, and says how little room it leaves', () => {
     const ranked = plan([entry('Essay', 6, 'Substantial', { startOn: dateIn(5) }), entry('Lab', 7, 'Moderate')], now, rooms({ 5: 'little' }));
     expect(startDays(ranked)).toMatchObject({ Essay: 5 });
-    expect(rankReasons(ranked).get('Essay')).toBe("You picked Thursday, which leaves 1 day before it's due.");
+    expect(rankReasons(ranked, now).get('Essay')).toBe("You picked Thursday to start this essay, which leaves 1 day before it's due.");
   });
 });
 
@@ -166,7 +167,7 @@ describe('student guesses', () => {
     // day 5 (30) + day 4 (120) + day 3 (60) = 210 ≥ 180, so start day 3.
     const [p] = plan([entry('Essay', 6, 'Unknown', { guessMinutes: 180 })], now, rooms({ 5: { level: 'little' }, 4: { level: 'free', minutes: 120 } }, 60));
     expect(dayOf(p!)).toBe(3);
-    expect(rankReasons([p!]).get('Essay')).toMatch(/^Start by \w+day so there's time for your guess of about 3 hours\.$/);
+    expect(rankReasons([p!], now).get('Essay')).toBe('Starting this essay by Tuesday leaves time for your guess of about 3 hours.');
   });
 
   it('gives shared days to the earlier target first', () => {
@@ -178,6 +179,6 @@ describe('student guesses', () => {
   it('starts today and says so when the guess is more than the days before the target have', () => {
     const [p] = plan([entry('Lab', 2, 'Unknown', { guessMinutes: 600 })], now, rooms({}, 60));
     expect(dayOf(p!)).toBe(0);
-    expect(rankReasons([p!]).get('Lab')).toBe("Start today, though your guess of about 10 hours is more than the days before it have.");
+    expect(rankReasons([p!], now).get('Lab')).toBe('Starting this lab today helps, though your guess of about 10 hours is more than the days before it have.');
   });
 });

@@ -167,6 +167,7 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
   const entry = (c: Candidate): PlanEntry => ({
     id: c.a.id,
     title: c.a.title,
+    noun: assignmentNoun(c.a),
     due: c.due.at,
     effort: c.item.effort.label,
     milestones: c.analysis?.milestones ?? [],
@@ -181,7 +182,7 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
   // Ranked items keep the start days placement gave them across all visible work.
   const decisionIds = new Set(base.filter(inDecision).map((c) => c.a.id));
   const rankedPlans = keepPreviousTop([...plannedById.values()].filter((p) => decisionIds.has(p.id)).sort(comparePlanned), input.snapshot?.topId ?? null);
-  const reasons = rankReasons(rankedPlans);
+  const reasons = rankReasons(rankedPlans, now);
 
   const open = base.map((c) => {
     const planned = plannedById.get(c.a.id) ?? null;
@@ -380,11 +381,12 @@ function limitationFor(c: Candidate): Evidence[] {
 function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 'loomerPick' | 'change'>, now: Date): NextAction {
   const { a, item, analysis, due, planned } = top;
   const dueText = due.at ? dueWords(due.at, now) : null;
+  const noun = assignmentNoun(a);
   const reason = extra.chosenByStudent
     ? dueText
-      ? `You picked this one, and it's due ${dueText}.`
-      : "You picked this one, and Loomer didn't find a due date."
-    : (item.rankReason ?? (dueText ? `It's due ${dueText}.` : "Loomer didn't find a due date for this one."));
+      ? `You picked ${noun}, and it's due ${dueText}.`
+      : `You picked ${noun}, and Loomer didn't find a due date.`
+    : (item.rankReason ?? (dueText ? `${noun.charAt(0).toUpperCase()}${noun.slice(1)} is due ${dueText}.` : `Loomer didn't find a due date for ${noun}.`));
   const choice = { ...extra, insight: insightFor({ a, planned, due, change: extra.change, now }) };
 
   const evidence: Evidence[] = [
