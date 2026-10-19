@@ -3,17 +3,43 @@
 import { readDocPaced, studentText, wordCount } from '../adapters/docs/reader';
 import { instructionText, type LoomerDb, type SessionEvent, type WorkSession } from '../core/db';
 import type { GateState } from '../core/gate';
+import { localDay } from '../analysis/plan';
 import { writeResumePacket } from './resume';
 
 /** No edit, capture, or panel action for this long suspends the session. */
 export const IDLE_SUSPEND_MS = 15 * 60 * 1000;
+/** A session paused this long, or since before today, is over: it ended when it was paused. */
+export const PAUSE_CLOSES_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Whether a paused session is over. Coming back after a long break, or the next
+ * day, starts a fresh session instead of reopening one that started hours ago.
+ */
+export function pausedTooLong(s: WorkSession, now: Date): boolean {
+  if (s.state !== 'paused') return false;
+  const pausedAt = new Date(s.lastActivityAt);
+  return now.getTime() - pausedAt.getTime() > PAUSE_CLOSES_MS || localDay(pausedAt) !== localDay(now);
+}
 /** With the typing signal, read once typing has paused this long. */
 const TYPING_SETTLE_MS = 3_000;
 /** With the typing signal, still read this often in case a keystroke was missed. */
 const SIGNAL_FALLBACK_MS = 60_000;
 
-export async function currentSession(db: LoomerDb): Promise<WorkSession | undefined> {
-  return (await db.sessions.where('state').anyOf('active', 'paused').toArray()).at(-1);
+/** The open session, if any. A session paused too long counts as over, even before closeStaleSessions records it. */
+export async function currentSession(db: LoomerDb, now = new Date()): Promise<WorkSession | undefined> {
+  return (await db.sessions.where('state').anyOf('active', 'paused').toArray()).filter((s) => !pausedTooLong(s, now)).at(-1);
+}
+
+/**
+ * Records sessions paused too long as ended at the moment they were paused.
+ * Their resume packet was already written at the pause, so nothing is lost.
+ */
+export async function closeStaleSessions(db: LoomerDb, now: Date) {
+  const stale = (await db.sessions.where('state').equals('paused').toArray()).filter((s) => pausedTooLong(s, now));
+  for (const s of stale) {
+    await db.sessions.update(s.id, { state: 'ended', endedAt: s.lastActivityAt });
+    await log(db, s, s.lastActivityAt, 'ended');
+  }
 }
 
 async function log(db: LoomerDb, s: WorkSession, at: string, kind: SessionEvent['kind'], extra: Partial<SessionEvent> = {}) {
@@ -22,11 +48,12 @@ async function log(db: LoomerDb, s: WorkSession, at: string, kind: SessionEvent[
 
 /** Starts a session for the assignment, ending any other one. `minutes` is the time the student said they have. Returns it. */
 export async function startSession(db: LoomerDb, assignmentId: string, now: Date, minutes?: number): Promise<WorkSession> {
+  await closeStaleSessions(db, now);
   const at = now.toISOString();
   const plannedUntil = minutes ? new Date(now.getTime() + minutes * 60_000).toISOString() : undefined;
   const assignment = await db.assignments.get(assignmentId);
   if (!assignment) throw new Error('Unknown assignment');
-  const existing = await currentSession(db);
+  const existing = await currentSession(db, now);
   if (existing?.assignmentId === assignmentId) {
     if (existing.state === 'paused') await setState(db, existing, 'active', now);
     if (plannedUntil) await db.sessions.update(existing.id, { plannedUntil });
@@ -56,7 +83,7 @@ export async function setState(db: LoomerDb, s: WorkSession, state: 'active' | '
 }
 
 export async function endSession(db: LoomerDb, now: Date) {
-  const s = await currentSession(db);
+  const s = await currentSession(db, now);
   if (!s) return;
   const at = now.toISOString();
   await db.sessions.update(s.id, { state: 'ended', endedAt: at });
@@ -66,7 +93,7 @@ export async function endSession(db: LoomerDb, now: Date) {
 
 /** Sets or clears the time the student has. Clearing is "Keep going"; nothing ends the session by itself. */
 export async function setPlannedTime(db: LoomerDb, minutes: number | null, now: Date): Promise<boolean> {
-  const s = await currentSession(db);
+  const s = await currentSession(db, now);
   if (!s) return false;
   await db.sessions.update(s.id, { plannedUntil: minutes ? new Date(now.getTime() + minutes * 60_000).toISOString() : undefined });
   return true;
@@ -88,7 +115,7 @@ export async function tickSession(
   typingAt: (docId: string) => Promise<number | null> = async () => null,
   fetchImpl?: typeof fetch,
 ): Promise<boolean> {
-  const s = await currentSession(db);
+  const s = await currentSession(db, now);
   if (!s || s.state !== 'active') return false;
   const link = await db.docLinks.get(s.assignmentId);
   const typed = link ? await typingAt(link.docId) : null;

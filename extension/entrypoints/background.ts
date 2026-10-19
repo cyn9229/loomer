@@ -25,7 +25,7 @@ import { dismissHint, proactiveStep } from '../src/session/proactive';
 import { embeddedTopicsStep, findTopic, recordTopicAnswer, setTopicSkipped, topicsStep } from '../src/session/topics';
 import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
-import { currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
+import { closeStaleSessions, currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
 const REFRESH_ALARM = 'canvas-refresh';
@@ -401,6 +401,7 @@ function refresh(): Promise<void> {
   running = (async () => {
     do {
       rerun = false;
+      await closeStaleSessions(db, new Date());
       await runRefresh();
       await readSheets().catch((error: unknown) => console.error('loomer: sheet read failed', error));
       // Analysis failures are stored per assignment; this only catches bugs.

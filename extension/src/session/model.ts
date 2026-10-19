@@ -14,7 +14,7 @@ const PENDING_MS = 90_000;
 const ACTIVITY_LIMIT = 10;
 
 export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date): Promise<SessionModel> {
-  const session = await currentSession(db);
+  const session = await currentSession(db, now);
   if (!session) return { status: 'none' };
   const a = await db.assignments.get(session.assignmentId);
   if (!a) return { status: 'none' };

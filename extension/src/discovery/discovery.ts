@@ -42,7 +42,7 @@ export async function evaluateForeground(input: {
   now: number;
 }): Promise<DiscoveryState> {
   const { db, enabled, gate, ownHosts, tab, prev, now } = input;
-  const s = await currentSession(db);
+  const s = await currentSession(db, new Date(now));
   if (!enabled || gate.paused || !s || s.state !== 'active') return null;
   const base: NonNullable<DiscoveryState> =
     prev && prev.sessionId === s.id ? prev : { sessionId: s.id, candidate: null, suggestion: null, dismissed: false };

@@ -53,7 +53,7 @@ export async function draftScreenshot(
   tools: CaptureTools,
 ): Promise<{ ok: true } | { ok: false; reason: ScreenshotRefusal }> {
   if (gate.paused) return { ok: false, reason: 'paused' };
-  const session = await currentSession(db);
+  const session = await currentSession(db, now);
   if (!session || session.state !== 'active') return { ok: false, reason: 'no-session' };
   if (!tab.id || tab.windowId === undefined || !screenshotAllowed(gate, tab.url)) return { ok: false, reason: 'excluded' };
   try {
@@ -93,7 +93,7 @@ export async function saveScreenshot(
   const draft = await screenshotDraftItem.getValue();
   await screenshotDraftItem.setValue(null);
   if (!draft) return { ok: false, error: 'No screenshot is waiting.' };
-  const session = await currentSession(db);
+  const session = await currentSession(db, now);
   if (gate.paused || session?.id !== draft.sessionId || session.state !== 'active') return { ok: false, error: 'The session is no longer active.' };
   if (!screenshotAllowed(gate, draft.url)) return { ok: false, error: 'This site is now blocked.' };
 

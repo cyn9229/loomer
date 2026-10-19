@@ -5,7 +5,7 @@ import { capturePage } from '../capture/capture';
 import { LoomerDb, type Assignment } from '../core/db';
 import type { GateState } from '../core/gate';
 import { askHelp } from './help';
-import { IDLE_SUSPEND_MS, currentSession, startSession, tickSession } from './session';
+import { IDLE_SUSPEND_MS, closeStaleSessions, currentSession, setState, startSession, tickSession } from './session';
 
 const DOC = 'a'.repeat(30);
 const t0 = new Date('2026-10-17T12:00:00Z');
@@ -102,11 +102,26 @@ describe('session ticks', () => {
     ]);
   });
 
+  it('ends a session paused over 2 hours, or since yesterday, at its pause, so the next start is fresh', async () => {
+    const first = await startSession(db, assignment.id, t0);
+    await setState(db, first, 'paused', at(10 * 60_000));
+    // An hour later it is still open; resuming continues it.
+    expect((await currentSession(db, at(70 * 60_000)))?.id).toBe(first.id);
+    // Three hours later it is over, even before it is recorded.
+    const later = at(3 * 60 * 60_000);
+    expect(await currentSession(db, later)).toBeUndefined();
+    await closeStaleSessions(db, later);
+    expect(await db.sessions.get(first.id)).toMatchObject({ state: 'ended', endedAt: at(10 * 60_000).toISOString() });
+    const fresh = await startSession(db, assignment.id, later);
+    expect(fresh.id).not.toBe(first.id);
+    expect(fresh.startedAt).toBe(later.toISOString());
+  });
+
   it('pauses after idle time and stops reading', async () => {
     await startSession(db, assignment.id, t0);
     const f = exportFetch({ text: 'x' });
     expect(await tickSession(db, gate, at(IDLE_SUSPEND_MS + 1), undefined, f)).toBe(false);
-    expect((await currentSession(db))?.state).toBe('paused');
+    expect((await currentSession(db, at(IDLE_SUSPEND_MS + 1)))?.state).toBe('paused');
     expect(f.calls).toBe(0);
   });
 });

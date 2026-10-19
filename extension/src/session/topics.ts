@@ -118,7 +118,7 @@ async function readTopics({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, a: A
 
 /** One step for the active session: topics for its practice or study sheet. */
 export async function topicsStep(deps: TopicsDeps, now: Date): Promise<void> {
-  const s = await currentSession(deps.db);
+  const s = await currentSession(deps.db, now);
   if (!s || s.state !== 'active') return;
   const a = await deps.db.assignments.get(s.assignmentId);
   if (a) await readTopics(deps, a, now);

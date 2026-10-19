@@ -39,7 +39,7 @@ export async function capturePage(
   execute: (tabId: number, fn: typeof snapshotPage, maxChars: number) => Promise<PageSnapshot | undefined>,
 ): Promise<CaptureOutcome> {
   if (gate.paused) return { ok: false, reason: 'paused' };
-  const session = await currentSession(db);
+  const session = await currentSession(db, now);
   if (!session || session.state !== 'active') return { ok: false, reason: 'no-session' };
   if (!tab.id || !tab.url) return { ok: false, reason: 'unreadable' };
 

@@ -97,7 +97,7 @@ function addedLines(read: DocRead, instructions: string): string {
  */
 export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<number | null> {
   const { db } = deps;
-  const s = await currentSession(db);
+  const s = await currentSession(db, now);
   if (!s || s.state !== 'active') return null;
   const link = await db.docLinks.get(s.assignmentId);
   const read = link ? await db.docReads.get(link.docId) : undefined;
@@ -166,7 +166,7 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
   if (dismissed.has(issueKey) || quote.trim().length < 4 || !normalize(own).includes(normalize(quote))) return null;
 
   // Discard if the draft, session, or permission changed while waiting.
-  const fresh = await currentSession(db);
+  const fresh = await currentSession(db, now);
   const freshRead = link ? await db.docReads.get(link.docId) : undefined;
   if (fresh?.id !== s.id || fresh.state !== 'active' || freshRead?.current?.hash !== hash) return null;
   if (!(await workHelpDecision(db, await deps.ai(), s.assignmentId)).allowed) return null;
