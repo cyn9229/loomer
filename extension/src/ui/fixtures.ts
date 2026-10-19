@@ -7,7 +7,7 @@
 import type { ScreenshotDraft } from '../capture/screenshot';
 import type { AssignmentDetailModel } from '../model/detail';
 import { LEAD_DAYS } from '../analysis/plan';
-import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
+import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, NextAction, ResumeBriefing, WorkItem } from '../model/home';
 import type { PlanChangeView } from '../model/plan';
 import type { SourceItem } from '../model/session';
 import { dateTime, ymd } from './format';
@@ -236,7 +236,11 @@ export function buildFixtures(now: Date) {
     },
   ];
 
-  const readyNext = {
+  // Weekday names and day counts for the insight sentences, so they match the relative dates.
+  const dayName = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long' });
+  const daysAway = (iso: string) => Math.round((new Date(iso).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / DAY);
+
+  const readyNext: NextAction = {
     item: essay,
     action: 'Outline the comparison between your two sources',
     reason: 'Connect the EPA findings to the city’s tree cover data. The rubric asks for a comparison, and the deadline is this week.',
@@ -246,6 +250,11 @@ export function buildFixtures(now: Date) {
     loomerPick: null,
     change: null,
     topic: null,
+    insight: {
+      kind: 'hidden-deadline',
+      text: `Canvas says this essay is due ${dayName(essayDue)}, but the instructions ask for a draft for peer review by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
+      aiFound: true,
+    },
   };
   const weekday = (iso: string | undefined) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }) : '');
   const crowded = {
@@ -360,6 +369,7 @@ export function buildFixtures(now: Date) {
         loomerPick: { item: essay, reason: 'The largest open requirement due this week.' },
         change: null,
         topic: null,
+        insight: { kind: 'busy-day', text: `This reflection is due ${dayName(reflection.due!.at)}, and since you said ${dayName(at(now, 1, 12, 0))} is busy, Loomer moved its start up to today.`, aiFound: false },
       },
       rest: [essay, vocab, lab],
       lastCheck,
@@ -386,6 +396,7 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: null,
         topic: null,
+        insight: { kind: 'countdown', text: `This data table is due ${dayName(replayItem.due!.at)}, ${daysAway(replayItem.due!.at)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [{ ...essay, replay: true }],
       lastCheck: { ...lastCheck, replay: true, courses: 1 },
@@ -404,6 +415,7 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: null,
         topic: null,
+        insight: { kind: 'countdown', text: `This essay is due ${dayName(essayDue)}, ${daysAway(essayDue)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [vocab, reflection],
       lastCheck: { ...lastCheck, outcome: 'auth-expired', at: new Date(now.getTime() - 26 * HOUR).toISOString() },
@@ -429,6 +441,29 @@ export function buildFixtures(now: Date) {
       yourChanges: [],
     },
 
+    'weak-topic': {
+      status: 'ready',
+      ...noResume,
+      next: {
+        item: sheet,
+        action: 'Review vertex form',
+        reason: 'You missed 2 of 3 on vertex form last time.',
+        evidence: [],
+        aiGenerated: true,
+        chosenByStudent: false,
+        loomerPick: null,
+        change: null,
+        topic: { topic: 'Vertex form', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' },
+        insight: {
+          kind: 'weak-topic',
+          text: `You missed 2 of 3 on vertex form last time, and this review sheet is due ${dayName(sheet.due!.at)}, so start with that topic.`,
+          aiFound: false,
+        },
+      },
+      rest: [essay, vocab, reflection],
+      lastCheck,
+    },
+
     'resume-changed': {
       status: 'ready',
       next: {
@@ -449,6 +484,7 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: 'Your vocab check is due before this essay needs to start, so it moved up.',
         topic: null,
+        insight: { kind: 'change', text: 'Your vocab check is due before this essay needs to start, so it moved up.', aiFound: false },
       },
       rest: [essay, reflection, lab],
       lastCheck,
@@ -473,6 +509,7 @@ export function buildFixtures(now: Date) {
         loomerPick: { item: vocab, reason: `It’s due ${dateTime(vocab.due?.at ?? checkedAt)} and it’s short.` },
         change: null,
         topic: null,
+        insight: readyNext.insight,
       },
       rest: [vocab, reflection, lab],
       lastCheck,
@@ -537,6 +574,11 @@ export function buildFixtures(now: Date) {
         loomerPick: { item: vocab, reason: 'It’s due soon and it’s short.' },
         change: null,
         topic: null,
+        insight: {
+          kind: 'hidden-deadline',
+          text: `Canvas says this synthesis essay is due ${dayName(essayDue)}, but the instructions ask for a full draft for the peer review workshop by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
+          aiFound: true,
+        },
       },
       rest: Array.from({ length: 55 }, (_, i) =>
         item(now, {

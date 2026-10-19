@@ -7,7 +7,7 @@
 // Views render only what the model says; they never invent progress, time
 // estimates, or checks.
 import { useState, type ReactNode } from 'react';
-import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
+import type { DailyBrief, HomeModel, Insight, InsightKind, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon, type IconName } from './Icon';
@@ -356,24 +356,15 @@ function Finding() {
 }
 
 /**
- * What the line under the next step leads with: the best thing Loomer found
- * (a change, a deadline hidden in the instructions, a busy day it planned
- * around, a weak topic from quick checks), else how many days are left.
- * Mirrors the planner's coming NextAction.insight; swap insightOf for it then.
+ * The small label over the line under the next step: what kind of find
+ * Loomer leads with. A countdown (nothing new) has no label.
  */
-type Insight = { kind: 'change' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown'; text: string; aiFound: boolean };
-
-const insightLabel: Record<Exclude<Insight['kind'], 'countdown'>, { icon: IconName; text: string }> = {
+const insightLabel: Record<Exclude<InsightKind, 'countdown'>, { icon: IconName; text: string }> = {
   change: { icon: 'refresh', text: 'Changed since you last looked' },
   'hidden-deadline': { icon: 'doc', text: 'Found in the instructions' },
   'busy-day': { icon: 'calendar', text: 'Planned around your week' },
   'weak-topic': { icon: 'target', text: 'From your quick checks' },
 };
-
-/** Until NextAction.insight exists: a change leads; otherwise the plan's reason, with no label. */
-function insightOf(next: NextAction): Insight {
-  return next.change ? { kind: 'change', text: next.change, aiFound: false } : { kind: 'countdown', text: next.reason, aiFound: false };
-}
 
 /** The label says what kind of find it is; only a find the AI made gets the AI mark. */
 function WhyLine({ insight }: { insight: Insight }) {
@@ -433,7 +424,7 @@ function NextStep({
         )}
       </div>
       <h1 className={titleClass(headline)}>{headline}</h1>
-      <WhyLine insight={insightOf(next)} />
+      <WhyLine insight={next.insight} />
       <div className="ctx">
         <SubjectTile courseName={item.courseName} size="lg" />
         <span className="grow">
