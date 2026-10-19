@@ -76,7 +76,7 @@ const QUIZ: ChatBlock = {
         explanation: 'Dark surfaces store heat during the day and release it at night.',
       },
       {
-        prompt: 'What does ΔT compare?',
+        prompt: 'What does $\\Delta T = T_{city} - T_{rural}$ compare?',
         choices: ['City and rural temperature', 'Day and night temperature', 'Summer and winter temperature'],
         answerIndex: 0,
         explanation: 'ΔT is the city temperature minus the rural temperature.',

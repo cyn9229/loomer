@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LoomerDb, type Assignment } from '../core/db';
 import { startSession } from './session';
-import { embeddedTopicsStep, loadSheetTopics, recordTopicAnswer, setTopicSkipped, topicsStep } from './topics';
+import { embeddedTopicsStep, loadSheetTopics, recordTopicAnswer, reusedFromSheet, setTopicSkipped, topicsStep } from './topics';
 import { runTool } from '../chat/tools';
 
 const t0 = new Date('2026-10-18T12:00:00Z');
@@ -134,5 +134,28 @@ describe('embedded teacher sheet', () => {
       next: { topic: 'Ellipses', reason: 'Not checked yet.', mode: 'check' },
     });
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe('quick checks never copy the sheet', () => {
+  it('finds math copied from the sheet, ignoring spaces and dollar signs', () => {
+    const sheetText = 'Part 2: Parabolas\n3. Find the focus and directrix of y^2 = 12x.';
+    expect(reusedFromSheet('For the parabola $y^2=12x$, which way does it open?', sheetText)).toBe('y^2=12x');
+    expect(reusedFromSheet('For the parabola $y^2=20x$, which way does it open?', sheetText)).toBeNull();
+    expect(reusedFromSheet('Which way does it open?', sheetText)).toBeNull();
+  });
+
+  it('refuses a quiz that copies a problem, so the model writes new numbers', async () => {
+    await db.assignments.put(worksheet({ detail: { ...worksheet().detail!, sheets: [{ docId: DOC, state: 'ok', title: null, text: 'Find the foci of x^2/25 + y^2/9 = 1.', textHash: 'h', attemptAt: '' }] } }));
+    const copied = await runTool(
+      db,
+      settings,
+      'quiz_me',
+      JSON.stringify({ concept: 'Ellipses', questions: [{ prompt: 'Find the foci of $x^2/25 + y^2/9 = 1$.', choices: ['(±4, 0)', '(0, ±4)'], answer_index: 0, explanation: 'c² = a² − b².' }] }),
+      t0,
+      { threadKey: 'k#assignment:2', topic: null },
+    );
+    expect(copied.block).toBeUndefined();
+    expect(copied.forModel).toMatch(/uses "x\^2\/25\+y\^2\/9=1" from the student's own sheet/);
   });
 });

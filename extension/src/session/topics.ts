@@ -145,6 +145,31 @@ export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promi
   return { status: 'ok', items, next: nextTopic(items) };
 }
 
+/** All sheet text Loomer has for an assignment: the teacher's sheets and the student's linked copy. Dexie reads only. */
+export async function sheetTextFor(db: LoomerDb, assignmentId: string): Promise<string> {
+  const a = await db.assignments.get(assignmentId);
+  const link = await db.docLinks.get(assignmentId);
+  const own = link ? (await db.docReads.get(link.docId))?.current?.text : undefined;
+  return [...(a?.detail?.sheets ?? []).flatMap((s) => s.text ?? []), own ?? ''].join('\n');
+}
+
+/** Text with $ signs dropped and the spaces around math operators removed, so "y^2 = 12x" reads "y^2=12x". */
+const tightMath = (t: string) => t.replace(/\$/g, '').replace(/\s*([=^+\-*/<>])\s*/g, '$1').toLowerCase();
+
+/** Math expressions in a text, for example "y^2=12x": words with a digit and an operator. */
+const mathRuns = (t: string) =>
+  tightMath(t)
+    .split(/\s+/)
+    .map((w) => w.replace(/^[^a-z0-9(√]+|[.,;:?!]+$/g, ''))
+    .filter((w) => w.length >= 5 && /\d/.test(w) && /[=^/]/.test(w));
+
+/** The first math expression in `text` that also appears on the sheet, or null. Catches a quiz that copies a problem from the sheet. */
+export function reusedFromSheet(text: string, sheet: string): string | null {
+  if (!sheet) return null;
+  const flat = tightMath(sheet);
+  return mathRuns(text).find((r) => flat.includes(r)) ?? null;
+}
+
 /** A topic the reader found on this assignment's sheet, by name. Null if there is none (the name came from outside). */
 export async function findTopic(db: LoomerDb, assignmentId: string, name: string): Promise<{ text: string; quote: string } | null> {
   const record = await db.sheetTopics.get(assignmentId);

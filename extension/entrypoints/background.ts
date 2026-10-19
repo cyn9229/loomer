@@ -237,7 +237,8 @@ function topicRequest(topic: { text: string; quote: string }, mode: 'explain' | 
   const where = `"${topic.text}" from my sheet (it says: "${topic.quote}")`;
   if (mode === 'explain') return `Explain ${where}, simply.`;
   if (mode === 'example') return `Show me a worked example like ${where}, with different numbers. Don't solve my own problem.`;
-  return `Give me a quick check on ${where}: 3 questions.`;
+  // The quote is often a problem itself, so a check names only the topic; the quiz tool also refuses copied math.
+  return `Give me a quick check on "${topic.text}" from my sheet: 3 questions with new numbers.`;
 }
 
 /** Starts a chat reply in the background; keeps the worker awake while it streams. `topic`: a sheet topic the student tapped. */

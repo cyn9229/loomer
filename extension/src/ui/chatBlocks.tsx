@@ -102,6 +102,15 @@ function MarkdownText({ text, streaming }: { text: string; streaming: boolean })
   );
 }
 
+/** One line of model text with inline Markdown and $math$, for quiz prompts, choices, and explanations. No blocks, no images. */
+function InlineText({ text }: { text: string }) {
+  return (
+    <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} disallowedElements={['img']} components={{ ...markdownComponents, p: ({ children }) => <>{children}</> }}>
+      {text}
+    </Markdown>
+  );
+}
+
 // ---------------------------------------------------------------- Tool lines
 
 const toolIcon = { running: 'sparkle', done: 'check', error: 'xCircle' } as const;
@@ -393,14 +402,18 @@ function QuizCard({ quiz, onAnswer }: { quiz: Quiz; onAnswer?: (questionIndex: n
           {index + 1} of {total}
         </span>
       </div>
-      <p className="qp">{q.prompt}</p>
+      <p className="qp">
+        <InlineText text={q.prompt} />
+      </p>
       <div role="radiogroup" aria-label={q.prompt}>
         {q.choices.map((choice, i) => {
           const state = checked ? (i === q.answerIndex ? 'right' : i === picked ? 'wrong' : '') : i === picked ? 'sel' : '';
           return (
             <button key={i} type="button" role="radio" aria-checked={picked === i} className={`choice ${state}`} disabled={checked} onClick={() => setPicked(i)}>
               {checked && i === q.answerIndex ? <Icon name="checkCircle" size="sm" /> : checked && i === picked ? <Icon name="xCircle" size="sm" /> : <span className="rad" />}
-              {choice}
+              <span>
+                <InlineText text={choice} />
+              </span>
             </button>
           );
         })}
@@ -408,7 +421,7 @@ function QuizCard({ quiz, onAnswer }: { quiz: Quiz; onAnswer?: (questionIndex: n
       {checked && (
         <p className={correct ? 'qx ok' : 'qx bad'} role="status">
           {correct ? 'Right. ' : 'Not quite. '}
-          {q.explanation}
+          <InlineText text={q.explanation} />
         </p>
       )}
       <div className="qact">

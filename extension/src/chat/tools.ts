@@ -8,7 +8,7 @@ import { localDay, minutesWords, WORKLOAD_WORDS } from '../analysis/plan';
 import { buildHomeModel } from '../analysis/recommend';
 import { roomDays, roomKey, roomLookup } from '../analysis/room';
 import { checkAiDispatch } from '../core/gate';
-import { findTopic, loadSheetTopics } from '../session/topics';
+import { findTopic, loadSheetTopics, reusedFromSheet, sheetTextFor } from '../session/topics';
 import { instructionText, type LoomerDb, type PlanEdit } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
@@ -199,6 +199,12 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
       if (!args.success) return { forModel: 'The quiz did not match the schema.', label };
       const questions = args.data.questions.filter((q) => q.answer_index < q.choices.length);
       if (questions.length === 0) return { forModel: 'Every answer index was out of range.', label };
+      // Never hand the student their own homework: refuse a question that copies math from their sheet.
+      const sheet = threadKey ? await sheetTextFor(db, threadKey) : '';
+      for (const [i, q] of questions.entries()) {
+        const copied = reusedFromSheet([q.prompt, ...q.choices].join(' '), sheet);
+        if (copied) return { forModel: `Not shown: question ${i + 1} uses "${copied}" from the student's own sheet. Write new problems on the same idea with different numbers, then call quiz_me again.`, label };
+      }
       // A check on a sheet topic: the one the student tapped, or a topic whose name matches the concept.
       const sheetTopic = threadKey ? ((topic && (await findTopic(db, threadKey, topic))) || (await findTopic(db, threadKey, args.data.concept))) : null;
       return {
