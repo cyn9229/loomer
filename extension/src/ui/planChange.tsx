@@ -34,7 +34,7 @@ export function PlanChangeCard({ change, items, room, now, send }: CardProps) {
       {replanned && change.status === 'proposed' && (
         <p className="pc-stale" role="status">
           <Icon name="refresh" size="xs" />
-          Your plan changed since this was made. Here’s the new version.
+          Your plan changed since this was made, so here’s the new version.
         </p>
       )}
       {(preview.days.length > 0 || preview.moves.length > 0) && <Strip change={change} items={items} room={room} now={now} />}
@@ -74,14 +74,14 @@ export function PlanChangeCard({ change, items, room, now, send }: CardProps) {
       {change.status === 'applied' && (
         <p className="pc-done">
           <Icon name="checkCircle" size="sm" />
-          <span className="grow">Applied to your plan</span>
+          <span className="grow">Added to your plan</span>
           <button type="button" className="link" disabled={other.busy} aria-busy={other.busy} onClick={() => other.run(() => send({ type: 'plan:undo', changeId: change.id }))}>
             <Icon name="undo" size="xs" />
             {other.busy ? 'Undoing…' : 'Undo'}
           </button>
         </p>
       )}
-      {change.status === 'undone' && <p className="pc-off">Undone. Your plan is back to how it was.</p>}
+      {change.status === 'undone' && <p className="pc-off">Undone, so your plan is back to how it was.</p>}
       {change.status === 'dismissed' && <p className="pc-off">Not applied.</p>}
       {error && <p className="status-line error">{error}</p>}
     </section>

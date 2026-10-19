@@ -179,7 +179,9 @@ export function AiServiceDown({ send }: { send: (message: { type: 'ai:check' }) 
   return (
     <p className="service-down" role="status">
       <Icon name="power" size="sm" />
-      <span className="grow">Loomer’s AI service isn’t running. Start it with npm run dev:server.</span>
+      <span className="grow" title="Developers: start it with npm run dev:server">
+        Loomer’s AI isn’t running right now, so try again in a bit.
+      </span>
       <button
         type="button"
         className="link"
@@ -214,11 +216,11 @@ export function SyncFoot({
       <span className="grow">
         {lastCheck ? (
           <>
-            {problem ? 'Tried to sync' : 'Synced with Canvas'} at {observedAt(lastCheck.at, now)}
+            {problem ? 'Tried to check Canvas' : 'Checked Canvas'} at {observedAt(lastCheck.at, now)}
             {problem && <span className="foot-problem">{problem}</span>}
           </>
         ) : (
-          'Hasn’t synced with Canvas yet'
+          'Loomer hasn’t checked Canvas yet'
         )}
       </span>
       {onRefresh && (

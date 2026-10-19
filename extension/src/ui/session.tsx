@@ -25,10 +25,10 @@ export type WorkTab = 'help' | 'sources';
 
 const readLine: Record<DocReadState, string> = {
   ok: 'Loomer is reading your draft',
-  waiting: 'Draft linked. Loomer reads it soon',
-  'rate-limited': 'Google asked Loomer to slow down. It picks back up on its own',
-  'no-access': 'Loomer can’t open your Doc. Sign in to Google with the account that owns it',
-  unreadable: 'Loomer couldn’t read your Doc. It’ll try again',
+  waiting: 'Your draft is linked, and Loomer will read it soon',
+  'rate-limited': 'Google asked Loomer to slow down, so it will try again in a minute',
+  'no-access': 'Loomer can’t open your Doc, so sign in to Google with the account that owns it',
+  unreadable: 'Loomer couldn’t read your Doc and will try again soon',
 };
 
 /**
@@ -44,7 +44,7 @@ function docKind(session: ActiveSession): DocKind {
 /** One line about the linked Doc. A copy of practice work never gets a word count. */
 function draftLine(doc: DocState, now: Date, kind: DocKind = 'draft'): string {
   if (doc.status === 'not-linked') return kind === 'copy' ? 'No copy linked' : 'No draft linked yet';
-  if (doc.readState !== 'ok') return kind === 'copy' && doc.readState === 'waiting' ? 'Your copy is linked. Loomer reads it soon' : readLine[doc.readState];
+  if (doc.readState !== 'ok') return kind === 'copy' && doc.readState === 'waiting' ? 'Your copy is linked, and Loomer will read it soon' : readLine[doc.readState];
   const name = kind === 'copy' ? 'Copy' : 'Draft';
   const parts = [doc.lastReadAt ? `${name} read ${observedAt(doc.lastReadAt, now)}` : `${name} linked`, kind === 'draft' && doc.studentWords !== null ? `${doc.studentWords} of your words` : null];
   return parts.filter(Boolean).join(' · ');
@@ -86,7 +86,7 @@ export function SessionTime({ session, now, api, onStopped }: { session: ActiveS
     return noted === session.plannedUntil ? null : (
       <p className="tnote" role="status">
         <Icon name="edit" size="sm" />
-        <span className="grow">About {left} min left. Note where you stopped.</span>
+        <span className="grow">You have about {left} {left === 1 ? 'minute' : 'minutes'} left, so jot down where you are.</span>
         <button type="button" className="link" onClick={() => setNoted(session.plannedUntil)}>
           Got it
         </button>
@@ -99,7 +99,7 @@ export function SessionTime({ session, now, api, onStopped }: { session: ActiveS
         <Icon name="sandglass" size="sm" />
         Your time is up
       </p>
-      <p className="tup-p">Stop here or keep going. Loomer won’t stop you.</p>
+      <p className="tup-p">You can stop here or keep going.</p>
       <div className="pc-act">
         <button
           type="button"
@@ -248,7 +248,7 @@ function TopicsList({ topics, item, help, send }: { topics: NonNullable<ActiveSe
               ))}
             </div>
             <p className="tskip">
-              Teacher dropped this one?{' '}
+              Not needed anymore?{' '}
               <button type="button" className="link" disabled={skip.busy} onClick={() => setSkipped(t.text, true)}>
                 Skip it
               </button>
@@ -266,7 +266,7 @@ function TopicsList({ topics, item, help, send }: { topics: NonNullable<ActiveSe
         {topics.status === 'ok' && shown.length > 0 && <span>{summary}</span>}
       </div>
       {topics.status === 'reading' && <p className="topics-note">Loomer is reading the sheet…</p>}
-      {topics.status === 'failed' && <p className="topics-note">Loomer couldn’t find topics on the sheet. Help still works.</p>}
+      {topics.status === 'failed' && <p className="topics-note">Loomer couldn’t find topics on the sheet, but you can still ask for help.</p>}
       {topics.status === 'ok' && topics.items.length === 0 && <p className="topics-note">No topics found on the sheet.</p>}
       {topics.status === 'ok' &&
         (grouped
@@ -322,7 +322,7 @@ export function QuizNote({ api }: { api: PanelApi }) {
         <Icon name="lock" />
       </span>
       <h2>Loomer doesn’t help during a quiz or test</h2>
-      <p>Study for it before you start. Your plan and saved sources still work.</p>
+      <p>Study for it before you start, and your plan still works.</p>
       <p className="paused-line">
         <Icon name="pauseCircle" size="sm" />
         Ask Loomer is paused while this is open.
@@ -557,7 +557,7 @@ export function SuggestionRow({ suggestion, leaving, api }: { suggestion: NonNul
         .then((granted) =>
           granted
             ? api.send({ type: 'suggestion:add', tabId: suggestion.tabId })
-            : { ok: false as const, error: 'Chrome didn’t allow access to this site. Nothing was saved.' },
+            : { ok: false as const, error: 'Chrome didn’t allow this site, so nothing was saved.' },
         )
         .finally(() => setVerb(null)),
     );
@@ -664,9 +664,9 @@ export function LinkDocStep({
         <div className="step-t">{purpose === 'copy' ? 'Working in your own copy? Paste its link.' : 'Which Doc is your draft?'}</div>
         <div className="step-s">
           {purpose === 'copy'
-            ? 'Only if you write your answers in a Doc. Loomer already has the teacher’s sheet.'
+            ? 'Only link one if you write your answers in your own Doc.'
             : candidates.length > 0
-              ? 'We found these in the instructions. Pick yours.'
+              ? 'Loomer found these in the instructions, so pick yours.'
               : 'Paste the link to your Google Doc.'}
         </div>
         {candidates.length > 0 && purpose === 'copy' && <p className="pick-k">From the instructions</p>}

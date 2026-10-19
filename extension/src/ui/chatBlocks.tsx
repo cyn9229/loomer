@@ -139,7 +139,7 @@ function VisualBlock({ visual, widgetUrl }: { visual: Visual; widgetUrl: string 
       {visual.type === 'svg' ? <SafeSvg svg={visual.svg} title={visual.title} /> : visual.type === 'chart' ? <Chart spec={visual.chart} title={visual.title} /> : <Widget html={visual.html} height={visual.height} title={visual.title} widgetUrl={widgetUrl} />}
       <p className="made">
         <Icon name="sparkle" size="xs" />
-        {visual.type === 'interactive' ? 'Made by Loomer’s AI. Runs in a sandbox.' : 'Made by Loomer’s AI. Check it against your sources.'}
+        {visual.type === 'interactive' ? 'Loomer’s AI made this, and it runs in a sandbox.' : 'Loomer’s AI made this, so check it against your sources.'}
       </p>
     </figure>
   );
@@ -369,7 +369,7 @@ function QuizCard({ quiz, onAnswer }: { quiz: Quiz; onAnswer?: (questionIndex: n
             <b>
               {right} of {total} right.
             </b>{' '}
-            Just practice. Nothing is saved or sent to your teacher.
+            This is just practice, and your teacher never sees it.
           </span>
           <button type="button" className="link" onClick={restart}>
             Try again

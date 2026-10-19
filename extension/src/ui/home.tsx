@@ -91,7 +91,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
         </button>
         <p className="note" style={{ padding: '14px 0 0' }}>
           <Icon name="lock" />
-          Loomer only reads. It never turns anything in or changes Canvas.
+          Loomer only reads Canvas and never turns anything in or changes it.
         </p>
       </section>
     );
@@ -204,7 +204,7 @@ function TimeQuestion({ value, onChange }: { value: number | undefined; onChange
           </button>
         ))}
       </div>
-      {value !== undefined && <p className="timeq-s">Loomer picks a step that fits. You can keep going after.</p>}
+      {value !== undefined && <p className="timeq-s">Loomer will pick a step that fits your time.</p>}
     </div>
   );
 }
@@ -325,7 +325,7 @@ function Focus({ model, now, actions, whyOpen, onWhy }: FocusProps) {
         <section className="focus">
           <div className="eyebrow muted">Next step</div>
           <h1 className="h1">Pick one yourself for now</h1>
-          <p className="focus-text">Something we couldn’t read might change what comes first.</p>
+          <p className="focus-text">Loomer couldn’t read everything, so the order might change.</p>
         </section>
       );
     case 'empty':
@@ -333,7 +333,7 @@ function Focus({ model, now, actions, whyOpen, onWhy }: FocusProps) {
         <section className="focus">
           <div className="eyebrow muted">Next step</div>
           <h1 className="h1">You’re all caught up</h1>
-          <p className="focus-text">Nothing due soon. New work shows up after the next sync.</p>
+          <p className="focus-text">Nothing is due soon, and new work shows up after the next Canvas check.</p>
         </section>
       );
     case 'ready':
@@ -507,7 +507,7 @@ function OlderNotice({ review, now, actions }: { review: NonNullable<OlderReview
       </summary>
       <div className="notice-body">
         <p className="item-sub" style={{ paddingBottom: 4 }}>
-          Canvas still lists these. Tell Loomer where they stand.
+          {n === 1 ? 'Canvas still lists it, so tell Loomer if you finished it.' : 'Canvas still lists these, so tell Loomer if you finished them.'}
         </p>
         {review.items.map(({ item, reason }) => (
           <OlderItem key={item.assignmentId} item={item} reason={reason} now={now} actions={actions} />
@@ -547,7 +547,7 @@ function OlderItem({ item, reason, now, actions }: { item: WorkItem; reason: str
           Still doing it
         </button>
         <button type="button" className="btn sm" disabled={act.busy} aria-busy={verb === 'done'} onClick={() => run('done', correct('done-offline'))}>
-          Did it offline
+          Did it on paper
         </button>
         <button
           type="button"

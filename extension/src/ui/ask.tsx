@@ -91,7 +91,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
             <Icon name="pauseCircle" />
           </span>
           <h2>Ask Loomer is paused</h2>
-          <p>You have a quiz or test open. Loomer comes back when you end that session.</p>
+          <p>Loomer comes back when you end your quiz session.</p>
           <button type="button" className="btn sm" onClick={onEndQuiz}>
             Go to the quiz session
           </button>
@@ -246,7 +246,7 @@ function Starters({ assignment, onAsk, disabled }: { assignment: WorkItem | null
   return (
     <section className="starters" aria-label="Ideas to ask">
       <p className="caption" style={{ padding: 0 }}>
-        {assignment ? 'Ask about this one. Loomer explains and gives hints, but won’t write it for you.' : 'Ask about a concept, your week, or anything for school.'}
+        {assignment ? 'Loomer explains and gives hints here, but won’t write it for you.' : 'Ask about a concept, your week, or anything for school.'}
       </p>
       {(assignment ? starters.assignment : starters.general).map((text) => (
         <button key={text} type="button" className="starter" disabled={disabled} onClick={() => onAsk(text)}>
@@ -280,7 +280,7 @@ function NotAvailable({
           <Icon name="power" />
         </span>
         <h2>Loomer’s AI is off</h2>
-        <p>Turn on AI help in settings to ask questions. Your plan, sources and checklists still work.</p>
+        <p>Turn on AI help in settings to ask questions.</p>
         <button type="button" className="btn sm" onClick={api.openSettings}>
           Open settings
         </button>
@@ -345,7 +345,7 @@ function Turn({
         {turn.status === 'error' && (
           <p className="turn-error" role="alert">
             <Icon name="alert" size="sm" />
-            {turn.error ?? 'This reply got cut off. Try asking again.'}
+            {turn.error ?? 'This reply got cut off, so try asking again.'}
           </p>
         )}
       </div>

@@ -50,8 +50,8 @@ export function SheetList({ sheets, label, requestOrigins, send }: SheetProps) {
 }
 
 const trouble: Record<Exclude<TeacherSheet['state'], 'ok' | 'needs-permission'>, string> = {
-  'no-access': 'Google didn’t let Loomer read it (signed out, or download is off).',
-  unreadable: 'Loomer couldn’t read it. It tries again on the next check.',
+  'no-access': 'Google didn’t let Loomer read it, so you might need to sign in.',
+  unreadable: 'Loomer couldn’t read it and will try again on the next check.',
   'rate-limited': 'Google asked Loomer to slow down. It reads it on the next check.',
 };
 

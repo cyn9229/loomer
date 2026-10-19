@@ -38,10 +38,10 @@ export const askHint: Record<WorkType, string> = {
 
 /** One line on what help looks like for each type, before the first question. */
 export const typeCaption: Record<WorkType, string> = {
-  writing: 'Stuck? Ask about this assignment. Loomer starts with a small hint and never writes it for you.',
-  practice: 'Loomer explains the idea and shows a similar example. It won’t do your problems.',
+  writing: 'Loomer gives you a small hint first and never writes it for you.',
+  practice: 'Loomer explains the idea with a similar example, but won’t do your problems.',
   study: 'Get ready for the test: quiz yourself or ask about a topic.',
-  reading: 'Stuck on a word or a part? Ask here.',
+  reading: 'Ask about any word or part that’s confusing.',
 };
 
 /** The type next to the class on the assignment. Opens a menu to change it; a quiz has no menu. */
@@ -82,7 +82,7 @@ export function TypeMenu({ item, send }: { item: WorkItem; send: PanelApi['send'
               {type === item.workType.type && <Icon name="check" size="sm" />}
             </button>
           ))}
-          <p className="pop-k">{item.workType.source === 'student' ? 'You set this. Undo it in Your changes.' : 'Loomer’s pick. Change it if it’s wrong.'}</p>
+          <p className="pop-k">{item.workType.source === 'student' ? 'You set this, and you can undo it in Your changes.' : 'Loomer picked this, so change it if it’s wrong.'}</p>
         </div>
       )}
       {save.error && <p className="status-line error">{save.error}</p>}

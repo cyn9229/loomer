@@ -97,7 +97,7 @@ function GetStarted({ settings, onDone }: { settings: Settings | null; onDone: (
             <div className="grow">
               <h2 className="ocard-title">Connect your school’s Canvas</h2>
               <p className="ocard-desc">
-                {settings?.canvasOrigin ? `Connected to ${new URL(settings.canvasOrigin).host}.` : 'Step one. Everything else builds on this.'}
+                {settings?.canvasOrigin ? `Connected to ${new URL(settings.canvasOrigin).host}.` : 'Everything else in Loomer builds on this.'}
               </p>
             </div>
           </div>
@@ -106,7 +106,7 @@ function GetStarted({ settings, onDone }: { settings: Settings | null; onDone: (
         <section className="ocard" aria-label="What connecting means">
           <h2 className="ocard-title">What connecting means</h2>
           <ul className="steps" style={{ marginTop: 12 }}>
-            <Step icon="globe" title="One site" text="Chrome asks you to allow this one address. Loomer reads only assignment pages it supports." />
+            <Step icon="globe" title="One site" text="Chrome asks you to allow this one address, and Loomer only reads assignment pages." />
             <Step icon="lock" title="No passwords" text="Your Canvas sign-in stays in Chrome. No school API keys." />
             <Step icon="database" title="Stored here" text="What Loomer reads is stored in this Chrome profile." />
           </ul>
@@ -229,7 +229,7 @@ function Privacy({
           </span>
           <div>
             <b>You decide what Loomer reads</b>
-            <span>Approvals are per site. Gmail, Outlook mail, and Google sign-in pages are never read.</span>
+            <span>You approve each site, and Loomer never reads email or sign-in pages.</span>
           </div>
         </div>
       </div>
@@ -305,7 +305,7 @@ function AiHelpCard({ ai }: { ai: AiSettings }) {
       .request({ origins: [`${ai.brokerOrigin}/*`] })
       .then(async (granted) => {
         if (!granted) {
-          setError('Chrome access to the local AI service was not granted. AI help stays off.');
+          setError('Chrome didn’t allow the AI service, so AI help stays off.');
           return;
         }
         const reply = await sendMessage({ type: 'ai:set', enabled: true });
@@ -323,7 +323,7 @@ function AiHelpCard({ ai }: { ai: AiSettings }) {
         </span>
         <div className="grow">
           <h2 className="ocard-title">AI help</h2>
-          <p className="ocard-desc">Off by default. You choose.</p>
+          <p className="ocard-desc">AI help stays off until you turn it on.</p>
         </div>
       </div>
       <div className="setting">
@@ -405,7 +405,7 @@ function DiscoveryCard({ enabled }: { enabled: boolean }) {
         </span>
         <div className="grow">
           <h2 className="ocard-title">Research suggestions</h2>
-          <p className="ocard-desc">Off by default. You choose.</p>
+          <p className="ocard-desc">Suggestions stay off until you turn them on.</p>
         </div>
       </div>
       <div className="setting">
@@ -488,7 +488,7 @@ function NotificationsCard({ enabled }: { enabled: boolean }) {
         </span>
         <div className="grow">
           <h2 className="ocard-title">Notifications</h2>
-          <p className="ocard-desc">Off by default. You choose.</p>
+          <p className="ocard-desc">Notifications stay off until you turn them on.</p>
         </div>
       </div>
       <div className="setting">
@@ -503,7 +503,7 @@ function NotificationsCard({ enabled }: { enabled: boolean }) {
         <button type="button" role="switch" className="switch" aria-checked={enabled} aria-labelledby="notify-switch-label" disabled={working} onClick={toggle} />
       </div>
       <p className="ocard-desc" style={{ marginTop: 8 }}>
-        Hints never send notifications. Your computer might mute these.
+        Hints never send notifications.
       </p>
       {error && (
         <p className="status-line error" role="status">
@@ -585,7 +585,7 @@ function ProactiveCard({ proactive }: { proactive: ProactiveSettings }) {
         <div className="grow">
           <h2 className="ocard-title">Proactive hints</h2>
           <p className="ocard-desc">
-            Hints appear only after you pause, and only about what you have written. A review you ask for runs right away.
+            Hints only show up after you pause, and only about what you wrote.
           </p>
         </div>
       </div>
@@ -666,7 +666,7 @@ function PauseCard({ paused }: { paused: boolean }) {
         <div className="grow">
           <h2 className="ocard-title">{paused ? 'Loomer is paused' : 'Pause Loomer'}</h2>
           <p className="ocard-desc">
-            Pausing stops Canvas checks, reading your Doc, adding pages, and suggestions. It also pauses your work session.
+            Pausing stops everything Loomer reads, including your work session.
             Resuming Loomer does not resume the session; press Resume in the session for that.
           </p>
         </div>
@@ -740,7 +740,7 @@ function NeverReadCard({ exclusions }: { exclusions: Exclusion[] }) {
         </span>
         <div className="grow">
           <h2 className="ocard-title">Never read</h2>
-          <p className="ocard-desc">These block Loomer, not you. You can still visit them.</p>
+          <p className="ocard-desc">These block Loomer, not you, so you can still visit them.</p>
         </div>
       </div>
       {exclusions.map((x) => (
@@ -822,7 +822,7 @@ function DataCard({ onCleared }: { onCleared: () => void }) {
         </span>
         <div className="grow">
           <h2 className="ocard-title">Your data</h2>
-          <p className="ocard-desc">Saved in this Chrome profile. Not encrypted. Anyone with access to this profile can read it.</p>
+          <p className="ocard-desc">Loomer saves this in your Chrome profile without encryption, so anyone using this profile can read it.</p>
         </div>
       </div>
       <div className="setting">

@@ -139,7 +139,7 @@ export function DeleteAssignmentData({ assignmentId, send }: { assignmentId: str
       onConfirm={() => action.run(() => send({ type: 'data:delete-assignment', assignmentId }))}
     >
       <p className="confirm-body">
-        Removes Loomer’s notes, chat, saved pages, and draft copy for it. Nothing changes in Canvas or your Doc.
+        This removes Loomer’s notes, chat, pages, and draft copy, but nothing changes in Canvas or your Doc.
       </p>
     </ConfirmBox>
   );

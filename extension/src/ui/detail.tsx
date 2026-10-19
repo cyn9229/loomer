@@ -62,7 +62,7 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
       {item.dueConflict && (
         <p className="d-note warn">
           <Icon name="alert" size="xs" />
-          Canvas and the instructions list different due dates. Check both.
+          Canvas and the instructions list different due dates, so check both.
         </p>
       )}
       {item.policy.state !== 'permitted' && item.policy.state !== 'none-found' && (
@@ -210,7 +210,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
       <SheetList sheets={detail.sheets} label="Sheets in the instructions" requestOrigins={actions.requestOrigins} send={actions.send} />
       {detail.requirements.length === 0 ? (
         <>
-          <p className="hint-line">We haven’t pulled out the requirements yet.</p>
+          <p className="hint-line">Loomer hasn’t read the requirements yet.</p>
           {detail.descriptionExcerpt && <p className="hint-line" style={{ color: 'var(--text)' }}>{detail.descriptionExcerpt}</p>}
         </>
       ) : detail.check ? (
@@ -315,7 +315,7 @@ function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null;
 }
 
 const correctionText: Record<Exclude<StudentCorrection, null>, string> = {
-  'done-offline': 'You said you did this offline, so it’s off your list.',
+  'done-offline': 'You did this on paper, so it’s off your list.',
   'kept-active': 'You asked to keep this on your list.',
 };
 
@@ -338,7 +338,7 @@ function Corrections({ item, correction, actions }: { item: WorkItem; correction
           Loomer only knows what Canvas shows.
           <div className="btn-row">
             <button type="button" className="btn sm" disabled={act.busy} onClick={() => set('done-offline')}>
-              I did it offline
+              I did it on paper
             </button>
             <button type="button" className="btn sm" disabled={act.busy} onClick={() => set('kept-active')}>
               Keep it on my list

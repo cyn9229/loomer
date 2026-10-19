@@ -142,7 +142,7 @@ function PlanWeek({ items, room, now, onOpen }: { items: WorkItem[]; room: DayRo
                 <span>{events.length === 0 ? 'Nothing planned' : `${plural(starts, 'start')} · ${dues} due`}</span>
               )}
             </div>
-            {limited?.level === 'busy' && <p className="wd-note">No starts. You said you’re busy.</p>}
+            {limited?.level === 'busy' && <p className="wd-note">Nothing starts this day because you said you’re busy.</p>}
             {events.map((event, i) => (
               <WeekRow key={i} event={event} onOpen={onOpen} />
             ))}

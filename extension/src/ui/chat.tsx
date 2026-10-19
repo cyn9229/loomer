@@ -24,7 +24,7 @@ const kindLabel: Record<ChatMessage['kind'], string | null> = {
   example: 'Example on a different topic',
   redirect: 'Let’s try this instead',
   review: 'Feedback on your draft',
-  notice: 'Heads up',
+  notice: 'One thing to check',
 };
 
 export function ChatView({
@@ -193,7 +193,7 @@ export function PolicyStep({ n, assignmentId, api }: { n?: number; assignmentId:
       <span className="num">{n ?? '?'}</span>
       <div className="grow">
         <div className="step-t">Does your teacher allow AI help on this one?</div>
-        <div className="step-s">We couldn’t find a rule in the instructions or syllabus.</div>
+        <div className="step-s">Loomer couldn’t find a rule in the instructions or syllabus.</div>
         <div className="choices">
           {choices.map(([value, label]) => (
             <button
@@ -230,7 +230,7 @@ function Unavailable({ help, api }: { help: HelpState; api: PanelApi }) {
             <Icon name="sparkle" />
             AI help is off
           </div>
-          <p className="hint-text">Turn it on in settings to get hints. Everything else still works.</p>
+          <p className="hint-text">Turn on AI help in settings to get hints.</p>
           <button type="button" className="btn sm" style={{ marginTop: 10 }} onClick={api.openSettings}>
             Open settings
           </button>
