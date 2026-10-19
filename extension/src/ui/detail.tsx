@@ -12,6 +12,7 @@ import type { StudentCorrection, WorkItem } from '../model/home';
 import { useAction } from './api';
 import { calendarDaysUntil, minutesText, monthDay, observedAt, timeOf, weekday, workloadWord } from './format';
 import { type HomeActions, startControl } from './home';
+import { AiBlock } from './aiBlock';
 import { Icon } from './Icon';
 import { PolicyNote, SizeMeter, SubjectTile } from './parts';
 import { DeleteAssignmentData } from './privacy';
@@ -33,15 +34,9 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
       </div>
       <h1 className="d-title">{item.title}</h1>
       {ok?.plainWords && (
-        <section className="plain" aria-label="In plain words">
-          <div className="plain-k">
-            <Icon name="sparkle" size="xs" />
-            In plain words
-            <span className="grow" />
-            <span>Loomer’s reading</span>
-          </div>
-          <p>{ok.plainWords}</p>
-        </section>
+        <AiBlock className="plain" label="In plain words" flashKey={`plain:${item.assignmentId}:${ok.plainWords}`}>
+          <p className="ai-text">{ok.plainWords}</p>
+        </AiBlock>
       )}
       <div className="facts">
         <StartTile item={item} now={now} />
@@ -232,6 +227,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
                 <span className="rq-text">{r.text}</span>
                 <span className="rq-note">{r.evidence?.note ?? fallbackNote[r.state]}</span>
                 {r.state === 'needs-review' && r.evidence?.quote && <span className="rq-quote">“{r.evidence.quote}”</span>}
+                {r.hint && <RequirementHint hint={r.hint} />}
               </li>
             ))}
           </ul>
@@ -243,6 +239,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
               <li className="rq" key={i}>
                 <span className="cbx" aria-hidden="true" />
                 <span className="rq-text">{r.text}</span>
+                {r.hint && <RequirementHint hint={r.hint} />}
               </li>
             ))}
           </ul>
@@ -262,6 +259,21 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
       )}
       {check.error && <p className="status-line error pad">{check.error}</p>}
     </section>
+  );
+}
+
+/** The latest hint for a requirement: still open, or handled (shown as progress). */
+function RequirementHint({ hint }: { hint: NonNullable<RequirementItem['hint']> }) {
+  return hint.state === 'handled' ? (
+    <span className="rq-hint done">
+      <Icon name="check" size="xs" />
+      Hint handled · {hint.text}
+    </span>
+  ) : (
+    <span className="rq-hint">
+      <Icon name="sparkle" size="xs" />
+      Hint · {hint.text}
+    </span>
   );
 }
 

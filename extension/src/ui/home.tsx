@@ -11,6 +11,7 @@ import type { DailyBrief, HomeModel, NextAction, OlderReview, ResumeBriefing, Wo
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon } from './Icon';
+import { AiBlock } from './aiBlock';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
 import { YourChanges } from './planChange';
 import { PlanSection, startWords, type PlanMode } from './planView';
@@ -160,10 +161,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
       <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
       {next && whyOpen && (
-        <section className="why" aria-label="Why this one">
-          <p className="evidence-text" style={{ paddingBottom: 4 }}>
-            {next.reason}
-          </p>
+        <section className="why" aria-label="Why this one, in detail">
           <EvidenceList evidence={next.evidence} now={now} />
         </section>
       )}
@@ -377,8 +375,10 @@ function NextStep({
   const start = startControl(item, actions, minutes);
   const clear = useAction();
   const switchTo = useAction();
-  // A resume briefing for this same assignment folds in as one "Last time" line.
+  // A resume briefing for this same assignment folds in: its focus leads, and one "Last time" line follows.
   const lastTime = resume?.assignment.assignmentId === item.assignmentId ? resume : null;
+  const headline = lastTime?.focus ?? next.action;
+  const lastFacts = lastTime ? [lastTime.handledHints > 0 && `${lastTime.handledHints} ${lastTime.handledHints === 1 ? 'hint' : 'hints'} handled`, ...lastTime.facts].filter(Boolean) : [];
   const label = lastTime && start.label === 'Start working' ? 'Keep going' : start.label;
   const pick = next.chosenByStudent ? next.loomerPick : null;
   const limited = item.policy.state === 'blocked' || item.policy.state === 'limited' || item.policy.state === 'unresolved';
@@ -386,10 +386,16 @@ function NextStep({
   return (
     <section className="focus" aria-label="Next step">
       <div className="eyebrow">
-        {next.chosenByStudent ? 'Your pick' : 'Next step'}
-        {when && <> · {when}</>}
+        {lastTime?.focus ? (
+          'Continue'
+        ) : (
+          <>
+            {next.chosenByStudent ? 'Your pick' : 'Next step'}
+            {when && <> · {when}</>}
+          </>
+        )}
       </div>
-      <h1 className={titleClass(next.action)}>{next.action}</h1>
+      <h1 className={titleClass(headline)}>{headline}</h1>
       <div className="ctx">
         <SubjectTile courseName={item.courseName} size="lg" />
         <span className="grow">
@@ -407,20 +413,35 @@ function NextStep({
           {next.change}
         </p>
       )}
-      {lastTime && lastTime.facts.length > 0 && <p className="focus-line ellipsis">Last time: {lastTime.facts.slice(0, 2).join(' · ')}</p>}
+      {!next.chosenByStudent && (
+        <AiBlock
+          className="why-block"
+          label="Why this one"
+          flashKey={`why:${item.assignmentId}:${next.reason}`}
+          right={
+            <button type="button" className="link muted" aria-expanded={whyOpen} onClick={onWhy}>
+              {whyOpen ? 'Hide' : 'Details'}
+            </button>
+          }
+        >
+          <p className="ai-text">{next.reason}</p>
+        </AiBlock>
+      )}
+      {lastFacts.length > 0 && (
+        <p className="focus-line ellipsis last-time">
+          {lastTime && lastTime.handledHints > 0 && <Icon name="check" size="xs" />}
+          Last time: {lastFacts.slice(0, 2).join(' · ')}
+        </p>
+      )}
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
       {!start.current && <TimeQuestion value={minutes} onChange={setMinutes} />}
       <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
         {start.busy ? 'Starting…' : label}
         <Icon name="arrowRight" />
       </button>
-      {next.chosenByStudent ? (
+      {next.chosenByStudent && (
         <button type="button" className="center-link" disabled={clear.busy} onClick={() => clear.run(() => actions.send({ type: 'choice:clear' }))}>
           {clear.busy ? 'Asking…' : 'Ask Loomer to pick again'}
-        </button>
-      ) : (
-        <button type="button" className="center-link" aria-expanded={whyOpen} onClick={onWhy}>
-          {whyOpen ? 'Hide why' : 'Why this one?'}
         </button>
       )}
       {pick && (

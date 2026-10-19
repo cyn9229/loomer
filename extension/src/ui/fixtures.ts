@@ -602,14 +602,14 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
         source: { quote: 'Compare how two sources explain urban heat islands.', label: 'Assignment instructions' },
         state: checked ? 'observed' : 'unknown',
         evidence: checked ? { quote: 'The EPA says cities can be 7°F warmer. The city report says shaded blocks are cooler.', note: 'Found in paragraph 3' } : null,
-        hint: null,
+        hint: checked ? { text: 'Where do the EPA numbers and the canopy report agree?', state: 'handled' } : null,
       },
       {
         text: 'Use at least 3 sources',
         source: { quote: 'Use at least three sources.', label: 'Assignment instructions' },
         state: checked ? 'needs-review' : 'unknown',
         evidence: checked ? { quote: 'According to the EPA…', note: 'You cite 2 so far' } : null,
-        hint: null,
+        hint: checked ? { text: 'Find a third source on tree cover.', state: 'open' } : null,
       },
       {
         text: 'Cite in MLA format',

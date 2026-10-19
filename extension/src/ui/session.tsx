@@ -16,6 +16,7 @@ import { useAction, type PanelApi } from './api';
 import { observedAt, timeOf } from './format';
 import { SheetList } from './sheets';
 import { typeLabel } from './workType';
+import { AiBlock } from './aiBlock';
 import { Icon } from './Icon';
 import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
@@ -352,7 +353,8 @@ export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onCh
       </p>
       {item.quiz ? null : (
         <>
-          {writing && <StatStrip session={session} detail={detail} onSources={() => onTab('sources')} onChecklist={onChecklist} />}
+          {session.focus && <FocusBlock focus={session.focus} sessionId={session.sessionId} handled={session.handledHints.length} />}
+          {writing && <WorkNumbers session={session} detail={detail} onSources={() => onTab('sources')} onChecklist={onChecklist} />}
           {(item.workType.type === 'practice' || item.workType.type === 'study') && (
             <>
               <SheetList sheets={session.teacherSheets} label="From the instructions" requestOrigins={api.requestOrigins} send={api.send} />
@@ -383,81 +385,62 @@ function WorkTabs({ session, tab, onTab, hintWaiting }: { session: ActiveSession
 }
 
 /**
- * Three facts at a glance: your words in the draft, saved sources ("2 of 3"
- * when the teacher asks for a number), and the next open checklist item from
- * the last draft check. Each one opens where it lives.
+ * The session's one direction, picked near the start of a writing session,
+ * with why and how many hints the student has handled so far.
  */
-function StatStrip({ session, detail, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; onSources: () => void; onChecklist: () => void }) {
-  const words = session.doc.status === 'linked' ? session.doc.studentWords : null;
-  const need = session.sourceNeed;
+function FocusBlock({ focus, sessionId, handled }: { focus: NonNullable<ActiveSession['focus']>; sessionId: number; handled: number }) {
   return (
-    <div className="stats">
-      <button type="button" className="stat" onClick={onSources}>
-        <Icon name="doc" />
-        <b>{words ?? '—'}</b>
-        <span>{words === null ? 'no draft read yet' : 'your words'}</span>
+    <AiBlock className="focus-block" label="Your focus today" flashKey={`focus:${sessionId}:${focus.text}`}>
+      <p className="focus-text">{focus.text}</p>
+      <p className="ai-sub">{focus.why}</p>
+      {handled > 0 && (
+        <p className="handled-count">
+          <Icon name="check" size="xs" />
+          {handled} {handled === 1 ? 'hint' : 'hints'} handled so far
+        </p>
+      )}
+    </AiBlock>
+  );
+}
+
+/**
+ * The draft's numbers in one quiet row: saved sources ("2 of 3" when the
+ * teacher asks for a number) and what's open on the checklist from the last
+ * draft check. Your word count is already in the line under the title. Each
+ * one opens where it lives.
+ */
+function WorkNumbers({ session, detail, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; onSources: () => void; onChecklist: () => void }) {
+  const need = session.sourceNeed;
+  const saved = session.sources.length;
+  return (
+    <div className="wnums">
+      <button type="button" onClick={onSources} title={need ? `“${need.quote}”` : undefined}>
+        <b>{saved}</b> {need ? `of ${need.required} sources` : saved === 1 ? 'source' : 'sources'}
       </button>
-      <button type="button" className="stat" onClick={onSources} title={need ? `“${need.quote}”` : undefined}>
-        <Icon name="layers" />
-        <b>
-          {session.sources.length}
-          {need && <small> of {need.required}</small>}
-        </b>
-        <span>{(need?.required ?? session.sources.length) === 1 ? 'source' : 'sources'}</span>
-      </button>
-      <button type="button" className="stat wide next" onClick={onChecklist}>
-        <NextToFix requirements={detail?.status === 'ok' && detail.check ? detail.requirements : null} />
+      <button type="button" className="wopen" onClick={onChecklist}>
+        <ChecklistCount requirements={detail?.status === 'ok' && detail.check ? detail.requirements : null} />
       </button>
     </div>
   );
 }
 
-/**
- * The checklist cell: the first thing to look at, else the first thing Loomer
- * can't tell, with how many more are open. Before any check, says so.
- */
-function NextToFix({ requirements }: { requirements: RequirementItem[] | null }) {
-  if (!requirements) {
+/** The checklist in a few words: how many to fix, to check, or all found. Before any check, just "Checklist". */
+function ChecklistCount({ requirements }: { requirements: RequirementItem[] | null }) {
+  const review = requirements?.filter((r) => r.state === 'needs-review').length ?? 0;
+  const unknown = requirements?.filter((r) => r.state === 'unknown').length ?? 0;
+  if (requirements && review + unknown === 0) {
     return (
-      <>
-        <span className="nk">
-          <Icon name="listChecks" size="xs" />
-          Checklist
-        </span>
-        <b className="soft">Not checked</b>
-        <span>Tap to see it</span>
-      </>
+      <span className="ok">
+        <Icon name="checkCircle" size="xs" />
+        All found
+      </span>
     );
   }
-  const review = requirements.filter((r) => r.state === 'needs-review');
-  const unknown = requirements.filter((r) => r.state === 'unknown');
-  const first = review[0] ?? unknown[0];
-  if (!first) {
-    return (
-      <>
-        <span className="nk ok">
-          <Icon name="checkCircle" size="xs" />
-          Checklist
-        </span>
-        <b>All found</b>
-        <span>in your draft</span>
-      </>
-    );
-  }
-  const more = review.length + unknown.length - 1;
-  const note = first.evidence?.note ?? (first.state === 'needs-review' ? 'Take a look' : 'Can’t tell yet');
   return (
-    <>
-      <span className="nk">
-        <Icon name="target" size="xs" />
-        {first.state === 'needs-review' ? 'Next to fix' : 'Next to check'}
-      </span>
-      <b className="sm">{first.text}</b>
-      <span>
-        {note}
-        {more > 0 && ` · ${more} more open`}
-      </span>
-    </>
+    <span className={review > 0 ? 'fix' : undefined}>
+      <Icon name="listChecks" size="xs" />
+      {!requirements ? 'Checklist' : review > 0 ? `${review} to fix` : `${unknown} to check`}
+    </span>
   );
 }
 
@@ -509,27 +492,48 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
     );
   }
   return (
-    <section className={leaving ? 'hint leaving' : 'hint'} aria-label="Hint" aria-hidden={leaving || undefined}>
-      <div className="hint-k">
-        <span className="hint-ic">
-          <Icon name="sparkle" />
-        </span>
-        Hint
-        <span className="grow" />
-        <button type="button" className="link muted" onClick={onMoreHelp}>
-          More help
-        </button>
-        <button type="button" className="link muted" onClick={onHide}>
-          Hide
-        </button>
-      </div>
-      <p className="hint-text">{hint.text}</p>
-      {hint.reference && (
-        <p className="reference">
-          <mark>“{hint.reference.quote}”</mark> <span className="from">{hint.reference.from}</span>
-        </p>
-      )}
-    </section>
+    <div className={leaving ? 'hint leaving' : 'hint'} aria-hidden={leaving || undefined}>
+      <AiBlock
+        label="Hint"
+        flashKey={`hint:${hint.id}`}
+        right={
+          <>
+            <button type="button" className="link muted" onClick={onMoreHelp}>
+              More help
+            </button>
+            <button type="button" className="link muted" onClick={onHide}>
+              Hide
+            </button>
+          </>
+        }
+      >
+        {hint.requirement && <p className="hint-for">For: {hint.requirement}</p>}
+        <p className="hint-text">{hint.text}</p>
+        {hint.reference && (
+          <p className="reference">
+            <mark>“{hint.reference.quote}”</mark> <span className="from">{hint.reference.from}</span>
+          </p>
+        )}
+      </AiBlock>
+    </div>
+  );
+}
+
+/** Hints whose passage the student fixed, newest first: a quiet "Looks handled" under the current hint. */
+export function HandledHints({ hints, now }: { hints: ActiveSession['handledHints']; now: Date }) {
+  if (hints.length === 0) return null;
+  return (
+    <ul className="handled" aria-label="Hints that look handled">
+      {hints.map((h) => (
+        <li key={h.id}>
+          <Icon name="check" size="xs" />
+          <span className="grow">
+            <b>Looks handled</b> · {h.text}
+          </span>
+          <span className="when">{observedAt(h.at, now)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

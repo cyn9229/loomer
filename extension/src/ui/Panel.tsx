@@ -19,7 +19,7 @@ import { Logo } from './Logo';
 import { NudgeLine, usePresence } from './nudge';
 import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
-import { HintCard, QuizNote, SessionControls, sessionClock, SessionTime, SourcesBody, SuggestionRow, verbMessage, WorkHeader, type ActiveSession, type WorkTab } from './session';
+import { HandledHints, HintCard, QuizNote, SessionControls, sessionClock, SessionTime, SourcesBody, SuggestionRow, verbMessage, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
 
 export type PanelProps = {
@@ -257,17 +257,22 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
             draft={chatDraft}
             setDraft={setChatDraft}
             hint={
-              shownHint.value && (
-                <HintCard
-                  key={shownHint.value.id}
-                  hint={shownHint.value}
-                  leaving={shownHint.leaving}
-                  hidden={hiddenHintId === shownHint.value.id}
-                  onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
-                  onShow={() => setHiddenHintId(null)}
-                  onMoreHelp={() => setChatDraft('Can you help me more with this hint?')}
-                  api={api}
-                />
+              (shownHint.value || active.handledHints.length > 0) && (
+                <>
+                  {shownHint.value && (
+                    <HintCard
+                      key={shownHint.value.id}
+                      hint={shownHint.value}
+                      leaving={shownHint.leaving}
+                      hidden={hiddenHintId === shownHint.value.id}
+                      onHide={() => setHiddenHintId(shownHint.value?.id ?? null)}
+                      onShow={() => setHiddenHintId(null)}
+                      onMoreHelp={() => setChatDraft('Can you help me more with this hint?')}
+                      api={api}
+                    />
+                  )}
+                  <HandledHints hints={active.handledHints} now={now} />
+                </>
               )
             }
             suggestion={

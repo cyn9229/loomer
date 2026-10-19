@@ -50,6 +50,10 @@
   --red-tint: #fcebea;
   --green: #2fae66;
   --green-ink: #1d7a46;
+  /* Loomer's AI: the sparkles fade from --acc to this, the resting outline, and the one-time flash. */
+  --ai-amber: #ff9a3c;
+  --ai-line: #fbd6c6;
+  --ai-flash: 0 0 0 1.5px rgba(252, 72, 17, 0.75), 0 0 24px 3px rgba(252, 72, 17, 0.3);
 
   /* Shape */
   --r: 12px;
@@ -319,6 +323,14 @@ button.focus-sub:hover {
 .focus-line b {
   font-weight: 500;
   color: var(--text);
+}
+.why-block {
+  margin-top: 14px;
+}
+.last-time .icon {
+  margin-right: 4px;
+  vertical-align: -2px;
+  color: var(--green-ink);
 }
 .progress {
   margin-top: 16px;
@@ -2176,89 +2188,99 @@ details > summary .icon {
   color: var(--acc);
 }
 
-/* Working: words, sources, checklist at a glance. */
-.stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.3fr;
-  gap: 8px;
+/* Working: the focus, then words, sources and checklist in one quiet row. */
+.focus-block {
   margin: 14px 18px 0;
 }
-.stat {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: var(--r);
-  background: var(--fill);
-  text-align: left;
-}
-.stat:hover {
-  background: var(--fill-2);
-}
-.stat > .icon {
-  width: 15px;
-  height: 15px;
-  margin-bottom: 4px;
-  color: var(--muted);
-}
-.stat b {
-  font-size: 20px;
+.focus-text {
+  margin-top: 5px;
+  font-size: 17px;
+  line-height: 1.25;
   font-weight: 600;
-  letter-spacing: -0.4px;
-  line-height: 1.1;
+  letter-spacing: -0.3px;
+  color: var(--ink);
 }
-.stat b small {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.stat b.soft {
-  font-size: 14px;
-  line-height: 22px;
+.ai-sub {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--text);
 }
-.stat > span {
-  font-size: 12px;
-  color: var(--muted);
-}
-.stat.next b.sm {
-  margin-top: 2px;
-  font-size: 14px;
-  line-height: 1.25;
-  letter-spacing: -0.2px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.stat .nk {
+.handled-count {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  margin-top: 8px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--amber);
-}
-.stat .nk.ok {
   color: var(--green-ink);
 }
-.stat .nk .icon {
-  width: 13px;
-  height: 13px;
+.wnums {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 14px 18px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--muted);
 }
-.hint-ic {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--acc-tint);
-  display: grid;
-  place-items: center;
+.wnums b {
+  margin-right: 1px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
 }
-.hint-ic .icon {
-  width: 13px;
-  height: 13px;
-  color: var(--acc);
+.wnums button:hover b,
+.wnums button:hover {
+  color: var(--acc-text);
+}
+.wnums .wopen {
+  margin-left: auto;
+}
+.wopen span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.wopen .fix {
+  color: var(--amber);
+}
+.wopen .ok {
+  color: var(--green-ink);
+}
+.hint-for {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.handled {
+  margin: 10px 18px 0;
+  padding: 0;
+  list-style: none;
+}
+.handled li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.handled li > .icon {
+  margin-top: 2px;
+  color: var(--green-ink);
+}
+.handled b {
+  font-weight: 600;
+  color: var(--green-ink);
+}
+.handled .when {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--muted);
 }
 .reference mark {
   background: var(--acc-tint);
@@ -2405,31 +2427,6 @@ details > summary .icon {
 /* Assignment: the instructions in plain words (AI reading, labeled). */
 .plain {
   margin: 14px 18px 0;
-  padding: 12px 14px;
-  border-radius: var(--r);
-  background: var(--acc-tint);
-}
-.plain-k {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--acc-text);
-}
-.plain-k .icon {
-  color: var(--acc);
-}
-.plain-k span:last-child {
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--acc-text);
-  opacity: 0.8;
-}
-.plain p {
-  margin-top: 6px;
-  font-size: 14.5px;
-  line-height: 1.45;
 }
 .fact.acc > .icon {
   color: var(--acc);
@@ -2527,6 +2524,24 @@ details > summary .icon {
   font-size: 12.5px;
   text-align: right;
   color: var(--muted);
+}
+.rq-hint {
+  grid-column: 2 / 4;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rq-hint .icon {
+  margin-right: 4px;
+  vertical-align: -2px;
+  color: var(--acc);
+}
+.rq-hint.done,
+.rq-hint.done .icon {
+  color: var(--green-ink);
 }
 .rq-quote {
   grid-column: 2 / 4;
@@ -4010,4 +4025,95 @@ details > summary .icon {
 }
 .tskipped .link {
   font-size: 12px;
+}
+
+/* ------------------------------------------------------------ Loomer's AI
+   Orange sparkles, an orange label, a thin light-orange outline. New AI text
+   flashes the outline once (ai-flash), then sits still. */
+.ai-block {
+  position: relative;
+  padding: 11px 13px 12px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--ai-line);
+  background: var(--page);
+}
+.ai-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--ai-flash);
+  opacity: 0;
+  pointer-events: none;
+}
+.ai-block.flash::after {
+  animation: ai-flash 1.6s var(--ease-out) both;
+}
+.ai-block.flash .ai-mark {
+  animation: ai-twinkle 0.5s var(--ease-out) both;
+}
+@keyframes ai-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  20% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ai-twinkle {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-25deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-block.flash::after,
+  .ai-block.flash .ai-mark {
+    animation: none;
+  }
+}
+.ai-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.ai-k .grow {
+  flex: 1;
+}
+.ai-k .link,
+.ai-k .link.muted {
+  font-size: 12.5px;
+}
+.ai-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.ai-mark svg[width='0'] {
+  position: absolute;
+}
+.ai-mark .icon {
+  width: 15px;
+  height: 15px;
+}
+.ai-mark .icon path {
+  fill: var(--ai-fill);
+}
+.ai-text {
+  margin-top: 5px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink);
 }
