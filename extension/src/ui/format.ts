@@ -96,7 +96,7 @@ export function dueBadge(iso: string, now: Date): string | null {
   return days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : null;
 }
 
-/** The workload tile's word. Matches the planner's reasons ("heavy workload"). */
+/** The workload tile's word. Only the tile and its menu use it; the planner's sentences never name a workload. */
 export const workloadWord: Record<EffortLabel, string> = {
   Short: 'Light',
   Moderate: 'Medium',

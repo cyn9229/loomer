@@ -100,7 +100,7 @@ export function buildFixtures(now: Date) {
     guessMinutes: 180,
     policy: { state: 'permitted', sourceLabel: 'Course syllabus' },
     checkpoints: [{ text: 'Draft for peer review', at: new Date(Date.parse(essayDue) - DAY).toISOString(), quote: 'Bring a full draft for peer review the day before the final deadline.', derived: true }],
-    rankReason: `Start today: heavy workload, Draft for peer review by ${new Date(Date.parse(essayDue) - DAY).toLocaleDateString(undefined, { weekday: 'short' })}.`,
+    rankReason: `The next step for this essay, draft for peer review, is due ${new Date(Date.parse(essayDue) - DAY).toLocaleDateString(undefined, { weekday: 'long' })}, so today is a good day to start.`,
   });
   const photo = item(now, {
     assignmentId: 'a-photo',
@@ -109,7 +109,7 @@ export function buildFixtures(now: Date) {
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88310',
     due: { at: at(now, 1, 19, 59), source: 'canvas' },
     effort: { label: 'Short', reason: 'One paragraph answer.', source: 'ai' },
-    rankReason: 'Start today: light workload, due tomorrow. Second because Heat islands comparison essay needs a start today.',
+    rankReason: 'This short response comes second because Heat islands comparison essay needs to start first.',
   });
   const vocab = item(now, {
     assignmentId: 'a-vocab',
@@ -118,7 +118,7 @@ export function buildFixtures(now: Date) {
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88301',
     due: { at: at(now, 2, 8, 0), source: 'canvas' },
     effort: { label: 'Short', reason: 'Twenty terms, one short quiz.', source: 'ai' },
-    rankReason: 'Start tomorrow: light workload, due Mon.',
+    rankReason: `This vocabulary check is due ${new Date(at(now, 2, 8, 0)).toLocaleDateString(undefined, { weekday: 'long' })}, so tomorrow is a good day to start.`,
   });
   const reflection = item(now, {
     assignmentId: 'a-reflection',

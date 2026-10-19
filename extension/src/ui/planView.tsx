@@ -49,16 +49,10 @@ function startHeading(offset: number, now: Date): string {
 }
 
 /**
- * The row's short line: the planner's reason without its start phrase, first
- * sentence only. The planner writes "Start today: heavy workload, due Thu.";
- * the day heading already says when to start. The full reason is the row's
- * tooltip. Falls back to the class name when there is no reason.
+ * The plan grouped by start day. Each row's gray line is the planner's reason,
+ * one full sentence shown as is ("This quiz is due tomorrow, so today is a good
+ * day to start."); it is also the row's tooltip when the line is cut off.
  */
-function reasonLine(item: WorkItem): string | null {
-  const reason = item.rankReason?.replace(/^[^:]*:\s*/, '').split(/(?<=\.)\s/)[0];
-  return reason ? reason.charAt(0).toUpperCase() + reason.slice(1) : null;
-}
-
 function PlanList({ days, now, onOpen }: { days: { offset: number; items: WorkItem[] }[]; now: Date; onOpen: (id: string) => void }) {
   if (days.length === 0) return <p className="empty-line">Nothing needs a start this week.</p>;
   return (
@@ -77,7 +71,7 @@ function PlanList({ days, now, onOpen }: { days: { offset: number; items: WorkIt
             {items.length > 1 && <> · {items.length}</>}
           </div>
           {items.map((item) => (
-            <WorkRow key={item.assignmentId} item={item} now={now} note={reasonLine(item)} onOpen={onOpen} />
+            <WorkRow key={item.assignmentId} item={item} now={now} note={item.rankReason} onOpen={onOpen} />
           ))}
         </section>
       ))}
