@@ -265,10 +265,15 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   );
 }
 
-/** Where the work lives (Canvas, the draft, saved sources), plus Ask Loomer about it. The teacher's sheets are listed under What it asks for. */
+/**
+ * Where the work lives (Canvas, the draft, saved sources, "2 of 3" when the
+ * teacher asks for a number), plus Ask Loomer about it. The teacher's sheets
+ * are listed under What it asks for.
+ */
 function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null; onAsk: () => void }) {
   const instructions = detail?.links.instructions[0] ?? item.url;
   const sources = detail?.links.sources.length ?? 0;
+  const need = detail?.sourceNeed ?? null;
   return (
     <div className="icon-links">
       {instructions && (
@@ -283,10 +288,10 @@ function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null;
           Your draft
         </a>
       )}
-      {sources > 0 && (
-        <span>
+      {(sources > 0 || need) && (
+        <span title={need ? `“${need.quote}”` : undefined}>
           <Icon name="layers" />
-          {sources === 1 ? '1 source' : `${sources} sources`}
+          {need ? `${sources} of ${need.required} ${need.required === 1 ? 'source' : 'sources'}` : sources === 1 ? '1 source' : `${sources} sources`}
         </span>
       )}
       <button type="button" onClick={onAsk}>

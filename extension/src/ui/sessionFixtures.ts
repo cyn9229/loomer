@@ -5,7 +5,7 @@
 // AI turned off, and the other kinds of work: practice (two teacher sheets with
 // grouped topics, one sheet, and sheets Loomer couldn't read), reading, and a quiz.
 import type { ChatMessage, SessionModel } from '../model/session';
-import { buildFixtures } from './fixtures';
+import { buildFixtures, essaySources } from './fixtures';
 
 const MIN = 60_000;
 
@@ -19,28 +19,7 @@ export function buildSessionFixtures(now: Date) {
   const quiz = byId('a-quiz');
   const ago = (minutes: number) => new Date(now.getTime() - minutes * MIN).toISOString();
 
-  const sources = [
-    {
-      id: 's-epa',
-      title: 'EPA: Heat Island Effect',
-      url: 'https://www.epa.gov/heatislands',
-      capturedAt: ago(34),
-      excerptChars: 1840,
-      kind: 'page' as const,
-      image: null,
-      inDraft: { used: true, matched: ['epa'] },
-    },
-    {
-      id: 's-canopy',
-      title: '2025 Tree Canopy Report',
-      url: 'https://cityofexample.gov/forestry/canopy-2025',
-      capturedAt: ago(6),
-      excerptChars: 2210,
-      kind: 'page' as const,
-      image: null,
-      inDraft: { used: false, matched: [] },
-    },
-  ];
+  const sources = essaySources(now);
 
   const activity = [
     { at: ago(2), text: 'Edited your draft (+120 words)' },

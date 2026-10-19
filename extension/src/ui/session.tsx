@@ -383,11 +383,13 @@ function WorkTabs({ session, tab, onTab, hintWaiting }: { session: ActiveSession
 }
 
 /**
- * Three facts at a glance: your words in the draft, saved sources, and the
- * next open checklist item from the last draft check. Each one opens where it lives.
+ * Three facts at a glance: your words in the draft, saved sources ("2 of 3"
+ * when the teacher asks for a number), and the next open checklist item from
+ * the last draft check. Each one opens where it lives.
  */
 function StatStrip({ session, detail, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; onSources: () => void; onChecklist: () => void }) {
   const words = session.doc.status === 'linked' ? session.doc.studentWords : null;
+  const need = session.sourceNeed;
   return (
     <div className="stats">
       <button type="button" className="stat" onClick={onSources}>
@@ -395,10 +397,13 @@ function StatStrip({ session, detail, onSources, onChecklist }: { session: Activ
         <b>{words ?? '—'}</b>
         <span>{words === null ? 'no draft read yet' : 'your words'}</span>
       </button>
-      <button type="button" className="stat" onClick={onSources}>
+      <button type="button" className="stat" onClick={onSources} title={need ? `“${need.quote}”` : undefined}>
         <Icon name="layers" />
-        <b>{session.sources.length}</b>
-        <span>{session.sources.length === 1 ? 'source' : 'sources'}</span>
+        <b>
+          {session.sources.length}
+          {need && <small> of {need.required}</small>}
+        </b>
+        <span>{(need?.required ?? session.sources.length) === 1 ? 'source' : 'sources'}</span>
       </button>
       <button type="button" className="stat wide next" onClick={onChecklist}>
         <NextToFix requirements={detail?.status === 'ok' && detail.check ? detail.requirements : null} />
@@ -764,7 +769,10 @@ export function SessionStrip({
   );
 }
 
-/** The Sources tab: the draft or sheet, saved pages, and what happened this session. */
+/**
+ * The Sources tab: the draft or sheet, saved pages (with how many the teacher
+ * asks for, and whether the draft mentions each one), and what happened this session.
+ */
 export function SourcesBody({ session, now, api }: { session: ActiveSession; now: Date; api: PanelApi }) {
   const kind = docKind(session);
   // Reading has no Doc to link; show one only if it is already linked.
@@ -786,8 +794,15 @@ export function SourcesBody({ session, now, api }: { session: ActiveSession; now
 
       <div className="sec">
         <h2>Sources</h2>
-        <span className="aside">{session.sources.length === 0 ? 'None yet' : session.sources.length}</span>
+        <span className="aside">
+          {session.sourceNeed ? `${session.sources.length} of ${session.sourceNeed.required}` : session.sources.length === 0 ? 'None yet' : session.sources.length}
+        </span>
       </div>
+      {session.sourceNeed && (
+        <p className="src-need">
+          “{session.sourceNeed.quote}” <span>From your teacher</span>
+        </p>
+      )}
       {session.sources.map((s) => (
         <SourceRow key={s.id} source={s} now={now} api={api} />
       ))}
@@ -849,6 +864,7 @@ function SourceRow({ source, now, api }: { source: SourceItem; now: Date; api: P
           <span className="row-sub">
             {source.kind === 'screenshot' ? 'Screenshot' : hostOf(source.url)} · {observedAt(source.capturedAt, now)}
           </span>
+          {source.inDraft && <InDraft {...source.inDraft} />}
           {action.error && <span className="row-sub danger-text">{action.error}</span>}
         </span>
         <button type="button" className="link muted" disabled={action.busy} aria-busy={action.busy} onClick={() => action.run(() => api.send({ type: 'source:remove', id: source.id }))}>
@@ -861,6 +877,20 @@ function SourceRow({ source, now, api }: { source: SourceItem; now: Date; api: P
         </div>
       )}
     </>
+  );
+}
+
+/** Whether the linked draft mentions a source, with the words that matched. A quiet fact, not a warning. */
+function InDraft({ used, matched }: NonNullable<SourceItem['inDraft']>) {
+  if (!used) return <span className="row-sub">Not in your draft yet</span>;
+  return (
+    <span className="row-sub in-draft">
+      <b>
+        <Icon name="check" size="xs" />
+        In your draft
+      </b>
+      {matched.length > 0 && ` · mentions ${matched.map((w) => `“${w}”`).join(', ')}`}
+    </span>
   );
 }
 

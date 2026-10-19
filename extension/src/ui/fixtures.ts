@@ -9,6 +9,7 @@ import type { AssignmentDetailModel } from '../model/detail';
 import { LEAD_DAYS } from '../analysis/plan';
 import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, ResumeBriefing, WorkItem } from '../model/home';
 import type { PlanChangeView } from '../model/plan';
+import type { SourceItem } from '../model/session';
 import { dateTime, ymd } from './format';
 
 const HOUR = 3_600_000;
@@ -556,6 +557,33 @@ export function buildFixtures(now: Date) {
 
 export type FixtureName = keyof ReturnType<typeof buildFixtures>;
 
+/** The essay's two saved pages: the draft mentions the EPA one, not the canopy report yet. */
+export function essaySources(now: Date): SourceItem[] {
+  const ago = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString();
+  return [
+    {
+      id: 's-epa',
+      title: 'EPA: Heat Island Effect',
+      url: 'https://www.epa.gov/heatislands',
+      capturedAt: ago(34),
+      excerptChars: 1840,
+      kind: 'page',
+      image: null,
+      inDraft: { used: true, matched: ['epa'] },
+    },
+    {
+      id: 's-canopy',
+      title: '2025 Tree Canopy Report',
+      url: 'https://cityofexample.gov/forestry/canopy-2025',
+      capturedAt: ago(6),
+      excerptChars: 2210,
+      kind: 'page',
+      image: null,
+      inDraft: { used: false, matched: [] },
+    },
+  ];
+}
+
 /**
  * Detail fixture for any item: the essay gets a checked draft with all three
  * requirement states; everything else has requirements but no draft check yet.
@@ -596,12 +624,13 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     links: {
       instructions: item.url ? [item.url] : [],
       doc: checked ? 'https://docs.google.com/document/d/1xEssayDraft/edit' : null,
-      sources: [],
+      sources: checked ? essaySources(now) : [],
     },
     correction: item.correction,
     note: null,
     // The practice sheet's instructions embed a Doc Loomer may not read yet; the reading's embedded Doc was read.
-    sourceNeed: null,
+    // The essay asks for three sources and has two saved.
+    sourceNeed: checked ? { required: 3, saved: 2, quote: 'Use at least three sources' } : null,
     sheets:
       item.assignmentId === 'a-sheet'
         ? [
