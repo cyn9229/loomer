@@ -106,7 +106,7 @@ export function groundInSource(r: RequirementsResponse, req: RequirementsRequest
   const effortOk = r.effort !== 'Unknown' && supported(r.effortReason);
   return {
     effort: effortOk ? r.effort : 'Unknown',
-    effortReason: effortOk ? r.effortReason : { text: 'The instructions do not say enough to judge the effort.', quote: '' },
+    effortReason: effortOk ? r.effortReason : { text: "The instructions don't say enough for Loomer to tell how big this is.", quote: '' },
     deliverables: r.deliverables.filter(supported),
     milestones: r.milestones.filter(supported).map((m) => ({
       text: m.text,

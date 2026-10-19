@@ -52,7 +52,7 @@ export async function startSession(db: LoomerDb, assignmentId: string, now: Date
   const at = now.toISOString();
   const plannedUntil = minutes ? new Date(now.getTime() + minutes * 60_000).toISOString() : undefined;
   const assignment = await db.assignments.get(assignmentId);
-  if (!assignment) throw new Error('Unknown assignment');
+  if (!assignment) throw new Error("Loomer couldn't find that assignment.");
   const existing = await currentSession(db, now);
   if (existing?.assignmentId === assignmentId) {
     if (existing.state === 'paused') await setState(db, existing, 'active', now);

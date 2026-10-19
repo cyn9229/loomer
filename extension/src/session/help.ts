@@ -80,6 +80,19 @@ async function say(db: LoomerDb, assignmentId: string, kind: ChatRecord['kind'],
   await db.chat.add({ assignmentId, role: 'loomer', kind, text, references, createdAt: new Date().toISOString() });
 }
 
+/**
+ * One plain sentence for a failed AI request, from the service's technical
+ * reason. The technical reason goes to the console, never to the student.
+ */
+export function serviceSentence(reason: string): string {
+  console.warn('loomer: AI request failed:', reason);
+  if (/timed out/i.test(reason)) return "Loomer's AI didn't answer in time, so try again.";
+  if (/not configured/i.test(reason)) return "Loomer's AI isn't set up on this computer yet.";
+  if (/rate-limited|429/i.test(reason)) return 'Loomer is getting a lot of questions right now, so wait a minute and try again.';
+  if (/unreachable/i.test(reason)) return "Loomer's AI isn't running right now, so try again in a bit.";
+  return "Loomer's AI isn't answering right now, so try again in a bit.";
+}
+
 export type HelpDeps = { db: LoomerDb; ai: () => Promise<AiSettings>; fetch?: typeof fetch };
 
 export async function askHelp({ db, ai, fetch: fetchImpl = fetch }: HelpDeps, assignmentId: string, question: string) {
@@ -88,7 +101,7 @@ export async function askHelp({ db, ai, fetch: fetchImpl = fetch }: HelpDeps, as
   await db.chat.add({ assignmentId, role: 'student', kind: 'question', text: question, references: [], createdAt: new Date().toISOString() });
 
   if (!(await workHelpDecision(db, settings, assignmentId)).allowed) {
-    await say(db, assignmentId, 'notice', 'Loomer cannot help with this assignment right now. Check the notice above.');
+    await say(db, assignmentId, 'notice', "Loomer can't help with this one right now, so check the note above.");
     return;
   }
   const ctx = await workContext(db, assignmentId);
@@ -106,7 +119,7 @@ export async function askHelp({ db, ai, fetch: fetchImpl = fetch }: HelpDeps, as
   if (!(await workHelpDecision(db, await ai(), assignmentId)).allowed) return;
   const parsed = reply.ok ? helpResponseSchema.safeParse(reply.result) : null;
   if (!parsed?.success) {
-    await say(db, assignmentId, 'notice', reply.ok ? 'Loomer got an unusable answer. Try again.' : `Help is unavailable: ${reply.error}`);
+    await say(db, assignmentId, 'notice', reply.ok ? "Loomer's answer didn't come through, so try again." : serviceSentence(reply.error));
     return;
   }
   const { kind, reply: text, references } = parsed.data;
@@ -117,13 +130,13 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
   const settings = await ai();
   await db.chat.add({ assignmentId, role: 'student', kind: 'question', text: 'Review my draft.', references: [], createdAt: new Date().toISOString() });
   if (!(await workHelpDecision(db, settings, assignmentId)).allowed) {
-    await say(db, assignmentId, 'notice', 'Loomer cannot review this assignment right now. Check the notice above.');
+    await say(db, assignmentId, 'notice', "Loomer can't review this one right now, so check the note above.");
     return;
   }
   const ctx = await workContext(db, assignmentId);
   if (!ctx) return;
   if (ctx.workScope === 'none' || ctx.studentWork.trim().length === 0) {
-    await say(db, assignmentId, 'notice', 'Link your draft and write a little first. Loomer reviews only what it can read.');
+    await say(db, assignmentId, 'notice', 'Link your draft and write a little first so Loomer has something to read.');
     return;
   }
   const request: ReviewRequest = ctx;
@@ -131,7 +144,7 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
   if (!(await workHelpDecision(db, await ai(), assignmentId)).allowed) return;
   const parsed = reply.ok ? reviewResponseSchema.safeParse(reply.result) : null;
   if (!parsed?.success) {
-    await say(db, assignmentId, 'notice', reply.ok ? 'Loomer got an unusable review. Try again.' : `Review is unavailable: ${reply.error}`);
+    await say(db, assignmentId, 'notice', reply.ok ? "Loomer's review didn't come through, so try again." : serviceSentence(reply.error));
     return;
   }
   // A finding must point at the student's own text; otherwise it is dropped.
@@ -140,7 +153,7 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
   const text = [
     parsed.data.summary,
     ...findings.map((f, i) => `${i + 1}. ${f.issue} (${f.criterion}) ${f.question}`),
-    findings.length === 0 ? 'No finding could be tied to a passage in your draft.' : null,
+    findings.length === 0 ? "Loomer didn't find anything to point to in your draft." : null,
   ]
     .filter(Boolean)
     .join('\n');

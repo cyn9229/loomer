@@ -98,7 +98,7 @@ describe('older-work review', () => {
 
   it('offers past-due work once, without calling it missing', () => {
     const m = buildHomeModel(input({ assignments: [old] }));
-    expect(m.status !== 'not-connected' && m.olderReview?.items[0]?.reason).toMatch(/^The deadline passed on/);
+    expect(m.status !== 'not-connected' && m.olderReview?.items[0]?.reason).toMatch(/^This was due /);
   });
 
   it('stays quiet after review and returns only when Canvas newly marks it missing', () => {
@@ -106,7 +106,7 @@ describe('older-work review', () => {
     expect(buildHomeModel(input({ assignments: [old], context: [reviewed] }))).toMatchObject({ olderReview: null });
     const missing = { ...old, submission: { submitted: false, excused: false, missing: true, late: true } };
     const m = buildHomeModel(input({ assignments: [missing], context: [reviewed] }));
-    expect(m.status !== 'not-connected' && m.olderReview?.items[0]?.reason).toBe('Canvas now marks this missing.');
+    expect(m.status !== 'not-connected' && m.olderReview?.items[0]?.reason).toBe('Canvas now marks this one missing.');
   });
 });
 

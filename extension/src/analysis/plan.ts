@@ -257,7 +257,11 @@ export function keepPreviousTop(ranked: Planned[], previousTopId: string | null)
 
 /** Checkpoint text arrives as its own sentence ("Submit a draft"); mid-sentence it needs a lowercase start. */
 const lowerFirst = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+/** "Wed", for tight spots. */
 const weekday = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short' });
+/** "Wednesday", for sentences. */
+const weekdayLong = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long' });
+
 /** "45 min", "2 h", "1 h 30 min": the student's own number, said back. */
 export function minutesWords(n: number): string {
   if (n < 60) return `${n} min`;
@@ -266,54 +270,86 @@ export function minutesWords(n: number): string {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
+/** "45 minutes", "3 hours", "1 hour 30 minutes": the same number, for sentences. */
+export function minutesLong(n: number): string {
+  const unit = (v: number, one: string) => `${v} ${one}${v === 1 ? '' : 's'}`;
+  if (n < 60) return unit(n, 'minute');
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return m ? `${unit(h, 'hour')} ${unit(m, 'minute')}` : unit(h, 'hour');
+}
+
+/**
+ * A due time for sentences: "Thursday at 7:59 PM" within the coming week,
+ * "Thursday, Oct 22" further out or in the past.
+ */
+export function dueWords(iso: string, now: Date): string {
+  const d = new Date(iso);
+  const days = (d.getTime() - now.getTime()) / DAY_MS;
+  if (days < 0 || days > 6) return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  return `${weekdayLong(iso)} at ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+}
+
 /** The panel's workload words for each label. */
 export const WORKLOAD_WORDS: Record<EffortLabel, string> = { Short: 'Light', Moderate: 'Medium', Substantial: 'Heavy', Unknown: 'Unknown' };
-/** Matches the panel's "Workload: Light / Medium / Heavy" labels. */
-const effortWords: Record<EffortLabel, string> = { Substantial: 'heavy workload', Moderate: 'medium workload', Short: 'light workload', Unknown: 'workload not known yet' };
+/** "a heavy one" for sentences; null when the size is unknown. */
+const sizeWords: Record<EffortLabel, string | null> = { Substantial: 'a heavy one', Moderate: 'a medium one', Short: 'a light one', Unknown: null };
 
-/** "Start today", "Start tomorrow", or "Start by Wed" ("Start Wed" for a day the student picked). */
+/** "Start today", "Start tomorrow", or "Start by Wednesday". */
 export function startPhrase(p: Planned): string {
   if (!p.startBy) return p.keptActive ? 'You kept this active' : 'No due date found';
   if (p.bucket === 'today') return 'Start today';
   if (p.bucket === 'tomorrow') return 'Start tomorrow';
-  return p.placement?.kind === 'student' ? `Start ${weekday(p.startBy.at)}` : `Start by ${weekday(p.startBy.at)}`;
+  return `Start by ${weekdayLong(p.startBy.at)}`;
 }
 
-const dayName = (ymd: string) => weekday(new Date(noonOf(dayOfDate(ymd))).toISOString());
-const roomWords: Record<RoomLevel, string> = { busy: 'is busy', little: 'has little room', some: 'has only some room', free: 'is free' };
+const dayName = (ymd: string) => weekdayLong(new Date(noonOf(dayOfDate(ymd))).toISOString());
+const roomWords: Record<RoomLevel, string> = { busy: 'is busy', little: 'has little room', some: 'only has some room', free: 'is free' };
 
-/** The student's own reason for a start day, in their terms. Dates only, never durations. */
-function placementWords(p: Planned): string | null {
+/**
+ * The reason for one item's start, as one friendly sentence with the reason in
+ * it: "Start today because it's a heavy one and it's due Friday." The student's
+ * own facts (a busy day, a picked day, their guess) come first when they apply.
+ */
+function reasonFor(p: Planned): string {
   const pl = p.placement;
-  if (pl?.kind === 'moved') return `you said ${dayName(pl.from)} ${roomWords[pl.level]}`;
+  if (pl?.kind === 'student' && p.startBy) {
+    const day = weekdayLong(p.startBy.at);
+    if (pl.daysLeft === null) return `You picked ${day} to start.`;
+    return pl.daysLeft <= 0 ? `You picked ${day}, which is the day it's due.` : `You picked ${day}, which leaves ${pl.daysLeft} ${pl.daysLeft === 1 ? 'day' : 'days'} before it's due.`;
+  }
+  if (pl?.kind === 'moved') return `${startPhrase(p)} because you said ${dayName(pl.from)} ${roomWords[pl.level]}.`;
   if (pl?.kind === 'guess') {
     return pl.short
-      ? `your guess is about ${minutesWords(pl.minutes)}, more than the days before it have`
-      : `your guess is about ${minutesWords(pl.minutes)}, counted back from the days you have`;
+      ? `${startPhrase(p)}, though your guess of about ${minutesLong(pl.minutes)} is more than the days before it have.`
+      : `${startPhrase(p)} so there's time for your guess of about ${minutesLong(pl.minutes)}.`;
   }
-  if (pl?.kind === 'student') {
-    if (pl.daysLeft === null) return 'you picked this day';
-    return pl.daysLeft <= 0 ? "you picked this day. That's the day it's due" : `you picked this day. That leaves ${pl.daysLeft} ${pl.daysLeft === 1 ? 'day' : 'days'} before it's due`;
-  }
-  return null;
+  if (!p.startBy) return p.keptActive ? 'You kept this active, so it stays on your plan.' : "Loomer didn't find a due date for this one.";
+  const target = p.nextCheckpoint
+    ? `its next step, ${lowerFirst(p.nextCheckpoint.text)}, is due ${weekdayLong(p.nextCheckpoint.at)}`
+    : p.due
+      ? `it's due ${weekdayLong(p.due)}`
+      : null;
+  const size = sizeWords[p.effort];
+  const why = [size ? `it's ${size}` : null, target].filter(Boolean).join(' and ');
+  return why ? `${startPhrase(p)} because ${why}.` : `${startPhrase(p)}.`;
 }
 
-/** One plain-words reason per ranked item; the second also says why it is not first. */
+/** One plain-words reason per ranked item; the first and second also say how they compare. */
 export function rankReasons(ranked: Planned[]): Map<string, string> {
   const reasons = new Map<string, string>();
   ranked.forEach((p, i) => {
-    const target = p.nextCheckpoint ? `${lowerFirst(p.nextCheckpoint.text)} by ${weekday(p.nextCheckpoint.at)}` : p.due ? `due ${weekday(p.due)}` : 'no due date';
-    const own = placementWords(p);
-    const facts = `${effortWords[p.effort]}, ${target}`;
-    const base = own ? `${startPhrase(p)}: ${own}. ${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : `${startPhrase(p)}: ${facts}.`;
+    const base = reasonFor(p);
     const runnerUp = ranked[1];
     if (i === 0 && runnerUp?.due && p.due && Date.parse(runnerUp.due) < Date.parse(p.due)) {
-      reasons.set(p.id, `${base} ${runnerUp.title} is due sooner, but this needs the earlier start.`);
-    } else if (i === 1 && ranked[0]) reasons.set(p.id, `${base} Second because ${ranked[0].title} needs a start ${ranked[0].bucket === 'today' ? 'today' : `by ${ranked[0].startBy ? weekday(ranked[0].startBy.at) : 'soon'}`}.`);
+      reasons.set(p.id, `${base} ${runnerUp.title} is due sooner, but this one needs more days.`);
+    } else if (i === 1 && ranked[0]) reasons.set(p.id, `${base} This comes second because ${ranked[0].title} needs to start first.`);
     else reasons.set(p.id, base);
   });
   return reasons;
 }
+
+const listNames = (items: Planned[]) => (items.length === 1 ? items[0]!.title : `${items.slice(0, -1).map((p) => p.title).join(', ')} and ${items.at(-1)!.title}`);
 
 /**
  * A heads-up, not a rule. First: a day that is over the room the student gave
@@ -325,10 +361,9 @@ export function crowdedWeek(ranked: Planned[], now: Date): { text: string; assig
   if (firstDate) {
     const items = ranked.filter((p) => p.overFull?.date === firstDate);
     const when = dayOfDate(firstDate) === dayIndex(now.getTime()) ? 'today' : dayName(firstDate);
-    const said = `You said ${when} ${roomWords[items[0]!.overFull!.level]}`;
-    const names = items.length === 1 ? items[0]!.title : `${items.slice(0, -1).map((p) => p.title).join(', ')} and ${items.at(-1)!.title}`;
-    const who = items.length === 1 ? `${names} needs a start then` : `${names} ${items.length === 2 ? 'both' : 'all'} need a start then`;
-    return { text: `${said}, but ${who}. Plan time, or move one.`, assignmentIds: items.map((p) => p.id) };
+    const then = when === 'today' ? 'today' : 'then';
+    const who = items.length === 1 ? `${items[0]!.title} needs to start ${then}, so move it or plan time` : `${listNames(items)} ${items.length === 2 ? 'both' : 'all'} need to start ${then}, so move one or plan time`;
+    return { text: `You said ${when} ${roomWords[items[0]!.overFull!.level]}, but ${who}.`, assignmentIds: items.map((p) => p.id) };
   }
   const horizon = now.getTime() + CROWDED_LOOKAHEAD_DAYS * DAY_MS;
   const big = ranked
@@ -341,8 +376,11 @@ export function crowdedWeek(ranked: Planned[], now: Date): { text: string; assig
     const dayB = dayIndex(Date.parse(b.startBy!.at));
     if (Math.abs(dayB - dayA) <= CROWDED_WINDOW_DAYS) {
       // Several things can start on one day; this only flags the load so the student plans time for it.
-      const when = dayA === dayB ? `${weekday(a.startBy!.at)} is busy` : `${weekday(a.startBy!.at)} and ${weekday(b.startBy!.at)} are busy`;
-      return { text: `${when}: ${a.title} and ${b.title} both need a start. Plan time for both.`, assignmentIds: [a.id, b.id] };
+      const text =
+        dayA === dayB
+          ? `${a.title} and ${b.title} both need to start ${weekdayLong(a.startBy!.at)}, so plan time for both.`
+          : `${weekdayLong(a.startBy!.at)} and ${weekdayLong(b.startBy!.at)} are busy, because ${a.title} and ${b.title} both need to start then.`;
+      return { text, assignmentIds: [a.id, b.id] };
     }
   }
   return null;
@@ -353,15 +391,13 @@ export function dailyBrief(ranked: Planned[], now: Date): string {
   const today = dayIndex(now.getTime());
   const dueIn = (n: number) => ranked.filter((p) => p.due && dayIndex(Date.parse(p.due)) - today === n).length;
   const startToday = ranked.filter((p) => p.bucket === 'today' && (!p.due || dayIndex(Date.parse(p.due)) - today > 1));
-  const parts: string[] = [];
-  const dueToday = dueIn(0);
-  const dueTomorrow = dueIn(1);
-  if (dueToday) parts.push(`${dueToday} due today`);
-  if (dueTomorrow) parts.push(`${dueTomorrow} due tomorrow`);
-  if (startToday[0]) parts.push(`start ${startToday[0].title} today${startToday.length > 1 ? ` (and ${startToday.length - 1} more)` : ''}`);
-  if (parts.length === 0) return 'Nothing needs a start today.';
-  const text = parts.join('; ');
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+  const things = (n: number) => `${n} ${n === 1 ? 'thing' : 'things'}`;
+  const due = [dueIn(0) ? `${things(dueIn(0))} due today` : null, dueIn(1) ? `${dueIn(0) ? dueIn(1) : things(dueIn(1))} due tomorrow` : null].filter(Boolean).join(' and ');
+  const start = startToday[0] ? `Loomer suggests starting ${startToday[0].title}${startToday.length > 1 ? ` and ${startToday.length - 1} more` : ''} today` : null;
+  if (due && start) return `You have ${due}, and ${start}.`;
+  if (due) return `You have ${due}.`;
+  if (start) return `${start}.`;
+  return 'Nothing needs to start today.';
 }
 
 /** Local calendar date as YYYY-MM-DD, used to show the brief once per day. */

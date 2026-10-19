@@ -51,7 +51,7 @@ const busy = (date: string) => ({ kind: 'room', date, weekday: null, repeat: fal
 
 describe('propose_plan_change', () => {
   it('rejects unknown ids and past dates without storing anything', async () => {
-    expect((await propose([{ kind: 'workload', assignment_id: 'nope', label: 'Heavy' }])).forModel).toMatch(/^Not proposed: No assignment/);
+    expect((await propose([{ kind: 'workload', assignment_id: 'nope', label: 'Heavy' }])).forModel).toMatch(/^Not proposed: Loomer couldn't find that assignment/);
     expect((await propose([busy(dateIn(-1))])).forModel).toMatch(/has already passed/);
     expect((await propose([{ kind: 'start_on', assignment_id: 'essay', date: dateIn(9) }])).forModel).toMatch(/is due before/);
     expect(await db.planChanges.count()).toBe(0);

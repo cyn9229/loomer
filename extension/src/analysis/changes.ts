@@ -28,7 +28,7 @@ const STUDENT_WORKLOAD = { Light: 'Short', Medium: 'Moderate', Heavy: 'Substanti
 export function editFromItem(c: PlanChangeItem, now: Date): PlanEdit | string {
   switch (c.kind) {
     case 'room': {
-      if ((c.date === null) === (c.weekday === null)) return 'Give either a date or a weekday for a room change.';
+      if ((c.date === null) === (c.weekday === null)) return 'Give either a date or a weekday for a room change.'; // Read by the model, not shown to the student.
       const key = c.date
         ? c.repeat
           ? roomKey.weekday(weekdayOf(c.date))
@@ -63,6 +63,9 @@ const isRealDate = (ymd: string) => {
   return d.getFullYear() === Number(m[1]) && d.getMonth() === Number(m[2]) - 1 && d.getDate() === Number(m[3]);
 };
 
+/** A sentence continued after "because": lowers a leading "That", "You", or "There", and leaves names and days as they are. */
+const lowerStart = (t: string) => (/^(That|You|There) /.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+
 const dateWords = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
   return new Date(y!, m! - 1, d!).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -79,21 +82,21 @@ export async function checkEdits(db: LoomerDb, edits: PlanEdit[], now: Date): Pr
   for (const e of edits) {
     if ('assignmentId' in e) {
       const a = await db.assignments.get(e.assignmentId);
-      if (!a || a.sourceKey !== lastRun?.sourceKey) return { ok: false, error: `No assignment with id ${e.assignmentId}. Use list_work first.` };
-      if (e.kind !== 'hide' && !isOpen(a)) return { ok: false, error: `${a.title} is already turned in.` };
+      if (!a || a.sourceKey !== lastRun?.sourceKey) return { ok: false, error: "Loomer couldn't find that assignment." };
+      if (e.kind !== 'hide' && !isOpen(a)) return { ok: false, error: `${a.title} is already turned in, so there's nothing to change.` };
       if (e.kind === 'start-on') {
-        if (!isRealDate(e.date)) return { ok: false, error: `${e.date} is not a real date.` };
-        if (e.date < today) return { ok: false, error: `${e.date} has already passed.` };
-        if (a.dueAt && e.date > localDay(new Date(a.dueAt))) return { ok: false, error: `${a.title} is due before ${e.date}.` };
+        if (!isRealDate(e.date)) return { ok: false, error: "That date doesn't exist." };
+        if (e.date < today) return { ok: false, error: `${dateWords(e.date)} has already passed.` };
+        if (a.dueAt && e.date > localDay(new Date(a.dueAt))) return { ok: false, error: `${a.title} is due before ${dateWords(e.date)}, so pick an earlier day.` };
       }
     }
     if (e.kind === 'room' && e.key.startsWith('date:')) {
       const date = e.key.slice('date:'.length);
-      if (!isRealDate(date)) return { ok: false, error: `${date} is not a real date.` };
-      if (date < today) return { ok: false, error: `${date} has already passed.` };
+      if (!isRealDate(date)) return { ok: false, error: "That date doesn't exist." };
+      if (date < today) return { ok: false, error: `${dateWords(date)} has already passed.` };
     }
     if (e.kind === 'time-left' && !(await db.sessions.where('state').equals('active').count())) {
-      return { ok: false, error: 'There is no active work session to set a time for.' };
+      return { ok: false, error: "You don't have a session running right now." };
     }
   }
   return { ok: true, edits };
@@ -220,7 +223,7 @@ async function previewFor(db: LoomerDb, edits: PlanEdit[], writes: PlanWrite[], 
         return `Your guess for ${title(e.assignmentId)}: about ${minutesWords(e.minutes)}`;
       case 'work-type': {
         const was = beforeItems.get(e.assignmentId)?.workType.type;
-        return `${title(e.assignmentId)} is ${WORK_TYPE_WORDS[e.type]} work${was && was !== e.type ? ` (was ${WORK_TYPE_WORDS[was]})` : ''}`;
+        return `${title(e.assignmentId)} is ${WORK_TYPE_WORDS[e.type].toLowerCase()} work${was && was !== e.type ? ` (it was ${WORK_TYPE_WORDS[was].toLowerCase()})` : ''}`;
       }
       case 'time-left':
         return `You have ${minutesWords(e.minutes)} for this session`;
@@ -265,17 +268,17 @@ export type ApplyResult = { ok: true } | { ok: false; error: string; previewChan
  */
 export async function applyChange(db: LoomerDb, id: string, settings: PlanSettings, now: Date, confirmPreview = true): Promise<ApplyResult> {
   const change = await db.planChanges.get(id);
-  if (!change || change.status !== 'proposed') return { ok: false, error: 'This change was already handled.' };
+  if (!change || change.status !== 'proposed') return { ok: false, error: 'You already answered this card.' };
   const checked = await checkEdits(db, change.edits, now);
   if (!checked.ok) {
     await db.planChanges.update(id, { status: 'dismissed' });
-    return { ok: false, error: `This change no longer fits: ${checked.error}` };
+    return { ok: false, error: `This change doesn't fit anymore because ${lowerStart(checked.error)}` };
   }
   const writes = await writesFor(db, change.edits, now);
   const preview = await previewFor(db, change.edits, writes, settings, now);
   if (confirmPreview && JSON.stringify(preview) !== JSON.stringify(change.preview)) {
     await db.planChanges.update(id, { preview });
-    return { ok: false, error: 'Your plan changed since this card was made. Check the new preview, then apply.', previewChanged: true };
+    return { ok: false, error: 'Your plan changed since this card was made, so check the new version first.', previewChanged: true };
   }
   await db.transaction('rw', [db.dayRoom, db.studentContext, db.sessions, db.planChanges], async () => {
     for (const w of writes) await write(db, w, 'after');
@@ -287,7 +290,7 @@ export async function applyChange(db: LoomerDb, id: string, settings: PlanSettin
 /** Puts back what an applied change replaced. A slot a later change wrote again keeps the later value. */
 export async function undoChange(db: LoomerDb, id: string, now: Date): Promise<ApplyResult> {
   const change = await db.planChanges.get(id);
-  if (!change || change.status !== 'applied') return { ok: false, error: 'Only an applied change can be undone.' };
+  if (!change || change.status !== 'applied') return { ok: false, error: "There's nothing to undo yet." };
   await db.transaction('rw', [db.dayRoom, db.studentContext, db.sessions, db.planChanges], async () => {
     for (const w of [...change.writes].reverse()) {
       if (JSON.stringify(await current(db, w)) === JSON.stringify(w.after)) await write(db, w, 'before');
@@ -299,7 +302,7 @@ export async function undoChange(db: LoomerDb, id: string, now: Date): Promise<A
 
 export async function dismissChange(db: LoomerDb, id: string): Promise<ApplyResult> {
   const change = await db.planChanges.get(id);
-  if (!change || change.status !== 'proposed') return { ok: false, error: 'This change was already handled.' };
+  if (!change || change.status !== 'proposed') return { ok: false, error: 'You already answered this card.' };
   await db.planChanges.update(id, { status: 'dismissed' });
   return { ok: true };
 }

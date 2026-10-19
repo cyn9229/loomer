@@ -7,15 +7,15 @@ import { instructionText, type ChatTurnRecord, type LoomerDb } from '../core/db'
 import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type ChatBlock, type ThreadKey } from '../model/chat';
 import { isQuiz, storedWorkType } from '../analysis/workType';
-import { workHelpDecision } from '../session/help';
+import { serviceSentence, workHelpDecision } from '../session/help';
 import { runTool, type ToolSettings } from './tools';
 
 const MAX_ROUNDS = 4;
 const HISTORY_TURNS = 12;
 const FLUSH_MS = 120;
-const SERVICE_DOWN = "Loomer's AI service isn't running on this computer. Start it with npm run dev:server, then try again.";
-const CUT_OFF = 'The reply was cut off before it finished. Try again.';
-const QUIZ_PAUSE = 'Ask Loomer is paused while you work on a quiz or test. It comes back when you end the session.';
+const SERVICE_DOWN = "Loomer's AI isn't running right now, so try again in a bit.";
+const CUT_OFF = 'The reply got cut off, so try again.';
+const QUIZ_PAUSE = 'Ask Loomer is paused during your quiz and comes back when you end it.';
 
 /** The broker could not be reached at all (as opposed to a reply that broke midway). */
 class ServiceDownError extends Error {}
@@ -40,7 +40,7 @@ export function isStreaming(threadKey: ThreadKey) {
 
 /** Whether Ask Loomer may answer in this thread right now, and why not. */
 export async function chatAllowed(db: LoomerDb, ai: AiSettings, threadKey: ThreadKey): Promise<{ ok: true } | { ok: false; reason: string }> {
-  if (!ai.enabled) return { ok: false, reason: 'AI help is off. You can turn it on in settings.' };
+  if (!ai.enabled) return { ok: false, reason: 'AI help is off, but you can turn it on in settings.' };
   // The quiz rule: while a session on a quiz or test is open, Ask Loomer pauses everywhere.
   const session = await db.sessions.where('state').anyOf('active', 'paused').last();
   const sessionItem = session ? await db.assignments.get(session.assignmentId) : undefined;
@@ -52,12 +52,12 @@ export async function chatAllowed(db: LoomerDb, ai: AiSettings, threadKey: Threa
     ok: false,
     reason:
       decision.reason === 'quiz'
-        ? 'Loomer does not help with a quiz or test itself. Study for it in a general chat before you start.'
+        ? "Loomer doesn't help with a quiz or test, but you can study for it in General first."
         : decision.reason === 'policy-blocked'
-        ? "Your teacher's rule turns AI help off for this assignment. Loomer can still help you organize it."
+        ? 'Your teacher turned off AI help for this one, but Loomer can still help you plan it.'
         : decision.reason === 'needs-policy-answer'
           ? 'Answer the question about your teacher’s AI rule first.'
-          : 'Loomer is not sure AI help is allowed on this assignment, so it is paused.',
+          : "Loomer isn't sure AI help is allowed here, so it's paused for now.",
   };
 }
 
@@ -168,7 +168,7 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
             ? CUT_OFF
             : error instanceof Error
             ? error.message
-            : 'Something went wrong.';
+            : 'Something went wrong, so try again.';
     await db.chatTurns.update(turnId, { blocks, status: stopped ? 'stopped' : 'error', error: stopped ? undefined : message });
   } finally {
     running.delete(threadKey);
@@ -200,7 +200,7 @@ async function streamRound(
   }
   if (!res.ok || !res.body) {
     const body = brokerEnvelopeSchema.safeParse(await res.json().catch(() => null));
-    throw new Error(body.success && !body.data.ok ? `AI service: ${body.data.error}` : `AI service status ${res.status}`);
+    throw new Error(serviceSentence(body.success && !body.data.ok ? body.data.error : `status ${res.status}`));
   }
   const calls: ToolCall[] = [];
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -220,7 +220,7 @@ async function streamRound(
         appendText(event.delta);
         await flush();
       } else if (event.type === 'tool_call') calls.push(event);
-      else if (event.type === 'error') throw new Error(`AI service: ${event.error}`);
+      else if (event.type === 'error') throw new Error(serviceSentence(event.error));
     }
   }
   await flush(true);

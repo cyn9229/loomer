@@ -92,10 +92,10 @@ export async function saveScreenshot(
 ): Promise<{ ok: boolean; error?: string }> {
   const draft = await screenshotDraftItem.getValue();
   await screenshotDraftItem.setValue(null);
-  if (!draft) return { ok: false, error: 'No screenshot is waiting.' };
+  if (!draft) return { ok: false, error: "There's no screenshot to save." };
   const session = await currentSession(db, now);
-  if (gate.paused || session?.id !== draft.sessionId || session.state !== 'active') return { ok: false, error: 'The session is no longer active.' };
-  if (!screenshotAllowed(gate, draft.url)) return { ok: false, error: 'This site is now blocked.' };
+  if (gate.paused || session?.id !== draft.sessionId || session.state !== 'active') return { ok: false, error: 'Your session already ended.' };
+  if (!screenshotAllowed(gate, draft.url)) return { ok: false, error: 'This site is blocked now.' };
 
   const bounded: Crop = {
     x: Math.max(0, Math.min(crop.x, draft.width - 1)),

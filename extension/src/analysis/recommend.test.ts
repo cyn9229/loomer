@@ -108,7 +108,7 @@ describe('buildHomeModel', () => {
     expect(m.status).toBe('ready');
     if (m.status !== 'ready') return;
     expect(m.next.item.assignmentId).toBe('essay');
-    expect(m.next.reason).toContain('short is due sooner, but this needs the earlier start');
+    expect(m.next.reason).toContain('short is due sooner, but this one needs more days.');
     expect(m.next).toMatchObject({ action: 'Start essay', aiGenerated: true });
   });
 

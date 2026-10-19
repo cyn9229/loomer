@@ -187,7 +187,7 @@ describe('resume briefing', () => {
       sheetTopics: [],
       topicChecks: [],
     });
-    expect(home.status !== 'not-connected' && home.resume).toMatchObject({ facts: ['Edited your draft 1 time (+40 words)'], recommendationChanged: false });
+    expect(home.status !== 'not-connected' && home.resume).toMatchObject({ facts: ['You edited your draft 1 time and added 40 words.'], recommendationChanged: false });
   });
 });
 

@@ -7,7 +7,7 @@ import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
 import type { PlanChangeView } from '../model/plan';
-import { comparePlanned, crowdedWeek, dailyBrief, keepPreviousTop, localDay, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
+import { comparePlanned, crowdedWeek, dailyBrief, dueWords, keepPreviousTop, localDay, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
 import { nextTopic, topicItems } from './topicStanding';
 import { isQuiz, workTypeFor } from './workType';
@@ -128,7 +128,7 @@ function withTopic(input: RecommendInput, core: CoreModel): CoreModel {
   const evidence: Evidence =
     topic.mode === 'explain'
       ? { kind: 'student-context', text: topic.reason, sourceLabel: 'Your quick checks' }
-      : { kind: 'ai-interpretation', text: `"${t.text}" is on your sheet.`, quote: t.quote, sourceLabel: t.sheet ?? 'Your sheet' };
+      : { kind: 'ai-interpretation', text: `${t.text} is on your sheet, and you haven't checked it yet.`, quote: t.quote, sourceLabel: t.sheet ?? 'Your sheet' };
   return {
     ...core,
     next: { ...core.next, action: `${topic.mode === 'explain' ? 'Review' : 'Check'} ${topic.topic}`, aiGenerated: true, topic, evidence: [...core.next.evidence, evidence] },
@@ -235,7 +235,7 @@ function buildCore(input: RecommendInput, r: Ranking): CoreModel {
     return {
       status: 'checking',
       progress: { checked: r.decisionCount - r.analysisPending.length, total: r.decisionCount },
-      pending: r.analysisPending.map((c) => ({ title: c.a.title, detail: 'Reading requirements' })),
+      pending: r.analysisPending.map((c) => ({ title: c.a.title, detail: 'Reading the instructions' })),
       rest: rest(),
       lastCheck,
     };
@@ -248,11 +248,11 @@ function buildCore(input: RecommendInput, r: Ranking): CoreModel {
 
   if (r.chosen) {
     const loomerPick = r.loomerTop && r.loomerTop.a.id !== r.chosen.a.id ? { item: r.loomerTop.item, reason: r.loomerTop.item.rankReason ?? '' } : null;
-    return { status: 'ready', next: nextAction(r.chosen, { chosenByStudent: true, loomerPick, change: null }), rest: rest(r.chosen), lastCheck };
+    return { status: 'ready', next: nextAction(r.chosen, { chosenByStudent: true, loomerPick, change: null }, now), rest: rest(r.chosen), lastCheck };
   }
   if (!r.ranked[0]) return { status: 'empty', rest: rest(), lastCheck };
   if (!r.loomerTop) return { status: 'cannot-compare', limitations: r.limitations, rest: rest(), lastCheck };
-  return { status: 'ready', next: nextAction(r.loomerTop, { chosenByStudent: false, loomerPick: null, change }), rest: rest(r.loomerTop), lastCheck };
+  return { status: 'ready', next: nextAction(r.loomerTop, { chosenByStudent: false, loomerPick: null, change }, now), rest: rest(r.loomerTop), lastCheck };
 }
 
 /**
@@ -273,12 +273,12 @@ export function nextPlanSnapshot(input: RecommendInput, prev: PlanSnapshot): Pla
 function describeMove(prev: NonNullable<PlanSnapshot>, topId: string, entries: NonNullable<PlanSnapshot>['entries']): string {
   const was = prev.entries[prev.topId!];
   const now = entries[topId]!;
-  const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }) : 'no date');
+  const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'long' }) : 'no date');
   if (!entries[prev.topId!]) return `${was?.title ?? 'Your last top item'} is off your list now, so ${now.title} is next.`;
-  if (!prev.entries[topId]) return `New from Canvas: ${now.title}.`;
+  if (!prev.entries[topId]) return `${now.title} is new from Canvas.`;
   if (prev.entries[topId]!.due !== now.due) return `${now.title} is now due ${day(now.due)}.`;
   if (was && was.due !== entries[prev.topId!]!.due) return `${was.title} moved to ${day(entries[prev.topId!]!.due)}, so ${now.title} is next.`;
-  return `${now.title} now needs a start sooner.`;
+  return `${now.title} now needs to start sooner.`;
 }
 
 type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext> };
@@ -312,11 +312,13 @@ function resumeBriefing(input: RecommendInput, nextAssignmentId: string | null):
 
   const facts: string[] = [];
   if (packet.edits > 0) {
-    const words = packet.wordsDelta === 0 ? '' : ` (${packet.wordsDelta > 0 ? '+' : '−'}${Math.abs(packet.wordsDelta)} words)`;
-    facts.push(`Edited your draft ${packet.edits} ${packet.edits === 1 ? 'time' : 'times'}${words}`);
+    const times = `${packet.edits} ${packet.edits === 1 ? 'time' : 'times'}`;
+    const delta = Math.abs(packet.wordsDelta);
+    const words = packet.wordsDelta === 0 ? '' : ` and ${packet.wordsDelta > 0 ? 'added' : 'cut'} ${delta} ${delta === 1 ? 'word' : 'words'}`;
+    facts.push(`You edited your draft ${times}${words}.`);
   }
-  if (sources.length > 0) facts.push(`Saved ${sources.length} ${sources.length === 1 ? 'source' : 'sources'}`);
-  if (facts.length === 0) facts.push('No edits or saved sources were recorded in that session.');
+  if (sources.length > 0) facts.push(`You saved ${sources.length} ${sources.length === 1 ? 'source' : 'sources'}.`);
+  if (facts.length === 0) facts.push("You didn't edit or save anything last time.");
 
   return {
     assignment: candidate.item,
@@ -346,8 +348,8 @@ function olderReview(input: RecommendInput): OlderReview {
       const c = candidateFor(a, { course: input.courses.find((x) => x.id === courseKey(a)), analysis: undefined, context: contextByKey }, input.now);
       if (c.item.bucket !== 'past') return [];
       const missingNow = a.submission?.missing === true;
-      if (!ctx?.olderReview) return [{ item: c.item, reason: missingNow ? 'Canvas marks this missing.' : `The deadline passed on ${formatDue(c.due.at!)}.` }];
-      if (missingNow && !ctx.olderReview.missing) return [{ item: c.item, reason: 'Canvas now marks this missing.' }];
+      if (!ctx?.olderReview) return [{ item: c.item, reason: missingNow ? 'Canvas marks this one missing.' : `This was due ${dueWords(c.due.at!, input.now)}.` }];
+      if (missingNow && !ctx.olderReview.missing) return [{ item: c.item, reason: 'Canvas now marks this one missing.' }];
       return [];
     })
     .slice(0, 8);
@@ -357,12 +359,12 @@ function olderReview(input: RecommendInput): OlderReview {
 function limitationFor(c: Candidate): Evidence[] {
   const out: Evidence[] = [];
   if (c.item.requirements === 'unreadable' || c.item.requirements === 'not-checked') {
-    out.push({ kind: 'limitation', text: `Loomer could not read the instructions for "${c.a.title}".`, sourceLabel: 'Canvas', sourceUrl: c.a.url ?? undefined });
+    out.push({ kind: 'limitation', text: `Loomer couldn't read the instructions for ${c.a.title}.`, sourceLabel: 'Canvas', sourceUrl: c.a.url ?? undefined });
   }
   if (c.due.conflict) {
     out.push({
       kind: 'limitation',
-      text: `"${c.a.title}" has a due date in its instructions that differs from Canvas.`,
+      text: `${c.a.title}'s instructions list a different due date than Canvas.`,
       quote: c.due.instructionDates.at(-1)?.quote,
       sourceLabel: 'Assignment instructions',
       sourceUrl: c.a.url ?? undefined,
@@ -371,32 +373,36 @@ function limitationFor(c: Candidate): Evidence[] {
   return out;
 }
 
-function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 'loomerPick' | 'change'>): NextAction {
+function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 'loomerPick' | 'change'>, now: Date): NextAction {
   const { a, item, analysis, due } = top;
-  const dueText = due.at ? formatDue(due.at) : 'no due date';
-  const reason = extra.chosenByStudent ? `You chose this. ${due.at ? `Due ${dueText}.` : 'No due date found.'}` : (item.rankReason ?? `Due ${dueText}.`);
+  const dueText = due.at ? dueWords(due.at, now) : null;
+  const reason = extra.chosenByStudent
+    ? dueText
+      ? `You picked this one, and it's due ${dueText}.`
+      : "You picked this one, and Loomer didn't find a due date."
+    : (item.rankReason ?? (dueText ? `It's due ${dueText}.` : "Loomer didn't find a due date for this one."));
   const choice = extra;
 
   const evidence: Evidence[] = [
     !due.at
-      ? { kind: 'limitation', text: 'No due date was found in Canvas or the instructions.', sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined }
+      ? { kind: 'limitation', text: "Loomer didn't find a due date in Canvas or the instructions.", sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined }
       : due.source === 'instructions'
-      ? { kind: 'school-fact', text: `Due ${dueText}, from the instructions.`, quote: due.instructionDates[0]?.quote, sourceLabel: 'Assignment instructions', sourceUrl: a.url ?? undefined }
-      : { kind: 'school-fact', text: `Due ${dueText}.`, sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined, observedAt: a.lastSeenAt },
+      ? { kind: 'school-fact', text: `The instructions say it's due ${dueText}.`, quote: due.instructionDates[0]?.quote, sourceLabel: 'Assignment instructions', sourceUrl: a.url ?? undefined }
+      : { kind: 'school-fact', text: `Canvas says it's due ${dueText}.`, sourceLabel: 'Canvas assignment', sourceUrl: a.url ?? undefined, observedAt: a.lastSeenAt },
   ];
   if (item.effort.source === 'student') {
-    evidence.push({ kind: 'student-context', text: `You set the workload to ${WORKLOAD_WORDS[item.effort.label]}.`, sourceLabel: 'Your change' });
+    evidence.push({ kind: 'student-context', text: `You set this as ${WORKLOAD_WORDS[item.effort.label].toLowerCase()}.`, sourceLabel: 'Your change' });
   }
   if (analysis) {
-    evidence.push({ kind: 'ai-interpretation', text: `${analysis.effort}: ${analysis.effortReason.text}`, quote: analysis.effortReason.quote || undefined, sourceLabel: 'Canvas assignment' });
+    evidence.push({ kind: 'ai-interpretation', text: `${WORKLOAD_WORDS[analysis.effort]}: ${analysis.effortReason.text}`, quote: analysis.effortReason.quote || undefined, sourceLabel: 'Canvas assignment' });
     for (const d of analysis.deliverables) evidence.push({ kind: 'ai-interpretation', text: d.text, quote: d.quote, sourceLabel: 'Canvas assignment' });
   } else {
-    evidence.push({ kind: 'limitation', text: 'Effort is unknown. AI analysis is off or unavailable for this assignment.', sourceLabel: 'Loomer' });
+    evidence.push({ kind: 'limitation', text: "Loomer can't tell how big this is because AI hasn't read the instructions.", sourceLabel: 'Loomer' });
   }
   for (const c of item.checkpoints) {
     evidence.push({
       kind: 'ai-interpretation',
-      text: `${c.text}: ${formatDue(c.at)}${c.derived ? ' (worked out from the instructions)' : ''}.`,
+      text: `The instructions set an earlier step, ${lowerFirstWord(c.text)}, for ${dueWords(c.at, now)}.`,
       quote: c.quote,
       sourceLabel: 'Canvas assignment',
     });
@@ -472,6 +478,5 @@ function byDue(x: WorkItem, y: WorkItem): number {
   return Date.parse(x.due.at) - Date.parse(y.due.at);
 }
 
-function formatDue(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
+/** "Draft for peer review" mid-sentence: "draft for peer review" (a name such as "MLA" keeps its capitals). */
+const lowerFirstWord = (t: string) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);

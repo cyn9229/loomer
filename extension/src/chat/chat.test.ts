@@ -137,7 +137,7 @@ describe('sendChat', () => {
     expect(f.calls).toHaveLength(0);
     const replies = (await db.chatTurns.toArray()).filter((t) => t.role === 'loomer');
     expect(replies.map((t) => t.status)).toEqual(['error', 'error']);
-    expect(replies[1]!.blocks[0]).toMatchObject({ kind: 'markdown', text: expect.stringContaining("teacher's rule") });
+    expect(replies[1]!.blocks[0]).toMatchObject({ kind: 'markdown', text: expect.stringContaining('Your teacher turned off AI help') });
   });
 
   it('pauses all of Ask Loomer while a session on a quiz is open', async () => {
@@ -146,7 +146,7 @@ describe('sendChat', () => {
     const f = broker([]);
     await sendChat(deps(f), 'general', 'what is an ellipse?');
     expect(f.calls).toHaveLength(0);
-    expect((await db.chatTurns.toArray()).at(-1)).toMatchObject({ status: 'error', blocks: [{ kind: 'markdown', text: expect.stringContaining('paused while you work on a quiz') }] });
+    expect((await db.chatTurns.toArray()).at(-1)).toMatchObject({ status: 'error', blocks: [{ kind: 'markdown', text: expect.stringContaining('paused during your quiz') }] });
   });
 
   it('says plainly when the AI service is not running', async () => {
@@ -155,6 +155,6 @@ describe('sendChat', () => {
     };
     await sendChat(deps(down), 'general', 'hi');
     const reply = (await db.chatTurns.toArray()).at(-1);
-    expect(reply).toMatchObject({ status: 'error', error: expect.stringContaining('npm run dev:server') });
+    expect(reply).toMatchObject({ status: 'error', error: expect.stringContaining("Loomer's AI isn't running") });
   });
 });

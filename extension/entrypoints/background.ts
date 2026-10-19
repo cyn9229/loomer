@@ -192,7 +192,7 @@ async function screenshotFromTab(tab: { id?: number; windowId?: number; url?: st
     await browser.action.setTitle({ tabId: tab.id, title: SCREENSHOT_FEEDBACK[result.reason] });
     setTimeout(() => {
       void browser.action.setBadgeText({ tabId: tab.id, text: '' });
-      void browser.action.setTitle({ tabId: tab.id, title: 'Open loomer' });
+      void browser.action.setTitle({ tabId: tab.id, title: 'Open Loomer' });
     }, 4_000);
   }
 }
@@ -248,13 +248,13 @@ async function planSettings(): Promise<PlanSettings> {
   return { connected: Boolean(settings.canvasOrigin), ai, choice, snapshot, levelMinutes };
 }
 
-/** The student's one-tap request about a sheet topic, in their words. The quote keeps the reply on their sheet. */
+/** The student's one-tap request about a sheet topic, in their words. */
 function topicRequest(topic: { text: string; quote: string }, mode: 'explain' | 'example' | 'check'): string {
-  const where = `"${topic.text}" from my sheet (it says: "${topic.quote}")`;
-  if (mode === 'explain') return `Explain ${where}, simply.`;
-  if (mode === 'example') return `Show me a worked example like ${where}, with different numbers. Don't solve my own problem.`;
-  // The quote is often a problem itself, so a check names only the topic; the quiz tool also refuses copied math.
-  return `Give me a quick check on "${topic.text}" from my sheet: 3 questions with new numbers.`;
+  // The bubble names only the topic; the quote is often a problem itself, and the quiz tool refuses copied math.
+  const name = /^[A-Z][a-z]/.test(topic.text) ? topic.text.charAt(0).toLowerCase() + topic.text.slice(1) : topic.text;
+  if (mode === 'explain') return `Explain ${name} from my sheet.`;
+  if (mode === 'example') return `Show me an example like ${name}.`;
+  return `Give me a quick check on ${name}.`;
 }
 
 /** Starts a chat reply in the background; keeps the worker awake while it streams. `topic`: a sheet topic the student tapped. */
@@ -398,7 +398,7 @@ async function captureFromTab(tab: { id?: number; url?: string } | undefined) {
   await browser.action.setTitle({ tabId: tab.id, title: CAPTURE_FEEDBACK[key] });
   setTimeout(() => {
     void browser.action.setBadgeText({ tabId: tab.id, text: '' });
-    void browser.action.setTitle({ tabId: tab.id, title: 'Open loomer' });
+    void browser.action.setTitle({ tabId: tab.id, title: 'Open Loomer' });
   }, 4_000);
 }
 
@@ -491,7 +491,7 @@ async function handle(message: Message): Promise<Reply> {
       const url = parseSourceUrl(message.origin);
       if (!url) return { ok: false, error: 'Use an https Canvas address.' };
       if (!(await browser.permissions.contains({ origins: [`${url.origin}/*`] }))) {
-        return { ok: false, error: 'Chrome access to this site was not granted.' };
+        return { ok: false, error: "Chrome didn't allow this site." };
       }
       const settings = await settingsItem.getValue();
       await settingsItem.setValue({ ...settings, canvasOrigin: url.origin, grantVersion: settings.grantVersion + 1 });
@@ -504,7 +504,7 @@ async function handle(message: Message): Promise<Reply> {
     case 'ai:set': {
       const ai = await aiSettingsItem.getValue();
       if (message.enabled && !(await browser.permissions.contains({ origins: [`${ai.brokerOrigin}/*`] }))) {
-        return { ok: false, error: 'Chrome access to the local AI service was not granted.' };
+        return { ok: false, error: "Chrome didn't allow Loomer's AI service." };
       }
       await aiSettingsItem.setValue({ ...ai, enabled: message.enabled });
       if (message.enabled) {
@@ -606,7 +606,7 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     case 'discovery:set': {
       if (message.enabled && !(await browser.permissions.contains({ permissions: ['tabs'] }))) {
-        return { ok: false, error: 'Chrome did not grant tab access.' };
+        return { ok: false, error: "Chrome didn't allow tab access." };
       }
       await discoveryItem.setValue({ enabled: message.enabled });
       // Turning it off also gives the tabs permission back.
@@ -616,7 +616,7 @@ async function handle(message: Message): Promise<Reply> {
     }
     case 'suggestion:add': {
       const state = await discoveryStateItem.getValue();
-      if (state?.suggestion?.tabId !== message.tabId) return { ok: false, error: 'That suggestion is no longer current.' };
+      if (state?.suggestion?.tabId !== message.tabId) return { ok: false, error: "That page isn't open anymore." };
       const tab = await browser.tabs.get(message.tabId);
       await captureFromTab(tab);
       // The site permission was for this one snapshot; give it back unless Loomer needs it anyway.
@@ -696,7 +696,7 @@ async function handle(message: Message): Promise<Reply> {
     }
     case 'notify:set':
       if (message.enabled && !(await browser.permissions.contains({ permissions: ['notifications'] }))) {
-        return { ok: false, error: 'Chrome did not grant notifications.' };
+        return { ok: false, error: "Chrome didn't allow notifications." };
       }
       await notifyItem.setValue({ enabled: message.enabled });
       if (!message.enabled) await browser.permissions.remove({ permissions: ['notifications'] }).catch(() => false);
@@ -732,9 +732,9 @@ async function handle(message: Message): Promise<Reply> {
     }
     case 'doc:link': {
       const docId = parseDocId(message.docUrl);
-      if (!docId) return { ok: false, error: 'That is not a Google Docs document link.' };
+      if (!docId) return { ok: false, error: "That isn't a Google Doc link." };
       if (!(await browser.permissions.contains({ origins: DOCS_ORIGINS }))) {
-        return { ok: false, error: 'Chrome access to Google Docs was not granted.' };
+        return { ok: false, error: "Chrome didn't allow Google Docs." };
       }
       await db.docLinks.put({ assignmentId: message.assignmentId, docId, url: `https://docs.google.com/document/d/${docId}/edit`, linkedAt: new Date().toISOString() });
       await registerTypingSignal().catch((error: unknown) => console.error('loomer: typing signal unavailable', error));

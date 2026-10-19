@@ -99,10 +99,10 @@ function activity(events: SessionEvent[]): ActivityItem[] {
       case 'ended':
         return 'Ended';
       case 'source-added':
-        return `Added source: ${e.title ?? 'page'}`;
+        return `Saved ${e.title ?? 'a page'} as a source`;
       case 'doc-changed': {
         const d = e.wordsDelta ?? 0;
-        return d === 0 ? 'Edited your draft' : `Edited your draft (${d > 0 ? '+' : '−'}${Math.abs(d)} words)`;
+        return d === 0 ? 'Edited your draft' : `${d > 0 ? 'Added' : 'Cut'} ${Math.abs(d)} ${Math.abs(d) === 1 ? 'word' : 'words'} ${d > 0 ? 'to' : 'from'} your draft`;
       }
     }
   };
