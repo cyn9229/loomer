@@ -4,6 +4,7 @@ import { widgetPageUrl } from '../../src/chat/widgetFrame';
 import { sendMessage } from '../../src/core/messages';
 import { askThreadItem, chatInboxItem, settingsItem } from '../../src/core/settings';
 import { nudgesItem } from '../../src/session/nudge';
+import { usePracticeModel } from '../../src/model/usePracticeModel';
 import { useStorageItem } from '../../src/model/useStorageItem';
 import { useEffect } from 'react';
 import { useAiService } from '../../src/model/useAiService';
@@ -46,6 +47,7 @@ export function LivePanel() {
       nudgesEnabled={useStorageItem(nudgesItem)?.enabled ?? true}
       lastThread={useStorageItem(askThreadItem)}
       chatInbox={useStorageItem(chatInboxItem)}
+      practice={usePracticeModel()}
       onRefresh={async () => {
         await sendMessage({ type: 'canvas:refresh' });
       }}

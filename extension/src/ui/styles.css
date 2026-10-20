@@ -5440,3 +5440,764 @@ details > summary .icon {
 .sent-file {
   height: 52px;
 }
+
+/* ------------------------------------------------------------ Test prep on a test's page (prep.tsx)
+   Readiness (one cell per topic, then Loomer's sentence), the plan day by day,
+   topics with their standings, mistakes, and the setup before the plan. */
+.prep-ready {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 18px 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.focus .prep-ready {
+  margin: 12px 0 0;
+}
+.prep-meter {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+  margin-top: 5px;
+}
+.prep-meter i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.prep-meter i.solid {
+  background: var(--green);
+}
+.prep-meter i.shaky {
+  background: var(--amber-dot);
+}
+.prep > .btn-primary {
+  width: calc(100% - 36px);
+  margin: 14px 18px 0;
+}
+.prep-days {
+  margin: 4px 18px 0;
+  padding: 0;
+  list-style: none;
+}
+.prep-day {
+  display: grid;
+  grid-template-columns: 34px 20px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.prep-day:first-child {
+  border-top: 0;
+}
+.prep-dd {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.prep-dm {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #d9d5cf;
+}
+.prep-dm .icon {
+  width: 12px;
+  height: 12px;
+}
+.prep-day.done .prep-dm {
+  background: var(--green);
+  box-shadow: none;
+  color: #fff;
+}
+.prep-day.today .prep-dd {
+  color: var(--acc-text);
+}
+.prep-day.today .prep-dm {
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+.prep-day.missed .prep-dm {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.prep-day .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.prep-step {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.prep-day.today .prep-step {
+  font-weight: 600;
+}
+.prep-day.done .prep-step {
+  color: var(--muted);
+}
+.prep-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.prep-topics {
+  margin: 2px 18px 0;
+}
+.prep-topics.flat {
+  margin: 14px 0 0;
+}
+.prep-topic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.prep-topic:first-child {
+  border-top: 0;
+}
+.prep-topic .grow {
+  min-width: 0;
+}
+.prep-mistakes {
+  margin: 2px 18px 0;
+}
+.prep-mistake {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.prep-mistake:first-child {
+  border-top: 0;
+}
+.prep-mistake .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.prep-mistake b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.prep-mistake .grow span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.prep-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 18px 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.prep-note > .icon {
+  margin-top: 1px;
+  color: var(--muted);
+  flex: none;
+}
+.prep.setup {
+  padding: 12px 18px 0;
+}
+.prep-k {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.prep-k > .icon {
+  margin-top: 1px;
+  color: var(--muted);
+  flex: none;
+}
+.prep-k2 {
+  margin-top: 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.prep-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.prep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 4px 0 10px;
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13px;
+}
+.prep-chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.prep-chip button:hover {
+  background: var(--fill);
+  color: var(--ink);
+}
+.prep-chip.add {
+  padding: 0 10px;
+  color: var(--acc-text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--acc-soft);
+}
+.prep-add-in {
+  height: 32px;
+  min-width: 160px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.prep-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.prep-k2 + .prep-new {
+  margin-top: 6px;
+}
+.prep-new > .icon {
+  color: var(--green);
+}
+.prep-new .link {
+  font-size: 13px;
+}
+.prep-formats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+.prep-format {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13px;
+  text-align: left;
+}
+.prep-format > .icon {
+  color: var(--muted);
+}
+.prep-format b {
+  font-weight: 600;
+}
+.prep-format span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.prep-format.on {
+  background: #fff7f3;
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.prep-format.on > .icon,
+.prep-format.on b {
+  color: var(--acc-text);
+}
+.prep-notes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  text-align: left;
+}
+.prep-notes > .icon {
+  color: var(--muted);
+  flex: none;
+}
+.prep-notes .grow {
+  display: flex;
+  flex-direction: column;
+}
+.prep-notes b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.prep-notes .grow span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.prep-priv {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.prep-priv > .icon {
+  margin-top: 2px;
+  flex: none;
+}
+
+/* ------------------------------------------------------------ Practice in its own view (practice.tsx)
+   Nothing else on screen: End, the count, a thin progress bar, then one
+   question. Options, flashcards, and written answers share one column. */
+.pv {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.pv-top {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 10px;
+  font-size: 14px;
+}
+.pv-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  font-weight: 600;
+  color: var(--text);
+}
+.pv-end:hover {
+  color: var(--ink);
+}
+.pv-title {
+  min-width: 0;
+  font-weight: 600;
+}
+.pv-n {
+  justify-self: end;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pv-bar {
+  height: 3px;
+  margin: 0 18px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.pv-bar span {
+  display: block;
+  height: 100%;
+  background: var(--acc);
+  transform-origin: left;
+  transition: transform 250ms var(--ease-out);
+}
+.pv-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 18px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pv-kind .subject {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.pv-kind .subject .icon {
+  width: 13px;
+  height: 13px;
+}
+.pv-kind .grow {
+  min-width: 0;
+}
+.pv-k2 {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.pv-body {
+  flex: 1;
+  padding: 0 18px;
+}
+.pv-foot {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 18px 16px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--page) 14px);
+}
+.pv-foot .btn-primary {
+  margin-top: 0;
+}
+.pv-q {
+  margin-top: 12px;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.pv-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.pv-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+}
+.pv-opt:hover:not(:disabled) {
+  background: var(--fill);
+}
+.pv-opt:disabled {
+  color: var(--ink);
+}
+.pv-opt b {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--fill);
+  font-size: 12px;
+  flex: none;
+}
+.pv-opt > .icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.pv-opt.picked {
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.pv-opt.right {
+  background: #f1faf4;
+  box-shadow: inset 0 0 0 1.5px var(--green);
+}
+.pv-opt.right > .icon {
+  color: var(--green);
+}
+.pv-opt.wrong {
+  background: #fdf3f2;
+  box-shadow: inset 0 0 0 1.5px var(--red);
+}
+.pv-opt.wrong > .icon {
+  color: var(--red);
+}
+.pv-why {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.pv-why > .icon {
+  margin-top: 1px;
+  flex: none;
+}
+.pv-why.ok > .icon {
+  color: var(--green);
+}
+.pv-why.no > .icon {
+  color: var(--red);
+}
+.pv-tap {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pv-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pv-two .btn {
+  height: 46px;
+}
+.pv-two .btn-primary {
+  margin-top: 0;
+}
+.pv-two.flash {
+  margin-top: 14px;
+}
+.pv-two.flash .btn.wide {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.pv-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 220px;
+  margin-top: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 10px 24px -16px rgba(17, 16, 24, 0.25);
+  text-align: center;
+}
+.pv-term {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.pv-card.flipped .pv-term {
+  font-size: 15px;
+  color: var(--muted);
+}
+.pv-def {
+  font-size: 15px;
+  line-height: 1.45;
+}
+.pv-flip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pv-in {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.pv-in:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.pv-in.tall {
+  min-height: 180px;
+}
+.pv-body > .btn-primary {
+  margin-top: 10px;
+}
+.pv-ans {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 14.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.pv-ans.bad {
+  box-shadow: inset 0 0 0 1.5px var(--red);
+}
+.pv-yours {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.pv-yours summary {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.pv-yours p {
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+.pv-fb {
+  margin-top: 12px;
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--ai-line);
+}
+.pv-fb-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.pv-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.pv-line > .icon,
+.pv-need > .icon {
+  margin-top: 1px;
+  flex: none;
+}
+.pv-line.met > .icon,
+.pv-need.met > .icon {
+  color: var(--green);
+}
+.pv-line.miss > .icon,
+.pv-need.miss > .icon {
+  color: var(--amber);
+}
+.pv-need {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.pv-fb-k + .pv-need {
+  margin-top: 4px;
+}
+.pv-need .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pv-need b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.pv-need b span {
+  font-size: 11.5px;
+  color: var(--green-ink);
+}
+.pv-need.miss b span {
+  color: var(--amber);
+}
+.pv-need-n {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.pv-fb .btn.wide {
+  margin-top: 10px;
+}
+.pv-steps {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.pv-steps-k {
+  font-weight: 600;
+}
+.pv-steps ol {
+  margin: 4px 0 0 18px;
+  padding: 0;
+}
+.pv-wait {
+  margin: 16px 18px 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.pv-body .pv-wait {
+  margin: 14px 0 0;
+}
+.pv-done-t {
+  margin-top: 18px;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.4px;
+}
+.pv-done-s {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.pv-body .prep-note {
+  margin: 14px 0 0;
+}
+.pv-foot .center-link {
+  margin-top: 10px;
+}
+
+.prep-edit {
+  margin-left: 12px;
+  font-size: 13px;
+}
+.prep-editing {
+  margin: 4px 18px 0;
+}
+
+/* A finished test prep practice, as one card in the test's chat (chatBlocks.tsx). */
+.prac-res {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.prac-res > .icon {
+  margin-top: 1px;
+  color: var(--acc-text);
+  flex: none;
+}
+.prac-res .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.prac-res b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.prac-res .grow span {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}

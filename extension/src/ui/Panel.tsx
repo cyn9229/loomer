@@ -9,12 +9,14 @@ import { GENERAL_THREAD, type AddDraft, type ChatModel } from '../model/chat';
 import { DOCS_ORIGINS } from '../core/messages';
 import type { AssignmentDetailModel, EditableFields } from '../model/detail';
 import type { HomeModel, WorkItem } from '../model/home';
+import type { Practice } from '../model/prep';
 import type { SessionModel, WorkNudge } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { AddSheet } from './addAssignment';
 import { AskView, SetAsideSheet, shortTitle, ThreadMenu, type ChatInbox } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
+import { PracticeView } from './practice';
 import { EndSheet } from './endSheet';
 import { type HomeActions, HomeView } from './home';
 import { Icon } from './Icon';
@@ -52,13 +54,15 @@ export type PanelProps = {
   lastThread?: LastThread | null;
   /** Right-click screenshots waiting for Ask Loomer's composer (chatInboxItem). Absent in previews. */
   chatInbox?: ChatInbox | null;
+  /** The test prep practice in progress or just finished (usePracticeModel). While set, it fills the panel. */
+  practice?: Practice | null;
 };
 
 type LastThread = { threadKey: string; at: string; reason: 'student' | 'topic' };
 /** A line at the top of Ask Loomer about the chat in view. */
 type ChatNotice = { kind: 'topic' | 'set-aside'; threadKey: string };
 
-export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled, lastThread, chatInbox }: PanelProps) {
+export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled, lastThread, chatInbox, practice }: PanelProps) {
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
   const [chatNotice, setChatNotice] = useState<ChatNotice | null>(null);
@@ -80,6 +84,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   const [startingId, setStartingId] = useState<string | null>(null);
   const [hidingId, setHidingId] = useState<string | null>(null);
   const start = useAction();
+  const practiceAct = useAction();
 
   const active: ActiveSession | null = session && session.status !== 'none' ? session : null;
   // One detail model at a time: the open assignment, or the session's own (for the stat strip).
@@ -167,6 +172,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     },
     requestOrigins: api.requestOrigins,
     sessionBusy: start.busy,
+    startPractice: (assignmentId, mistakeId) => start.run(() => api.send({ type: 'prep:start', assignmentId, ...(mistakeId ? { mistakeId } : {}) })),
     openAsk: (threadKey) => {
       // Refresh the service status so a down service is said before the student types.
       void api.send({ type: 'ai:check' });
@@ -454,6 +460,41 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     setOpenId(null);
     return null;
   };
+
+  // Test prep practice fills the panel until it is closed: nothing else competes with the question.
+  if (practice) {
+    const send = (message: Parameters<PanelApi['send']>[0]) => practiceAct.run(() => api.send(message));
+    const close = (then?: () => void) =>
+      practiceAct.run(async () => {
+        const reply = await api.send({ type: 'prep:close', practiceId: practice.id });
+        if (reply.ok) then?.();
+        return reply;
+      });
+    const testItem = home ? findItem(home, practice.assignmentId) : null;
+    return (
+      <div className="panel">
+        {previewLabel && (
+          <p className="preview-banner" role="note">
+            {previewLabel}
+          </p>
+        )}
+        {practiceAct.error && (
+          <p className="status-line error pad" role="status">
+            {practiceAct.error}
+          </p>
+        )}
+        <PracticeView
+          practice={practice}
+          courseName={testItem?.courseName ?? null}
+          onAnswer={(reply) => practice.question && send({ type: 'prep:answer', practiceId: practice.id, questionId: practice.question.id, ...reply })}
+          onLike={() => practice.question && send({ type: 'prep:like', practiceId: practice.id, questionId: practice.question.id })}
+          onNext={() => send({ type: 'prep:next', practiceId: practice.id })}
+          onEnd={() => (practice.done || practice.error ? close(() => setView('home')) : send({ type: 'prep:end', practiceId: practice.id }))}
+          onReviewMistakes={() => close(() => setOpenId(practice.assignmentId))}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="panel">

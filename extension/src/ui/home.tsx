@@ -9,8 +9,11 @@
 import { useState, type ReactNode } from 'react';
 import type { EditableFields } from '../model/detail';
 import type { DailyBrief, HomeModel, InsightKind, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
+import type { PrepStep } from '../model/prep';
+import { shortTitle } from './ask';
+import { Readiness } from './prep';
 import { useAction, type PanelApi } from './api';
-import { checkProblem, dueWhen, minutesText, observedAt } from './format';
+import { calendarDaysUntil, checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon, type IconName } from './Icon';
 import { AiMark } from './aiBlock';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
@@ -47,6 +50,8 @@ export type HomeActions = {
   sessionBusy: boolean;
   /** Opens the sheet to add work that isn't on Canvas. */
   addAssignment: () => void;
+  /** Starts today's test prep practice, or one on a single mistake (prep:start); the practice view opens when it arrives. */
+  startPractice: (assignmentId: string, mistakeId?: string) => void;
   /** Opens the same sheet to edit work the student added. */
   editAssignment: (assignmentId: string, fields: EditableFields) => void;
 };
@@ -382,7 +387,7 @@ function Finding() {
  * The small label over the line under the next step: what kind of find
  * Loomer leads with. A countdown (nothing new) has no label.
  */
-const insightLabel: Record<Exclude<InsightKind, 'countdown' | 'slipped'>, { icon: IconName; text: string }> = {
+const insightLabel: Record<Exclude<InsightKind, 'countdown' | 'slipped' | 'prep'>, { icon: IconName; text: string }> = {
   change: { icon: 'refresh', text: 'Changed since you last looked' },
   continue: { icon: 'flag', text: 'Where you left off' },
   'hidden-deadline': { icon: 'doc', text: 'Found in the instructions' },
@@ -390,10 +395,35 @@ const insightLabel: Record<Exclude<InsightKind, 'countdown' | 'slipped'>, { icon
   'weak-topic': { icon: 'target', text: 'From your quick checks' },
 };
 
+/** Test prep on Home: the label for each kind of day, and the main button's words. */
+const PREP_STEP: Record<PrepStep['kind'], { icon: IconName; text: string; button: string }> = {
+  'check-all': { icon: 'target', text: 'Starting your test prep', button: 'Start practice' },
+  focus: { icon: 'target', text: 'From your quick checks', button: 'Start practice' },
+  'practice-test': { icon: 'calendar', text: 'The day before', button: 'Start the practice test' },
+  'warm-up': { icon: 'sun', text: 'Test day', button: 'Start warm-up' },
+  comeback: { icon: 'repeat', text: 'Coming back', button: 'Start quick check' },
+};
+
+/** "Unit 5 Test is tomorrow", for the eyebrow over a test prep step. */
+function testWhen(item: WorkItem, now: Date): string {
+  const name = shortTitle(item.title);
+  if (!item.due) return name;
+  const days = calendarDaysUntil(new Date(item.due.at), now);
+  const day = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : new Date(item.due.at).toLocaleDateString(undefined, { weekday: 'long' });
+  return `${name} is ${day}`;
+}
+
 /** The label says what kind of find it is; only a find the AI made gets the AI mark. A skipped start labels itself (slipLabel). */
 function WhyLine({ next, now }: { next: NextAction; now: Date }) {
   const insight = next.insight;
-  const label = insight.kind === 'countdown' ? null : insight.kind === 'slipped' ? slipLabel(next, now) : insightLabel[insight.kind];
+  const label =
+    insight.kind === 'countdown'
+      ? null
+      : insight.kind === 'slipped'
+        ? slipLabel(next, now)
+        : insight.kind === 'prep'
+          ? next.prep && PREP_STEP[next.prep.kind]
+          : insightLabel[insight.kind];
   return (
     <div className="why-line">
       {label && (
@@ -447,12 +477,17 @@ function NextStep({
   const answer = next.slip?.answer ?? null;
   const quick = start.current ? null : next.quickStart;
   const talkFirst = answer === 'not-sure' && !start.current;
+  // Test prep: today's practice step leads, with readiness under the card and one Start button.
+  const prep = next.prep;
+  const prepStep = prep ? PREP_STEP[prep.kind] : null;
   return (
     <section className="focus" aria-label="Next step">
       <div className="eyebrow">
         {/* The AI mark belongs to the step itself, so only when the headline is next.action and the AI wrote it. */}
         {next.aiGenerated && headline === next.action && <AiMark />}
-        {continuing ? (
+        {prep ? (
+          <>Test prep · {testWhen(item, now)}</>
+        ) : continuing ? (
           'Continue'
         ) : (
           <>
@@ -484,8 +519,14 @@ function NextStep({
         </p>
       )}
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
-      {!start.current && !quick && !talkFirst && <TimeQuestion value={minutes} onChange={setMinutes} />}
-      {talkFirst ? (
+      {prep && <Readiness text={prep.readiness} counts={prep.counts} />}
+      {!start.current && !quick && !talkFirst && !prep && <TimeQuestion value={minutes} onChange={setMinutes} />}
+      {prep && prepStep ? (
+        <button type="button" className="btn-primary" onClick={() => actions.startPractice(prep.assignmentId)} disabled={actions.startingId !== null}>
+          {prepStep.button}
+          <Icon name="play" />
+        </button>
+      ) : talkFirst ? (
         <>
           <button type="button" className="btn-primary" onClick={() => actions.openAsk(item.assignmentId)}>
             Talk it through
@@ -519,7 +560,17 @@ function NextStep({
         />
       ) : (
         <p className="next-links">
-          {canMove && (
+          {prep && (
+            <>
+              <button type="button" className="center-link" onClick={() => actions.openItem(item.assignmentId)}>
+                See the plan
+              </button>
+              <span className="next-dot" aria-hidden="true">
+                ·
+              </span>
+            </>
+          )}
+          {canMove && !prep && (
             <>
               <button type="button" className="center-link" onClick={() => setPicking(true)}>
                 {answer === 'not-feeling-it' ? 'Pick a day instead' : 'Not today'}

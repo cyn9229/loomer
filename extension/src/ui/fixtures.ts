@@ -11,6 +11,7 @@ import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, NextAction, R
 import type { PlanChangeView } from '../model/plan';
 import type { SourceItem } from '../model/session';
 import { dateTime, ymd } from './format';
+import { buildPrepFixtures } from './prepFixtures';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -216,6 +217,15 @@ export function buildFixtures(now: Date) {
     workType: { type: 'practice', source: 'rule' },
     quiz: true,
   });
+  // A test on paper in class with a study guide on Canvas: test prep runs on it.
+  const histTest = item(now, {
+    assignmentId: 'a-test',
+    title: 'Unit 5 Test: Imperialism',
+    courseName: 'U.S. History',
+    due: { at: at(now, 2, 9, 0), source: 'canvas' },
+    effort: { label: 'Moderate', reason: null, source: 'ai' },
+    workType: { type: 'study', source: 'rule' },
+  });
   const replayItem = item(now, {
     assignmentId: 'r-replay',
     title: 'Sample: tree canopy data table',
@@ -277,6 +287,7 @@ export function buildFixtures(now: Date) {
     slip: null,
     quickStart: null,
     plainWords: null,
+    prep: null,
     insight: {
       kind: 'hidden-deadline',
       text: `Canvas says this essay is due ${dayName(essayDue)}, but the instructions ask for a draft for peer review by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
@@ -416,6 +427,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: { kind: 'busy-day', text: `This reflection is due ${dayName(reflection.due!.at)}, and since you said ${dayName(at(now, 1, 12, 0))} is busy, Loomer moved its start up to today.`, aiFound: false },
       },
       rest: [essay, vocab, lab],
@@ -446,6 +458,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: { kind: 'countdown', text: `This data table is due ${dayName(replayItem.due!.at)}, ${daysAway(replayItem.due!.at)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [{ ...essay, replay: true }],
@@ -468,6 +481,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: { kind: 'countdown', text: `This essay is due ${dayName(essayDue)}, ${daysAway(essayDue)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [vocab, reflection],
@@ -511,6 +525,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: {
           kind: 'weak-topic',
           text: `You missed 2 of 3 on vertex form last time, and this review sheet is due ${dayName(sheet.due!.at)}, so start with that topic.`,
@@ -519,6 +534,49 @@ export function buildFixtures(now: Date) {
       },
       rest: [essay, vocab, reflection],
       lastCheck,
+    },
+
+    // A test with prep: today's practice step leads, with the readiness line under the card.
+    'test-prep': {
+      status: 'ready',
+      next: {
+        ...readyNext,
+        item: histTest,
+        action: '10 minutes on the Congo under Leopold II',
+        aiGenerated: false,
+        insight: { kind: 'prep', text: 'The Congo under Leopold II and Latin America are the shakiest, so today is 10 minutes on them before the test.', aiFound: false },
+        prep: { assignmentId: histTest.assignmentId, kind: 'focus', minutes: 10, counts: { solid: 5, shaky: 3, unchecked: 0 }, readiness: '5 of 8 topics on this test are solid, and Latin America still needs work.' },
+      },
+      rest: [essay, vocab, reflection],
+      lastCheck,
+      resume: null,
+      olderReview: null,
+      crowded: null,
+      brief: null,
+      room: [],
+      yourChanges: [],
+      courses: COURSES,
+    },
+    // A topic answered right comes back a few days later, so it sticks.
+    'test-comeback': {
+      status: 'ready',
+      next: {
+        ...readyNext,
+        item: histTest,
+        action: 'Quick check: Hawaii, so it sticks',
+        aiGenerated: false,
+        insight: { kind: 'prep', text: 'You got Hawaii right two days ago, and one question today helps it stay solid for the test.', aiFound: false },
+        prep: { assignmentId: histTest.assignmentId, kind: 'comeback', minutes: 2, counts: { solid: 6, shaky: 2, unchecked: 0 }, readiness: '6 of 8 topics on this test are solid, and Latin America still needs work.' },
+      },
+      rest: [essay, vocab],
+      lastCheck,
+      resume: null,
+      olderReview: null,
+      crowded: null,
+      brief: null,
+      room: [],
+      yourChanges: [],
+      courses: COURSES,
     },
 
     // The student kept an AI-suggested step at the end of their last session: it leads under Continue.
@@ -598,6 +656,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: { kind: 'change', text: 'Your vocab check is due before this essay needs to start, so it moved up.', aiFound: false },
       },
       rest: [essay, reflection, lab],
@@ -627,6 +686,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: readyNext.insight,
       },
       rest: [vocab, reflection, lab],
@@ -697,6 +757,7 @@ export function buildFixtures(now: Date) {
         slip: null,
         quickStart: null,
         plainWords: null,
+    prep: null,
         insight: {
           kind: 'hidden-deadline',
           text: `Canvas says this synthesis essay is due ${dayName(essayDue)}, but the instructions ask for a full draft for the peer review workshop by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
@@ -760,6 +821,7 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
   return {
     status: 'ok',
     item,
+    prep: item.assignmentId === 'a-test' ? buildPrepFixtures(now).ready : null,
     descriptionExcerpt: 'Compare how two sources explain urban heat islands. Use at least three sources and cite them in MLA format.',
     requirements: [
       {

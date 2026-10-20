@@ -9,12 +9,14 @@
 import { useState, type ReactNode } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { StudentCorrection, WorkItem } from '../model/home';
+import type { TestPrep } from '../model/prep';
 import { useAction } from './api';
 import { calendarDaysUntil, minutesText, monthDay, observedAt, timeOf, weekday, workloadWord } from './format';
 import { type HomeActions, startControl } from './home';
 import { AiBlock } from './aiBlock';
 import { Icon } from './Icon';
 import { PolicyNote, SizeMeter, SubjectTile } from './parts';
+import { PrepSection } from './prep';
 import { DeleteAssignmentData } from './privacy';
 import { SheetList } from './sheets';
 import { TypeMenu } from './workType';
@@ -59,6 +61,7 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
           <p className="ai-text">{ok.plainWords}</p>
         </AiBlock>
       )}
+      {ok?.prep && <TestPrepBlock prep={ok.prep} actions={actions} />}
       <div className="facts">
         <StartTile item={item} now={now} />
         <DueTile item={item} now={now} />
@@ -435,5 +438,28 @@ function Corrections({ item, correction, actions }: { item: WorkItem; correction
       )}
       {act.error && <p className="status-line error">{act.error}</p>}
     </div>
+  );
+}
+
+/** Test prep on the test's page: maps the section's actions to prep messages. Errors show under it. */
+function TestPrepBlock({ prep, actions }: { prep: TestPrep; actions: HomeActions }) {
+  const edit = useAction();
+  const id = prep.assignmentId;
+  return (
+    <>
+      <PrepSection
+        prep={prep}
+        actions={{
+          onStart: () => actions.startPractice(id),
+          onBuild: () => edit.run(() => actions.send({ type: 'prep:setup', assignmentId: id })),
+          onPracticeMistake: (mistakeId) => actions.startPractice(id, mistakeId),
+          onEditTopics: (change) => edit.run(() => actions.send({ type: 'prep:topics-edit', assignmentId: id, ...change })),
+          onSetFormats: (formats) => edit.run(() => actions.send({ type: 'prep:format-set', assignmentId: id, formats })),
+          onAddNotes: (attachments) => edit.run(() => actions.send({ type: 'prep:notes', assignmentId: id, attachments: attachments.slice(0, 6) })),
+          busy: edit.busy || actions.startingId !== null,
+        }}
+      />
+      {edit.error && <p className="status-line error pad">{edit.error}</p>}
+    </>
   );
 }

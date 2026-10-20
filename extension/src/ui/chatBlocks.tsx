@@ -48,6 +48,19 @@ export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChang
       return <DraftCheck block={block} />;
     case 'attachment':
       return <SentFiles files={[block.file]} />;
+    case 'practice-result':
+      return (
+        <section className="prac-res enter" aria-label="Practice result">
+          <Icon name="target" />
+          <span className="grow">
+            <b>{block.line}</b>
+            <span>
+              {block.detail}
+              {block.mistakes > 0 && ` ${block.mistakes === 1 ? '1 mistake' : `${block.mistakes} mistakes`} to look at on the test’s page.`}
+            </span>
+          </span>
+        </section>
+      );
     case 'open-assignment':
       return (
         <button type="button" className="openas enter" onClick={() => onOpenItem(block.assignmentId)}>
