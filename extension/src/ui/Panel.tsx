@@ -220,6 +220,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
 
   let bar: ReactNode;
   let body: ReactNode;
+  // Ask Loomer and the Working screen keep their top bar in reach while a long chat scrolls.
+  const chatScreen = !screenshot && !openItem && (view === 'ask' || (view === 'work' && Boolean(active)));
   if (screenshot) {
     bar = (
       <>
@@ -448,7 +450,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           {previewLabel}
         </p>
       )}
-      <header className="bar">{bar}</header>
+      <header className={chatScreen ? 'bar sticky' : 'bar'}>{bar}</header>
       <main className="screen" key={screenshot ? 'shot' : openItem ? `item:${openItem.assignmentId}` : view}>
         {paused && <PausedLine api={api} />}
         {start.error && (

@@ -32,7 +32,9 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
     <>
       <div className="d-head">
         <SubjectTile courseName={item.courseName} size="lg" />
-        <span className="d-class">{item.courseName ?? 'No class'} ·</span>
+        <span className="d-class">
+          <span>{item.courseName ?? 'No class'}</span> ·
+        </span>
         <TypeMenu item={item} send={actions.send} />
         {editable && (
           <button type="button" className="link d-edit" onClick={() => actions.editAssignment(item.assignmentId, editable)}>

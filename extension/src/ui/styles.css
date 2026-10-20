@@ -2322,6 +2322,20 @@ details > summary .icon {
   gap: 10px;
   padding: 18px 18px 0;
 }
+/* On a narrow panel a long class name shortens with "…"; the kind menu and Edit keep their size. */
+.d-head > .subject,
+.d-head > .threads {
+  flex: none;
+}
+.d-head > .d-class {
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+}
+.d-head > .d-class > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .d-head + .d-title {
   padding-top: 10px;
 }
@@ -4496,8 +4510,10 @@ details > summary .icon {
   color: var(--acc-text);
 }
 .d-edit {
+  flex: none;
   margin-left: auto;
   font-size: 13px;
+  white-space: nowrap;
 }
 .mine-note {
   flex-direction: column;
@@ -4609,6 +4625,30 @@ details > summary .icon {
   left: 50%;
   translate: -50% 0;
   transform-origin: top center;
+}
+/* In a chat the top bar stays put, so the switcher and session controls stay in
+   reach. The negative margin keeps the layout the same as a plain bar. A
+   hairline fades in once the page scrolls under the bar (scroll-linked, so it
+   only changes while scrolling). */
+.bar.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-bottom: 8px;
+  margin-bottom: -8px;
+  background: var(--page);
+}
+@supports (animation-timeline: scroll()) {
+  .bar.sticky {
+    animation: bar-edge linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 16px;
+  }
+}
+@keyframes bar-edge {
+  to {
+    box-shadow: 0 1px 0 var(--line);
+  }
 }
 /* A wide panel would stretch messages and diagrams; the chat keeps a readable width. */
 .chat.ask {

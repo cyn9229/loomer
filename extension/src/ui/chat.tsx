@@ -8,7 +8,7 @@
 // the proactive hint, the conversation, quick follow-ups, and a docked
 // composer with the research suggestion above it. The composer stays disabled
 // until help is available.
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type { AddDraft, ChatModel } from '../model/chat';
 import type { DayRoom, WorkItem } from '../model/home';
 import type { HelpState } from '../model/session';
@@ -16,6 +16,7 @@ import { useAction, type PanelApi } from './api';
 import { ThreadTurns } from './ask';
 import { Icon } from './Icon';
 import { LinkDocStep, type ActiveSession } from './session';
+import { useChatScroll } from './useChatScroll';
 import { useElapsedSeconds } from './useNow';
 import { askHint, typeCaption, typePrompts } from './workType';
 
@@ -49,7 +50,6 @@ export function ChatView({ session, chat, api, now, draft, setDraft, hint, sugge
   const ask = useAction();
   const stop = useAction();
   const [showAll, setShowAll] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
   const turns = chat?.turns ?? [];
   const last = turns.at(-1);
   const busy = Boolean(chat?.streaming) || help.reviewPending || ask.busy;
@@ -57,14 +57,12 @@ export function ChatView({ session, chat, api, now, draft, setDraft, hint, sugge
   const shown = showAll ? turns : turns.slice(-RECENT);
   const earlier = turns.length - shown.length;
 
-  // Braces matter: Chrome's scrollIntoView returns a Promise, and an effect must not return one.
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
-  }, [turns.length, busy]);
+  const scroll = useChatScroll(threadKey, turns);
 
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    scroll.sent();
     ask.run(() => api.send({ type: 'chat:send', threadKey, text: trimmed }));
     setDraft('');
   };
@@ -81,7 +79,7 @@ export function ChatView({ session, chat, api, now, draft, setDraft, hint, sugge
   const steps = Number(needsDoc) + Number(needsPolicy);
 
   return (
-    <div className="chat">
+    <div className="chat" ref={scroll.root}>
       {needsDoc && <LinkDocStep n={steps > 1 ? 1 : undefined} assignmentId={assignment.assignmentId} candidates={doc.candidates} api={api} />}
       {needsPolicy && <PolicyStep n={steps > 1 ? 2 : undefined} assignmentId={assignment.assignmentId} api={api} />}
       {steps > 0 && (
@@ -138,13 +136,20 @@ export function ChatView({ session, chat, api, now, draft, setDraft, hint, sugge
           <button type="button" className="btn sm" onClick={() => send('Give me a smaller step')}>
             Smaller step
           </button>
-          <button type="button" className="btn sm" onClick={() => ask.run(() => api.send({ type: 'help:review', assignmentId: assignment.assignmentId }))}>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => {
+              scroll.sent();
+              ask.run(() => api.send({ type: 'help:review', assignmentId: assignment.assignmentId }));
+            }}
+          >
             Check my draft
           </button>
         </div>
       )}
       {(ask.error ?? stop.error) && <p className="status-line error pad">{ask.error ?? stop.error}</p>}
-      <div ref={endRef} />
+      <div ref={scroll.spacer} aria-hidden="true" />
 
       <div className="dock">
         {suggestion}

@@ -3,7 +3,7 @@
 // in as blocks (Markdown, tool lines, visuals, quizzes, assignment links). An
 // assignment thread follows that assignment's AI rule: blocked shows the rule
 // and offers General instead; an unknown rule asks the one-time question first.
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { GENERAL_THREAD, type AddDraft, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
 import type { HelpAvailability } from '../model/session';
 import type { DayRoom, WorkItem } from '../model/home';
@@ -17,6 +17,7 @@ import { LogoMark } from './Logo';
 import { AiServiceDown, SubjectTile } from './parts';
 import { PlanChangeCard } from './planChange';
 import { Sheet } from './sheet';
+import { useChatScroll } from './useChatScroll';
 import { usePopover } from './usePopover';
 
 type AskProps = {
@@ -47,25 +48,16 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
-  const endRef = useRef<HTMLDivElement>(null);
   const turns = model?.turns ?? [];
   const last = turns.at(-1);
   const available = model?.availability === 'available' && !quizOpen;
   const canSend = available && !model.streaming && !ask.busy;
-
-  // A new turn scrolls into view; a growing reply follows only while the student is at the bottom.
-  // Braces matter: Chrome's scrollIntoView now returns a Promise, and an effect must not return one.
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
-  }, [turns.length]);
-  const growth = last ? last.blocks.length * 100_000 + last.blocks.reduce((n, b) => n + (b.kind === 'markdown' ? b.text.length : 1), 0) : 0;
-  useLayoutEffect(() => {
-    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160) endRef.current?.scrollIntoView({ block: 'end' });
-  }, [growth]);
+  const scroll = useChatScroll(threadKey, turns);
 
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || !canSend) return;
+    scroll.sent();
     ask.run(() => api.send({ type: 'chat:send', threadKey, text: trimmed }));
     setDraft('');
   };
@@ -78,7 +70,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const error = ask.error ?? stop.error;
 
   return (
-    <div className="chat ask">
+    <div className="chat ask" ref={scroll.root}>
       {notice}
       {quizOpen ? (
         <section className="state">
@@ -100,7 +92,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
       {!quizOpen && model && model.availability !== 'blocked' && <ThreadTurns model={model} now={now} api={api} items={threads} room={room} onOpenItem={onOpenItem} onEditDraft={onEditDraft} />}
       {ask.busy && last?.role !== 'loomer' && <Thinking />}
       {error && <p className="status-line error pad">{error}</p>}
-      <div ref={endRef} />
+      <div ref={scroll.spacer} aria-hidden="true" />
 
       <div className="dock">
         {nudge}
@@ -477,11 +469,15 @@ function Turn({
 }) {
   if (turn.role === 'student') {
     const text = turn.blocks.map((b) => (b.kind === 'markdown' ? b.text : '')).join('\n');
-    return <p className="bubble">{text}</p>;
+    return (
+      <p className="bubble" data-turn={turn.id}>
+        {text}
+      </p>
+    );
   }
   const streaming = turn.status === 'streaming';
   return (
-    <div className="msg reply">
+    <div className="msg reply" data-turn={turn.id}>
       <LogoMark size={17} />
       <div className="grow aib">
         {turn.blocks.map((block, i) => (

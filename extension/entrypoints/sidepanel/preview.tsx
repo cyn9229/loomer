@@ -2,9 +2,12 @@
 // visible "Fixture preview" banner. Opened with
 // sidepanel.html?fixture=<home>&session=<session>&chat=<chat> (add &screenshot
 // to open the crop screen). The "streaming" chat replays a reply word by word.
-// Actions are not sent anywhere; each one reports that it is a preview.
+// Sending a chat message adds it to the thread and streams the sample reply
+// after it, so scrolling can be tried. Other actions are not sent anywhere;
+// each one reports that it is a preview.
 import { useEffect, useState } from 'react';
 import type { PanelApi } from '../../src/ui/api';
+import type { ChatModel } from '../../src/model/chat';
 import type { HomeModel } from '../../src/model/home';
 import type { WorkNudge } from '../../src/model/session';
 import { buildChatFixtures, revealTurn, STREAM_STEPS, type ChatFixtureName } from '../../src/ui/chatFixtures';
@@ -13,7 +16,7 @@ import { Panel } from '../../src/ui/Panel';
 import { buildSessionFixtures, type SessionFixtureName } from '../../src/ui/sessionFixtures';
 import { useNow } from '../../src/ui/useNow';
 
-const api: PanelApi = {
+const previewApi: PanelApi = {
   send: async () => ({ ok: false, error: 'Preview only. Nothing was sent.' }),
   requestOrigins: async () => true,
   openSettings: () => undefined,
@@ -49,7 +52,18 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
   const chatNames = [...(Object.keys(chats) as ChatFixtureName[]), 'streaming' as const];
   const [chat, setChat] = useState<ChatFixtureName>(pick(new URLSearchParams(location.search).get('chat'), chatNames, 'empty'));
   const [run, setRun] = useState(0);
-  const step = useStreamStep(chat === 'streaming', run);
+  // Messages sent in this preview, each answered with the sample reply.
+  const [sent, setSent] = useState<string[]>([]);
+  const step = useStreamStep(chat === 'streaming' || sent.length > 0, run);
+  const [api] = useState<PanelApi>(() => ({
+    ...previewApi,
+    send: async (message) => {
+      if (message.type !== 'chat:send') return previewApi.send(message);
+      setSent((all) => [...all, message.text]);
+      setRun((r) => r + 1);
+      return { ok: true };
+    },
+  }));
   return (
     <>
       <div className="preview-picker">
@@ -108,7 +122,7 @@ export function PreviewPanel({ initial, initialSession }: { initial: string; ini
           const item = id ? itemsOf(model).find((i) => i.assignmentId === id) : undefined;
           return item ? buildDetail(item, now) : undefined;
         }}
-        useChat={() => (chat === 'streaming' ? revealTurn(chats.answer, step) : chats[chat])}
+        useChat={() => (sent.length > 0 ? revealTurn(withSent(chats[chat === 'streaming' ? 'answer' : chat], sent, chats.answer), step) : chat === 'streaming' ? revealTurn(chats.answer, step) : chats[chat])}
         screenshot={shot ? buildScreenshotDraft(now) : null}
         now={now}
         api={api}
@@ -135,6 +149,17 @@ function previewNudge(name: NudgeName, now: Date): WorkNudge {
     reason: name === 'viewing' ? 'viewing' : 'typing',
     at: now.toISOString(),
   };
+}
+
+/** The thread with each preview message after it, every one answered with the sample reply. */
+function withSent(model: ChatModel, sent: string[], sample: ChatModel): ChatModel {
+  const reply = sample.turns.at(-1)!;
+  const at = new Date().toISOString();
+  const added = sent.flatMap((text, i) => [
+    { id: 900_000 + i * 2, role: 'student' as const, blocks: [{ kind: 'markdown' as const, text }], status: 'done' as const, createdAt: at },
+    { ...reply, id: 900_001 + i * 2 },
+  ]);
+  return { ...model, turns: [...model.turns, ...added] };
 }
 
 function itemsOf(model: HomeModel) {
