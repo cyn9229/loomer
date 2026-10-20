@@ -11,7 +11,7 @@ import type { EditableFields } from '../model/detail';
 import type { DailyBrief, HomeModel, InsightKind, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import type { PrepStep } from '../model/prep';
 import { shortTitle } from './ask';
-import { Readiness } from './prep';
+import { Readiness, SESSION } from './prep';
 import { useAction, type PanelApi } from './api';
 import { calendarDaysUntil, checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon, type IconName } from './Icon';
@@ -45,6 +45,8 @@ export type HomeActions = {
   openAsk: (threadKey?: string) => void;
   /** Asks Chrome for site access; call first in a click handler, before any await. */
   requestOrigins: PanelApi['requestOrigins'];
+  /** Asks Chrome for notifications; call first in a click handler, before any await. */
+  requestNotifications: PanelApi['requestNotifications'];
   /** Pause, resume or end the running session (one tap; errors show at the top). */
   sessionVerb: (verb: SessionVerb) => void;
   sessionBusy: boolean;
@@ -395,15 +397,6 @@ const insightLabel: Record<Exclude<InsightKind, 'countdown' | 'slipped' | 'prep'
   'weak-topic': { icon: 'target', text: 'From your quick checks' },
 };
 
-/** Test prep on Home: the label for each kind of day, and the main button's words. */
-const PREP_STEP: Record<PrepStep['kind'], { icon: IconName; text: string; button: string }> = {
-  'check-all': { icon: 'target', text: 'Starting your test prep', button: 'Start practice' },
-  focus: { icon: 'target', text: 'From your quick checks', button: 'Start practice' },
-  'practice-test': { icon: 'calendar', text: 'The day before', button: 'Start the practice test' },
-  'warm-up': { icon: 'sun', text: 'Test day', button: 'Start warm-up' },
-  comeback: { icon: 'repeat', text: 'Coming back', button: 'Start quick check' },
-};
-
 /** "Unit 5 Test is tomorrow", for the eyebrow over a test prep step. */
 function testWhen(item: WorkItem, now: Date): string {
   const name = shortTitle(item.title);
@@ -422,7 +415,7 @@ function WhyLine({ next, now }: { next: NextAction; now: Date }) {
       : insight.kind === 'slipped'
         ? slipLabel(next, now)
         : insight.kind === 'prep'
-          ? next.prep && PREP_STEP[next.prep.kind]
+          ? next.prep && (next.prep.waiting ? { icon: 'check' as const, text: 'Done for now' } : SESSION[next.prep.kind])
           : insightLabel[insight.kind];
   return (
     <div className="why-line">
@@ -479,7 +472,9 @@ function NextStep({
   const talkFirst = answer === 'not-sure' && !start.current;
   // Test prep: today's practice step leads, with readiness under the card and one Start button.
   const prep = next.prep;
-  const prepStep = prep ? PREP_STEP[prep.kind] : null;
+  const prepStep = prep ? SESSION[prep.kind] : null;
+  // Between today's sessions: the next one waits for later, with an optional reminder.
+  const waiting = prep?.waiting ?? null;
   return (
     <section className="focus" aria-label="Next step">
       <div className="eyebrow">
@@ -521,7 +516,9 @@ function NextStep({
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
       {prep && <Readiness text={prep.readiness} counts={prep.counts} />}
       {!start.current && !quick && !talkFirst && !prep && <TimeQuestion value={minutes} onChange={setMinutes} />}
-      {prep && prepStep ? (
+      {prep && waiting ? (
+        <WaitingReminder prep={prep} waiting={waiting} actions={actions} />
+      ) : prep && prepStep ? (
         <button type="button" className="btn-primary" onClick={() => actions.startPractice(prep.assignmentId)} disabled={actions.startingId !== null}>
           {prepStep.button}
           <Icon name="play" />
@@ -560,14 +557,26 @@ function NextStep({
         />
       ) : (
         <p className="next-links">
+          {prep && waiting && (
+            <>
+              <button type="button" className="center-link" onClick={() => actions.startPractice(prep.assignmentId)}>
+                Start it now anyway
+              </button>
+              <span className="next-dot" aria-hidden="true">
+                ·
+              </span>
+            </>
+          )}
           {prep && (
             <>
               <button type="button" className="center-link" onClick={() => actions.openItem(item.assignmentId)}>
                 See the plan
               </button>
-              <span className="next-dot" aria-hidden="true">
-                ·
-              </span>
+              {next.chosenByStudent && (
+                <span className="next-dot" aria-hidden="true">
+                  ·
+                </span>
+              )}
             </>
           )}
           {canMove && !prep && (
@@ -585,9 +594,12 @@ function NextStep({
               {clear.busy ? 'Asking…' : 'Ask Loomer to pick again'}
             </button>
           ) : (
-            <button type="button" className="center-link" aria-expanded={whyOpen} onClick={onWhy}>
-              {whyOpen ? 'Hide how Loomer picked this' : 'How Loomer picked this'}
-            </button>
+            // Test prep explains itself with the readiness line and the plan, so it skips this link.
+            !prep && (
+              <button type="button" className="center-link" aria-expanded={whyOpen} onClick={onWhy}>
+                {whyOpen ? 'Hide how Loomer picked this' : 'How Loomer picked this'}
+              </button>
+            )
           )}
         </p>
       )}
@@ -608,6 +620,35 @@ function NextStep({
       )}
       {(clear.error ?? switchTo.error) && <p className="status-line error pad">{clear.error ?? switchTo.error}</p>}
     </section>
+  );
+}
+
+/** Home between test prep sessions: the next one opens later today, with an optional reminder (prep:remind). */
+function WaitingReminder({ prep, waiting, actions }: { prep: PrepStep; waiting: NonNullable<PrepStep['waiting']>; actions: HomeActions }) {
+  const remind = useAction();
+  const at = new Date(waiting.remindAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const toggle = () => {
+    const on = !waiting.reminder;
+    // Ask for notifications inside the click, before any await, or Chrome won't show its prompt.
+    const allowed = on ? actions.requestNotifications() : Promise.resolve(true);
+    remind.run(async () =>
+      (await allowed)
+        ? actions.send({ type: 'prep:remind', assignmentId: prep.assignmentId, sessionId: waiting.sessionId, on })
+        : { ok: false, error: 'Chrome didn’t allow notifications, so Loomer can’t remind you.' },
+    );
+  };
+  return (
+    <>
+      <button type="button" role="switch" aria-checked={waiting.reminder} className="wait-remind" disabled={remind.busy} onClick={toggle}>
+        <Icon name="bell" />
+        <span className="grow">
+          <b>Remind me at {at}</b>
+          <span>A notification from Chrome, only for this</span>
+        </span>
+        <span className="prep-toggle" aria-hidden="true" />
+      </button>
+      {remind.error && <p className="status-line error">{remind.error}</p>}
+    </>
   );
 }
 

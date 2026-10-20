@@ -21,6 +21,7 @@ import { useNow } from '../../src/ui/useNow';
 const api: PanelApi = {
   send: sendMessage,
   requestOrigins: (origins) => browser.permissions.request({ origins }),
+  requestNotifications: () => browser.permissions.request({ permissions: ['notifications'] }),
   openSettings: () => void browser.runtime.openOptionsPage(),
   widgetUrl: widgetPageUrl(),
 };

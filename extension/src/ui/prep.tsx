@@ -7,11 +7,13 @@
 // right on their own checks, never a grade), Start practice, the plan day by
 // day back from the test, every topic with its standing (Edit opens the same
 // editor), and Your mistakes.
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { readAttachment } from '../chat/attachments';
 import type { Attachment } from '../model/chat';
 import { Icon, type IconName } from './Icon';
-import type { PrepFormat, Standing, TestPrep } from '../model/prep';
+import type { PrepFormat, PrepSessionKind, Standing, TeachBlock, TestPrep } from '../model/prep';
+import { Sheet } from './sheet';
+import { TeachBlockView } from './teach';
 import { TopicLine } from './practice';
 
 type PrepActions = {
@@ -21,6 +23,10 @@ type PrepActions = {
   onBuild: () => void;
   /** Practice one earlier wrong answer (prep:start with the mistake). */
   onPracticeMistake: (mistakeId: string) => void;
+  /** The time the student can give this test today, in minutes (prep:time). */
+  onSetTime: (minutes: number) => void;
+  /** Turns the reminder for a later-today session on or off (prep:remind). */
+  onRemind: (sessionId: string, on: boolean) => void;
   onEditTopics: (edit: { remove?: string[]; add?: string[]; keep?: string[] }) => void;
   onSetFormats: (formats: PrepFormat[]) => void;
   /** Photos of paper notes, read on this computer (prep:notes). */
@@ -77,36 +83,60 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
         )}
       </section>
     );
-  const today = prep.plan.find((d) => d.status === 'today');
+  // The session to start now: today's, unless it waits for later today.
+  const now = prep.plan.find((p) => p.status === 'today' && p.when !== 'later-today');
   // Practice needs the test's formats: ask while nothing was found and the student hasn't answered.
   const askFormats = Object.keys(prep.formats.found).length === 0 && !prep.formats.asked;
   return (
     <section className="prep" aria-label="Test prep">
       <Readiness text={prep.readiness} counts={prep.counts} />
-      {today && (
+      {!prep.today.asked && <TimeAsk onSet={actions.onSetTime} busy={actions.busy} />}
+      {now && (
         <button type="button" className="btn-primary" disabled={actions.busy} aria-busy={actions.busy} onClick={actions.onStart}>
-          {today.kind === 'practice-test' ? 'Start the practice test' : today.kind === 'warm-up' ? 'Start warm-up' : 'Start practice'}
+          {SESSION[now.kind].button}
           <Icon name="play" />
         </button>
       )}
       <div className="sec">
         <h2>Your plan</h2>
-        <span className="aside">{prep.plan.length === 1 ? '1 day' : `${prep.plan.length} days`}</span>
+        <span className="aside">{prep.fits ?? (prep.plan.length === 1 ? '1 session' : `${prep.plan.length} sessions`)}</span>
       </div>
-      <ol className="prep-days">
-        {prep.plan.map((d) => (
-          <li key={d.date} className={`prep-day ${d.status}`}>
-            <b className="prep-dd">{new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: 'short' })}</b>
-            <span className="prep-dm" aria-hidden="true">
-              {d.status === 'done' && <Icon name="check" />}
+      <ol className="prep-sessions">
+        {prep.plan.map((p) => (
+          <li key={p.id} className={`prep-session ${p.status}`}>
+            <span className="prep-sd" aria-hidden="true">
+              {p.status === 'done' && <Icon name="check" />}
             </span>
             <span className="grow">
-              <span className="prep-step">{d.step}</span>
-              <span className="prep-sub">{d.sub}</span>
+              <span className="prep-when">
+                <b>{p.label}</b>
+                <i>{minutesWords(p.minutes)}</i>
+              </span>
+              <span className="prep-step">{p.step}</span>
+              {p.sub && <span className="prep-sub">{p.sub}</span>}
+              {p.back && (
+                <span className="prep-back">
+                  <Icon name="repeat" size="xs" />
+                  {p.back}
+                </span>
+              )}
+              {p.remindAt && p.status !== 'done' && (
+                <button type="button" role="switch" aria-checked={p.reminder} className="prep-remind" disabled={actions.busy} onClick={() => actions.onRemind(p.id, !p.reminder)}>
+                  <Icon name="bell" size="xs" />
+                  Remind me at {new Date(p.remindAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                  <span className="prep-toggle" aria-hidden="true" />
+                </button>
+              )}
             </span>
           </li>
         ))}
       </ol>
+      {prep.note && (
+        <p className="prep-sleep">
+          <Icon name="moon" size="sm" />
+          {prep.note}
+        </p>
+      )}
       <div className="sec">
         <h2>Topics</h2>
         <span className="aside">{prep.topics.length}</span>
@@ -121,7 +151,7 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
       ) : (
         <div className="prep-topics">
           {prep.topics.map((t) => (
-            <TopicLine key={t.id} text={t.text} standing={t.standing} lastCheck={t.lastCheck} />
+            <TopicLine key={t.id} text={t.text} standing={t.standing} lastCheck={t.lastCheck} mixup={t.mixup} />
           ))}
         </div>
       )}
@@ -152,6 +182,7 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
           </p>
         </>
       )}
+      {prep.blocks.length > 0 && <Reread blocks={prep.blocks} />}
     </section>
   );
 }
@@ -289,6 +320,93 @@ function PrepEditor({ prep, actions }: { prep: TestPrep; actions: PrepActions })
         <Icon name="lock" size="xs" />
         Your photos go to the AI once to find topics, and Loomer doesn’t keep them.
       </p>
+    </>
+  );
+}
+
+/** Each kind of session: its label on Home and the words on its Start button. */
+export const SESSION: Record<PrepSessionKind, { icon: IconName; text: string; button: string }> = {
+  diagnostic: { icon: 'target', text: 'Starting your test prep', button: 'Start the diagnostic' },
+  focus: { icon: 'target', text: 'From your diagnostic', button: 'Start practice' },
+  'mixed-check': { icon: 'clock', text: 'Later today', button: 'Start the mixed check' },
+  'practice-test': { icon: 'calendar', text: 'Practice test', button: 'Start the practice test' },
+  review: { icon: 'calendar', text: 'The day before', button: 'Start review' },
+  'warm-up': { icon: 'sun', text: 'Test day', button: 'Start warm-up' },
+  rescue: { icon: 'sun', text: 'Test today', button: 'Start the rescue' },
+};
+
+/** "About 15 min", or "5 min" for a short one. */
+function minutesWords(minutes: number): string {
+  return minutes >= 10 ? `About ${minutes} min` : `${minutes} min`;
+}
+
+const TIME_CHOICES = [
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '1 hour', minutes: 60 },
+  { label: 'More', minutes: 90 },
+] as const;
+
+/** Asked once a day: how much time the student can give this test. Loomer fits the plan to it and never guesses. */
+function TimeAsk({ onSet, busy }: { onSet: (minutes: number) => void; busy: boolean }) {
+  return (
+    <section className="prep-time" aria-label="Time for today">
+      <p className="prep-time-k">How much time can you give this test today?</p>
+      <div className="prep-time-c" role="group" aria-label="Time for today">
+        {TIME_CHOICES.map((c) => (
+          <button key={c.label} type="button" disabled={busy} onClick={() => onSet(c.minutes)}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <p className="prep-time-s">Loomer fits today’s plan to your answer, and never guesses how long you need.</p>
+    </section>
+  );
+}
+
+const BLOCK_ICON: Record<TeachBlock['kind'], IconName> = { compare: 'layers', timeline: 'list', explain: 'doc', 'frq-skill': 'edit', visual: 'image' };
+
+/** Teaching blocks from practice, newest first, to reread before the test. Reread opens one in a sheet. */
+function Reread({ blocks }: { blocks: TeachBlock[] }) {
+  const [open, setOpen] = useState<TeachBlock | null>(null);
+  const titleId = useId();
+  return (
+    <>
+      <div className="sec">
+        <h2>Reread before the test</h2>
+        <span className="aside">{blocks.length}</span>
+      </div>
+      <div className="prep-mistakes">
+        {blocks.map((b) => (
+          <div className="prep-mistake" key={b.id}>
+            <span className="subject">
+              <Icon name={BLOCK_ICON[b.kind]} />
+            </span>
+            <span className="grow">
+              <b>{b.title}</b>
+              <span>{b.topic}</span>
+            </span>
+            <button type="button" className="link" onClick={() => setOpen(b)}>
+              Reread
+            </button>
+          </div>
+        ))}
+      </div>
+      {open && (
+        <Sheet labelledBy={titleId} onClose={() => setOpen(null)}>
+          <div className="af">
+            <div className="af-head">
+              <p id={titleId} className="af-title">
+                {open.topic}
+              </p>
+              <button type="button" className="icon-btn" aria-label="Close" title="Close" onClick={() => setOpen(null)}>
+                <Icon name="x" size="sm" />
+              </button>
+            </div>
+            <TeachBlockView block={open} lead={false} />
+          </div>
+        </Sheet>
+      )}
     </>
   );
 }

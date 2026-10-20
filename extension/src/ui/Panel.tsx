@@ -171,6 +171,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
       start.run(() => api.send(verbMessage(verb)));
     },
     requestOrigins: api.requestOrigins,
+    requestNotifications: api.requestNotifications,
     sessionBusy: start.busy,
     startPractice: (assignmentId, mistakeId) => start.run(() => api.send({ type: 'prep:start', assignmentId, ...(mistakeId ? { mistakeId } : {}) })),
     openAsk: (threadKey) => {

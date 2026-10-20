@@ -222,7 +222,7 @@ export function buildFixtures(now: Date) {
     assignmentId: 'a-test',
     title: 'Unit 5 Test: Imperialism',
     courseName: 'U.S. History',
-    due: { at: at(now, 2, 9, 0), source: 'canvas' },
+    due: { at: at(now, 1, 9, 0), source: 'canvas' },
     effort: { label: 'Moderate', reason: null, source: 'ai' },
     workType: { type: 'study', source: 'rule' },
   });
@@ -542,10 +542,10 @@ export function buildFixtures(now: Date) {
       next: {
         ...readyNext,
         item: histTest,
-        action: '10 minutes on the Congo under Leopold II',
+        action: 'Learn and practice: the Hawaii mix-up, the Congo, and Latin America',
         aiGenerated: false,
-        insight: { kind: 'prep', text: 'The Congo under Leopold II and Latin America are the shakiest, so today is 10 minutes on them before the test.', aiFound: false },
-        prep: { assignmentId: histTest.assignmentId, kind: 'focus', minutes: 10, counts: { solid: 5, shaky: 3, unchecked: 0 }, readiness: '5 of 8 topics on this test are solid, and Latin America still needs work.' },
+        insight: { kind: 'prep', text: 'Your diagnostic found a mix-up on Hawaii and two shaky topics, so the next 20 minutes teach and practice those before tomorrow’s test.', aiFound: false },
+        prep: { assignmentId: histTest.assignmentId, kind: 'focus', minutes: 20, counts: { solid: 4, shaky: 4, unchecked: 0 }, readiness: '4 of 8 topics on this test are solid, and the Hawaii mix-up is the first thing to fix.', waiting: null },
       },
       rest: [essay, vocab, reflection],
       lastCheck,
@@ -557,16 +557,23 @@ export function buildFixtures(now: Date) {
       yourChanges: [],
       courses: COURSES,
     },
-    // A topic answered right comes back a few days later, so it sticks.
-    'test-comeback': {
+    // Between today's sessions: the next one opens after dinner, with an optional reminder.
+    'test-waiting': {
       status: 'ready',
       next: {
         ...readyNext,
         item: histTest,
-        action: 'Quick check: Hawaii, so it sticks',
+        action: 'Next at 7 PM: a 10-minute mixed check',
         aiGenerated: false,
-        insight: { kind: 'prep', text: 'You got Hawaii right two days ago, and one question today helps it stay solid for the test.', aiFound: false },
-        prep: { assignmentId: histTest.assignmentId, kind: 'comeback', minutes: 2, counts: { solid: 6, shaky: 2, unchecked: 0 }, readiness: '6 of 8 topics on this test are solid, and Latin America still needs work.' },
+        insight: { kind: 'prep', text: 'You finished learning Hawaii, the Congo, and Latin America, so take a break, and the check after dinner helps it stick.', aiFound: false },
+        prep: {
+          assignmentId: histTest.assignmentId,
+          kind: 'mixed-check',
+          minutes: 10,
+          counts: { solid: 6, shaky: 2, unchecked: 0 },
+          readiness: '6 of 8 topics on this test are solid now, and Latin America still needs a check.',
+          waiting: { sessionId: 's3', label: 'Next at 7:00 PM', step: 'A mixed check on those 3 topics', remindAt: at(now, 0, 19, 0), reminder: false },
+        },
       },
       rest: [essay, vocab],
       lastCheck,

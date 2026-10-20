@@ -11,6 +11,8 @@ export type PanelApi = {
    * any await, so Chrome still sees the user gesture.
    */
   requestOrigins: (origins: string[]) => Promise<boolean>;
+  /** Asks Chrome for the notifications permission (opt-in reminders). Same rule: first in a click handler. */
+  requestNotifications: () => Promise<boolean>;
   openSettings: () => void;
   /** The sandboxed page that runs AI-made interactive widgets. */
   widgetUrl: string;

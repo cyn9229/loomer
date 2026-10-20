@@ -77,6 +77,8 @@ export function PrepPreview({ practice, prep }: { practice: string | null; prep:
               onStart: say('Start practice'),
               onBuild: say('Build my plan'),
               onPracticeMistake: say('Practice this mistake'),
+              onSetTime: (minutes) => setNote(`Preview only: ${minutes} minutes for today was not sent.`),
+              onRemind: (sessionId, on) => setNote(`Preview only: the reminder for ${sessionId} (${on ? 'on' : 'off'}) was not sent.`),
               onEditTopics: (edit) => setNote(`Preview only: the topic change ${JSON.stringify(edit)} was not sent.`),
               onSetFormats: (formats) => setNote(`Preview only: the formats ${formats.join(', ')} were not sent.`),
               onAddNotes: (photos) => setNote(`Preview only: ${photos.length} photos were read but not sent.`),

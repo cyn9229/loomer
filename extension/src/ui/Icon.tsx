@@ -62,6 +62,7 @@ import HistoryRegular from '@mingcute/react/core-regular/history';
 import Mountain2Regular from '@mingcute/react/core-regular/mountain-2';
 import StopwatchRegular from '@mingcute/react/core-regular/stopwatch';
 import Search2Regular from '@mingcute/react/core-regular/search-2';
+import MoonRegular from '@mingcute/react/core-regular/moon';
 import Attachment2Regular from '@mingcute/react/core-regular/attachment-2';
 import PdfRegular from '@mingcute/react/core-regular/pdf';
 import ScreenshotRegular from '@mingcute/react/core-regular/screenshot';
@@ -150,6 +151,7 @@ const icons = {
   battery: Battery1Regular,
   stopwatch: StopwatchRegular,
   search: Search2Regular,
+  moon: MoonRegular,
   // Attaching files and screenshots in Ask Loomer.
   clip: Attachment2Regular,
   pdf: PdfRegular,

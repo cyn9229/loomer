@@ -4847,8 +4847,12 @@ details > summary .icon {
   gap: 8px;
   margin-top: 12px;
 }
+.next-links {
+  flex-wrap: wrap;
+}
 .next-links .center-link {
   margin: 0;
+  white-space: nowrap;
 }
 .next-dot {
   color: var(--line-strong);
@@ -6200,4 +6204,536 @@ details > summary .icon {
   font-size: 13px;
   line-height: 1.4;
   color: var(--text);
+}
+
+/* ------------------------------------------------------------ Round 44: confidence, outcomes, the diagnosis (practice.tsx)
+   Sure or Guessing is asked after the tap. Four outcomes, each with a mark:
+   solid (check), shaky (half), mix-up (red "!", wrong but sure), and not
+   learned yet (striped). */
+.pv-ask {
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.omark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.omark .icon {
+  width: 12px;
+  height: 12px;
+}
+.omark.solid {
+  background: var(--green);
+  color: #fff;
+}
+.omark.shaky {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.omark.shaky i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+  background: var(--amber-dot);
+}
+.omark.mixup {
+  background: var(--red);
+  color: #fff;
+}
+.omark.gap {
+  box-shadow: inset 0 0 0 1.5px var(--faint);
+  background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line-strong) 3px 4px);
+}
+.pv-res {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+.pv-res > .omark {
+  margin-top: 1px;
+}
+.pv-res .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pv-res b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pv-res .grow span {
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.pv-res.solid {
+  background: #f1faf4;
+}
+.pv-res.solid b {
+  color: var(--green-ink);
+}
+.pv-res.shaky {
+  background: var(--amber-tint);
+}
+.pv-res.shaky b {
+  color: var(--amber-ink);
+}
+.pv-res.mixup {
+  background: var(--red-tint);
+}
+.pv-res.mixup b {
+  color: var(--red);
+}
+.pv-res.gap {
+  background: var(--fill);
+}
+.diag {
+  margin-top: 12px;
+}
+.diag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.diag-row:first-child {
+  border-top: 0;
+}
+.diag-row > .omark {
+  margin-top: 2px;
+}
+.diag-row .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.diag-row b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.diag-row .grow > span {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.diag-w {
+  margin-left: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.diag-w.mixup {
+  color: var(--red);
+}
+.diag-w.shaky {
+  color: var(--amber-ink);
+}
+.diag-w.gap {
+  color: var(--muted);
+}
+.diag-w.solid {
+  color: var(--green-ink);
+}
+.diag-more {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------ Teaching blocks (teach.tsx)
+   Its own step in practice: a lead line, the exact mistake, then one block
+   in the form that fits (table, timeline, quote, claim frame, or picture). */
+.tb-lead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.tb-miss {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.tb-miss > .icon {
+  margin-top: 1px;
+  color: var(--red);
+  flex: none;
+}
+.tb {
+  margin-top: 12px;
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--ai-line);
+}
+.tb-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.tb-quote {
+  margin: 8px 0 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--fill);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.tb-quote cite {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.tb-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.tb-table th,
+.tb-table td {
+  padding: 6px 5px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.tb-table thead th {
+  border-top: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+.tb-table tbody th {
+  width: 28%;
+  font-weight: 600;
+  color: var(--text);
+}
+.tb-steps {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tb-steps li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.tb-steps li:first-child {
+  border-top: 0;
+}
+.tb-steps b {
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.tb-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 10px;
+}
+.tb-flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tb-flow-step > .icon {
+  margin: 2px 0;
+  color: var(--faint);
+}
+.tb-box {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--fill);
+  font-size: 13px;
+  text-align: center;
+}
+.tb-frame {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fill);
+  font-size: 14px;
+  line-height: 1.9;
+}
+.tb-blank {
+  display: inline-block;
+  min-width: 60px;
+  margin: 0 4px;
+  padding: 0 6px;
+  border-bottom: 1.5px dashed #c9c5bd;
+  text-decoration: none;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.tb-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tb-text {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.pv-res .grow .pv-res-next {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------ Round 44: sessions, time, reminders, reread (prep.tsx)
+   The plan is study sessions on a quiet rail: the label and minutes, the step,
+   "Back after 3 days", and a reminder switch for a session later today. */
+.prep-time {
+  margin: 14px 18px 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--fill);
+}
+.prep-time-k {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.prep-time-c {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+.prep-time-c button {
+  height: 40px;
+  border-radius: 10px;
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+}
+.prep-time-c button:hover {
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+  color: var(--acc-text);
+}
+.prep-time-s {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.prep-sessions {
+  margin: 4px 18px 0;
+  padding: 0;
+  list-style: none;
+}
+.prep-session {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+}
+.prep-session:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 30px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--line);
+}
+.prep-sd {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--page);
+  box-shadow: inset 0 0 0 1.5px #d9d5cf;
+}
+.prep-sd .icon {
+  width: 12px;
+  height: 12px;
+}
+.prep-session.done .prep-sd {
+  background: var(--green);
+  box-shadow: none;
+  color: #fff;
+}
+.prep-session.today .prep-sd {
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+.prep-session.missed .prep-sd {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.prep-session .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.prep-when {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.prep-when b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.prep-when i {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+.prep-session.today .prep-when b {
+  color: var(--acc-text);
+}
+.prep-session.today .prep-step {
+  font-weight: 600;
+}
+.prep-session.done .prep-step {
+  color: var(--muted);
+}
+.prep-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.prep-remind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.prep-remind > .icon {
+  color: var(--muted);
+}
+.prep-toggle {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 18px;
+  margin-left: 4px;
+  border-radius: 9px;
+  background: var(--line-strong);
+  transition: background-color 150ms var(--ease-out);
+}
+.prep-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: transform 150ms var(--ease-out);
+}
+.prep-remind[aria-checked='true'] .prep-toggle {
+  background: var(--green);
+}
+.prep-remind[aria-checked='true'] .prep-toggle::after {
+  transform: translateX(12px);
+}
+.prep-sleep {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 18px 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.prep-sleep > .icon {
+  margin-top: 1px;
+  color: var(--muted);
+  flex: none;
+}
+.prep-mistake > .subject {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+.prep-mistake > .subject .icon {
+  width: 14px;
+  height: 14px;
+}
+.af .tb {
+  margin-top: 10px;
+}
+
+.wait-remind {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  text-align: left;
+}
+.wait-remind > .icon {
+  color: var(--muted);
+}
+.wait-remind .grow {
+  display: flex;
+  flex-direction: column;
+}
+.wait-remind b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.wait-remind .grow span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.wait-remind[aria-checked='true'] .prep-toggle {
+  background: var(--green);
+}
+.wait-remind[aria-checked='true'] .prep-toggle::after {
+  transform: translateX(12px);
 }

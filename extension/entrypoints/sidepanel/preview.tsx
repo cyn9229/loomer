@@ -19,6 +19,7 @@ import { useNow } from '../../src/ui/useNow';
 const previewApi: PanelApi = {
   send: async () => ({ ok: false, error: 'Preview only. Nothing was sent.' }),
   requestOrigins: async () => true,
+  requestNotifications: async () => true,
   openSettings: () => undefined,
   widgetUrl: '/widget.html',
 };

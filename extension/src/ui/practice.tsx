@@ -5,14 +5,15 @@
 // student, never a grade. A wrong answer offers Try one like it. The end screen
 // says what changed, and the result also lands in the test's chat. Practice is
 // not a quiz session, so Ask Loomer stays on.
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { AiMark } from './aiBlock';
 import { SubjectTile } from './parts';
-import type { Practice, PracticeAnswer, PracticeKind, PracticeQuestion, PracticeSummary, Standing } from '../model/prep';
+import { TeachStep } from './teach';
+import type { Confidence, Outcome, Practice, PracticeAnswer, PracticeKind, PracticeQuestion, PracticeSkill, PracticeSummary, Standing } from '../model/prep';
 
 /** What the student gave: a choice, written text, or a flashcard mark. */
-export type PracticeReply = { choice: number } | { text: string } | { knew: boolean };
+export type PracticeReply = { choice: number; confidence: Confidence } | { text: string } | { knew: boolean };
 
 type PracticeViewProps = {
   practice: Practice;
@@ -24,8 +25,12 @@ type PracticeViewProps = {
   onNext: () => void;
   /** End or Close: leaves practice (what was answered is kept). */
   onEnd: () => void;
+  /** Closes practice and opens the test's page: its mistakes, or after a diagnostic, today's plan. */
   onReviewMistakes: () => void;
 };
+
+/** Each question practices one skill: a fact, a cause or reason, or using it on a new case. */
+const SKILL_WORD: Record<PracticeSkill, string> = { remember: 'Remember', understand: 'Understand', apply: 'Apply' };
 
 const KIND_WORD: Record<PracticeKind, string> = {
   mcq: 'Multiple choice',
@@ -38,6 +43,11 @@ const KIND_WORD: Record<PracticeKind, string> = {
 
 export function PracticeView({ practice, courseName, onAnswer, onLike, onNext, onEnd, onReviewMistakes }: PracticeViewProps) {
   const { question: q, answer, done } = practice;
+  // After a miss, a teaching block can come first as its own step; Check it moves on to the check question.
+  const teach = practice.teach;
+  // While nothing is on screen, say what Loomer is writing: after a miss, the explanation comes next.
+  const lastMiss = useRef(false);
+  if (answer) lastMiss.current = isMiss(answer);
   // index is 0-based: the bar fills as questions are answered.
   const answered = practice.index + (answer ? 1 : 0);
   const progress = done ? 1 : Math.min(1, answered / Math.max(1, practice.total));
@@ -48,7 +58,9 @@ export function PracticeView({ practice, courseName, onAnswer, onLike, onNext, o
           <Icon name="x" size="sm" />
           {done ? 'Close' : 'End'}
         </button>
-        <span className="pv-title ellipsis">Practice · {practice.title}</span>
+        <span className="pv-title ellipsis">
+          {practice.mode === 'diagnostic' ? 'Diagnostic' : 'Practice'} · {practice.title}
+        </span>
         <span className="pv-n">{done ? 'Done' : `${Math.min(practice.index + 1, practice.total)} of ${practice.total}`}</span>
       </header>
       <div className="pv-bar" role="progressbar" aria-label="Practice progress" aria-valuemin={0} aria-valuemax={practice.total} aria-valuenow={done ? practice.total : answered}>
@@ -63,19 +75,54 @@ export function PracticeView({ practice, courseName, onAnswer, onLike, onNext, o
             Back to Home
           </button>
         </div>
+      ) : teach ? (
+        <>
+          <p className="pv-kind">
+            <SubjectTile courseName={courseName} />
+            <span className="grow ellipsis">{teach.topic}</span>
+            <span className="pv-k2">Learn</span>
+          </p>
+          <TeachStep key={teach.id} block={teach} onNext={onNext} />
+        </>
       ) : q ? (
         <Question key={q.id} practice={practice} courseName={courseName} q={q} answer={answer} onAnswer={onAnswer} onLike={onLike} onNext={onNext} />
       ) : (
         <p className="pv-wait" role="status">
-          {practice.index === 0 ? 'Loomer is writing questions…' : 'Loomer is writing the next question…'}
+          {lastMiss.current ? 'Loomer is writing an explanation…' : practice.index === 0 ? 'Loomer is writing questions…' : 'Loomer is writing the next question…'}
         </p>
       )}
     </div>
   );
 }
 
+/** Misses that get a teaching block: a wrong choice or math answer, or a written answer with something missing. */
+function isMiss(answer: PracticeAnswer): boolean {
+  switch (answer.kind) {
+    case 'mcq':
+    case 'math':
+      return !answer.right;
+    case 'short':
+    case 'explain':
+      return answer.status === 'ready' && answer.missing.length > 0;
+    case 'frq':
+      return answer.status === 'ready' && answer.needs.some((n) => !n.met);
+    case 'vocab':
+      return false;
+  }
+}
+
 function Question({ practice, courseName, q, answer, onAnswer, onLike, onNext }: { practice: Practice; courseName: string | null; q: PracticeQuestion; answer: PracticeAnswer | null; onAnswer: PracticeViewProps['onAnswer']; onLike: () => void; onNext: () => void }) {
   const last = practice.index + 1 >= practice.total;
+  // The diagnostic only checks: teaching for its misses comes in the plan after it.
+  const diagnostic = practice.mode === 'diagnostic';
+  // Multiple choice: the tap stays here (and can change) until the student says how sure they are.
+  const [picked, setPicked] = useState<number | null>(answer?.kind === 'mcq' ? answer.picked : null);
+  const [checking, setChecking] = useState(false);
+  const check = (confidence: Confidence) => {
+    if (picked === null) return;
+    setChecking(true);
+    onAnswer({ choice: picked, confidence });
+  };
   const nextLabel = last ? 'Finish' : 'Next';
   const nextButton = (
     <button type="button" className="btn-primary" onClick={onNext}>
@@ -88,25 +135,57 @@ function Question({ practice, courseName, q, answer, onAnswer, onLike, onNext }:
       <p className="pv-kind">
         <SubjectTile courseName={courseName} />
         <span className="grow ellipsis">{q.topic}</span>
-        <span className="pv-k2">{q.like ? 'One like it' : KIND_WORD[q.kind]}</span>
+        <span className="pv-k2" title={KIND_WORD[q.kind]}>
+          {q.like ? 'One like it' : SKILL_WORD[q.skill]}
+        </span>
       </p>
       <div className="pv-body">
-        {q.kind === 'mcq' && <Choice q={q} answer={answer?.kind === 'mcq' ? answer : null} onAnswer={onAnswer} />}
+        {q.kind === 'mcq' && <Choice q={q} answer={answer?.kind === 'mcq' ? answer : null} picked={picked} locked={checking} onPick={setPicked} />}
         {q.kind === 'vocab' && <Flashcard key={q.id} q={q} answered={answer?.kind === 'vocab'} onAnswer={onAnswer} />}
         {(q.kind === 'short' || q.kind === 'explain' || q.kind === 'frq' || q.kind === 'math') && <Written q={q} answer={answer} onAnswer={onAnswer} />}
       </div>
       <div className="pv-foot">
-        <Foot q={q} answer={answer} next={nextButton} nextLabel={nextLabel} onLike={onLike} onNext={onNext} />
+        {q.kind === 'mcq' && !answer ? (
+          <SureOrGuessing picked={picked} checking={checking} onCheck={check} />
+        ) : (
+          <Foot q={q} answer={answer} next={nextButton} nextLabel={nextLabel} onLike={diagnostic ? null : onLike} onNext={onNext} />
+        )}
       </div>
     </>
   );
 }
 
 /** The footer for each state: nothing until answered (the question has its own button), then Next, plus Try one like it after a miss. */
-function Foot({ q, answer, next, nextLabel, onLike, onNext }: { q: PracticeQuestion; answer: PracticeAnswer | null; next: ReactNode; nextLabel: string; onLike: () => void; onNext: () => void }) {
-  if (!answer || q.kind === 'vocab') return q.kind === 'mcq' && !answer ? <p className="pv-tap">Tap an answer</p> : null;
+/** Multiple choice before the result: tap an answer, then one more tap says how sure, which checks it. */
+function SureOrGuessing({ picked, checking, onCheck }: { picked: number | null; checking: boolean; onCheck: (c: Confidence) => void }) {
+  if (picked === null) return <p className="pv-tap">Tap an answer</p>;
+  if (checking)
+    return (
+      <p className="pv-tap" role="status">
+        Checking…
+      </p>
+    );
+  return (
+    <>
+      <p className="pv-ask">How sure are you?</p>
+      <div className="pv-two">
+        <button type="button" className="btn" onClick={() => onCheck('guessing')}>
+          <Icon name="question" size="sm" />
+          Guessing
+        </button>
+        <button type="button" className="btn-primary" onClick={() => onCheck('sure')}>
+          Sure
+          <Icon name="check" />
+        </button>
+      </div>
+    </>
+  );
+}
+
+function Foot({ q, answer, next, nextLabel, onLike, onNext }: { q: PracticeQuestion; answer: PracticeAnswer | null; next: ReactNode; nextLabel: string; onLike: (() => void) | null; onNext: () => void }) {
+  if (!answer || q.kind === 'vocab') return null;
   const missed = (answer.kind === 'mcq' || answer.kind === 'math') && !answer.right;
-  if (missed)
+  if (missed && onLike)
     return (
       <div className="pv-two">
         <button type="button" className="btn" onClick={onNext}>
@@ -122,9 +201,8 @@ function Foot({ q, answer, next, nextLabel, onLike, onNext }: { q: PracticeQuest
   return <>{next}</>;
 }
 
-function Choice({ q, answer, onAnswer }: { q: PracticeQuestion; answer: Extract<PracticeAnswer, { kind: 'mcq' }> | null; onAnswer: PracticeViewProps['onAnswer'] }) {
-  // The worker grades it; until the answer arrives, the tapped choice shows as picked.
-  const [picked, setPicked] = useState<number | null>(answer?.picked ?? null);
+/** The options. Before the result, a tap picks (and can change); after it, right and wrong are marked. */
+function Choice({ q, answer, picked, locked, onPick }: { q: PracticeQuestion; answer: Extract<PracticeAnswer, { kind: 'mcq' }> | null; picked: number | null; locked: boolean; onPick: (i: number) => void }) {
   const shown = answer?.picked ?? picked;
   const correct = answer?.correct;
   return (
@@ -134,30 +212,42 @@ function Choice({ q, answer, onAnswer }: { q: PracticeQuestion; answer: Extract<
         {q.options.map((text, i) => {
           const state = correct !== undefined ? (i === correct ? 'right' : i === shown ? 'wrong' : '') : i === shown ? 'picked' : '';
           return (
-            <button
-              key={i}
-              type="button"
-              className={['pv-opt', state].filter(Boolean).join(' ')}
-              disabled={shown !== null}
-              aria-pressed={shown === i}
-              onClick={() => {
-                setPicked(i);
-                onAnswer({ choice: i });
-              }}
-            >
+            <button key={i} type="button" className={['pv-opt', state].filter(Boolean).join(' ')} disabled={Boolean(answer) || locked} aria-pressed={shown === i} onClick={() => onPick(i)}>
               {state === 'right' ? <Icon name="checkCircle" /> : state === 'wrong' ? <Icon name="xCircle" /> : <b>{'ABCDEFG'[i]}</b>}
               <span>{text}</span>
             </button>
           );
         })}
       </div>
-      {answer && (
-        <p className={answer.right ? 'pv-why ok' : 'pv-why no'}>
-          <Icon name={answer.right ? 'checkCircle' : 'xCircle'} />
-          <span>{answer.why}</span>
-        </p>
-      )}
+      {answer && <ChoiceResult answer={answer} />}
     </>
+  );
+}
+
+/** Right or wrong, and how sure: four outcomes, each with its own mark. A mix-up (wrong but sure) is the one to fix first. */
+const OUTCOME_TITLE: Record<Outcome, string> = { solid: 'Solid', shaky: 'Right, but a guess', mixup: 'A mix-up to fix', gap: 'Not learned yet' };
+export const OUTCOME_WORD: Record<Outcome, string> = { solid: 'Solid', shaky: 'Shaky', mixup: 'Mix-up', gap: 'Not learned yet' };
+
+/** The mark for an outcome: a check, half full, a red "!", or striped. */
+export function OutcomeMark({ outcome }: { outcome: Outcome }) {
+  return (
+    <span className={`omark ${outcome}`} aria-hidden="true">
+      {outcome === 'solid' ? <Icon name="check" /> : outcome === 'mixup' ? '!' : outcome === 'shaky' ? <i /> : null}
+    </span>
+  );
+}
+
+/** The outcome's title and mark, the reason, then what happens now. */
+function ChoiceResult({ answer }: { answer: Extract<PracticeAnswer, { kind: 'mcq' }> }) {
+  return (
+    <div className={`pv-res ${answer.outcome}`}>
+      <OutcomeMark outcome={answer.outcome} />
+      <span className="grow">
+        <b>{OUTCOME_TITLE[answer.outcome]}</b>
+        <span>{answer.why}</span>
+        {answer.next && <span className="pv-res-next">{answer.next}</span>}
+      </span>
+    </div>
   );
 }
 
@@ -328,43 +418,88 @@ function Need({ met, title, note }: { met: boolean; title: string; note: string 
 
 /** After the last question: what changed, honestly, and that the result is in the test's chat. */
 function PracticeDone({ summary, title, onHome, onReviewMistakes }: { summary: PracticeSummary; title: string; onHome: () => void; onReviewMistakes: () => void }) {
+  const [allSolid, setAllSolid] = useState(false);
+  // After a diagnostic: one row per topic, mix-ups and gaps first, solid topics folded into one line.
+  const diagnosis = summary.diagnosis;
+  const open = diagnosis?.filter((d) => d.outcome !== 'solid') ?? [];
+  const solid = diagnosis?.filter((d) => d.outcome === 'solid') ?? [];
+  const shownSolid = allSolid || open.length === 0 ? solid : solid.slice(0, 1);
   return (
     <>
       <div className="pv-body">
         <p className="pv-done-t">{summary.line}</p>
         <p className="pv-done-s">{summary.detail}</p>
-        <div className="prep-topics flat">
-          {summary.topics.map((t) => (
-            <TopicLine key={t.text} text={t.text} standing={t.standing} lastCheck={t.lastCheck} />
-          ))}
-        </div>
-        <p className="prep-note">
-          <Icon name="chat" size="sm" />
-          Loomer added this to your {title} chat, so you can ask about any question later.
-        </p>
+        {diagnosis ? (
+          <div className="diag">
+            {[...open, ...shownSolid].map((d) => (
+              <div className="diag-row" key={d.topicId}>
+                <OutcomeMark outcome={d.outcome} />
+                <span className="grow">
+                  <b>
+                    {d.topic} <span className={`diag-w ${d.outcome}`}>{OUTCOME_WORD[d.outcome]}</span>
+                  </b>
+                  <span>{d.line}</span>
+                </span>
+              </div>
+            ))}
+            {solid.length > shownSolid.length && (
+              <button type="button" className="link diag-more" onClick={() => setAllSolid(true)}>
+                {solid.length - shownSolid.length === 1 ? '1 more solid topic' : `${solid.length - shownSolid.length} more solid topics`}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="prep-topics flat">
+            {summary.topics.map((t) => (
+              <TopicLine key={t.text} text={t.text} standing={t.standing} lastCheck={t.lastCheck} />
+            ))}
+          </div>
+        )}
+        {!diagnosis && (
+          <p className="prep-note">
+            <Icon name="chat" size="sm" />
+            Loomer added this to your {title} chat, so you can ask about any question later.
+          </p>
+        )}
       </div>
       <div className="pv-foot">
-        <button type="button" className="btn-primary" onClick={onHome}>
-          Back to Home
-        </button>
-        {summary.mistakes > 0 && (
-          <button type="button" className="center-link" onClick={onReviewMistakes}>
-            {summary.mistakes === 1 ? 'Review 1 mistake' : `Review ${summary.mistakes} mistakes`}
+        {diagnosis ? (
+          <button type="button" className="btn-primary" onClick={onReviewMistakes}>
+            See today’s plan
+            <Icon name="arrowRight" />
           </button>
+        ) : (
+          <>
+            <button type="button" className="btn-primary" onClick={onHome}>
+              Back to Home
+            </button>
+            {summary.mistakes > 0 && (
+              <button type="button" className="center-link" onClick={onReviewMistakes}>
+                {summary.mistakes === 1 ? 'Review 1 mistake' : `Review ${summary.mistakes} mistakes`}
+              </button>
+            )}
+          </>
         )}
       </div>
     </>
   );
 }
 
-/** One topic with its standing mark and last check, shared with the test's page. */
-export function TopicLine({ text, standing, lastCheck }: { text: string; standing: Standing; lastCheck: { correct: number; total: number } | null }) {
+/** One topic with its standing mark (or the mix-up mark) and last check, shared with the test's page. */
+export function TopicLine({ text, standing, lastCheck, mixup = false }: { text: string; standing: Standing; lastCheck: { correct: number; total: number } | null; mixup?: boolean }) {
   return (
     <div className="prep-topic">
-      <span className={`tmark ${standing}`} aria-hidden="true">
-        {standing === 'solid' ? <Icon name="check" /> : <i />}
+      {mixup ? (
+        <OutcomeMark outcome="mixup" />
+      ) : (
+        <span className={`tmark ${standing}`} aria-hidden="true">
+          {standing === 'solid' ? <Icon name="check" /> : <i />}
+        </span>
+      )}
+      <span className="grow">
+        {text}
+        {mixup && <span className="diag-w mixup">Mix-up</span>}
       </span>
-      <span className="grow">{text}</span>
       <span className={`tscore ${standing}`}>{lastCheck ? `${lastCheck.correct} of ${lastCheck.total}` : 'Not checked'}</span>
     </div>
   );

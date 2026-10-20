@@ -453,6 +453,14 @@ function TestPrepBlock({ prep, actions }: { prep: TestPrep; actions: HomeActions
           onStart: () => actions.startPractice(id),
           onBuild: () => edit.run(() => actions.send({ type: 'prep:setup', assignmentId: id })),
           onPracticeMistake: (mistakeId) => actions.startPractice(id, mistakeId),
+          onSetTime: (minutes) => edit.run(() => actions.send({ type: 'prep:time', assignmentId: id, minutes })),
+          onRemind: (sessionId, on) => {
+            // Ask for notifications inside the click, before any await, or Chrome won't show its prompt.
+            const allowed = on ? actions.requestNotifications() : Promise.resolve(true);
+            edit.run(async () =>
+              (await allowed) ? actions.send({ type: 'prep:remind', assignmentId: id, sessionId, on }) : { ok: false, error: 'Chrome didn’t allow notifications, so Loomer can’t remind you.' },
+            );
+          },
           onEditTopics: (change) => edit.run(() => actions.send({ type: 'prep:topics-edit', assignmentId: id, ...change })),
           onSetFormats: (formats) => edit.run(() => actions.send({ type: 'prep:format-set', assignmentId: id, formats })),
           onAddNotes: (attachments) => edit.run(() => actions.send({ type: 'prep:notes', assignmentId: id, attachments: attachments.slice(0, 6) })),
