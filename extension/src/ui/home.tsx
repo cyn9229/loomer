@@ -407,9 +407,12 @@ function NextStep({
   const start = startControl(item, actions, minutes);
   const clear = useAction();
   const switchTo = useAction();
-  // A resume briefing for this same assignment folds in: its focus leads, and one "Last time" line follows.
+  // A resume briefing for this same assignment folds in, and one "Last time" line follows. The step the
+  // student kept at the end of their last session leads (it is next.action then); else that session's focus.
   const lastTime = resume?.assignment.assignmentId === item.assignmentId ? resume : null;
-  const headline = lastTime?.focus ?? next.action;
+  const kept = next.insight.kind === 'continue';
+  const headline = kept ? next.action : (lastTime?.focus ?? next.action);
+  const continuing = kept || Boolean(lastTime?.focus);
   const lastFacts = lastTime ? [lastTime.handledHints > 0 && `${lastTime.handledHints} ${lastTime.handledHints === 1 ? 'hint' : 'hints'} handled`, ...lastTime.facts].filter(Boolean) : [];
   const label = lastTime && start.label === 'Start working' ? 'Keep going' : start.label;
   const pick = next.chosenByStudent ? next.loomerPick : null;
@@ -418,8 +421,9 @@ function NextStep({
   return (
     <section className="focus" aria-label="Next step">
       <div className="eyebrow">
-        {next.aiGenerated && !lastTime?.focus && <AiMark />}
-        {lastTime?.focus ? (
+        {/* The AI mark belongs to the step itself, so only when the headline is next.action and the AI wrote it. */}
+        {next.aiGenerated && headline === next.action && <AiMark />}
+        {continuing ? (
           'Continue'
         ) : (
           <>

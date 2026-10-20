@@ -465,6 +465,25 @@ export function buildFixtures(now: Date) {
       lastCheck,
     },
 
+    // The student kept an AI-suggested step at the end of their last session: it leads under Continue.
+    'kept-step': {
+      status: 'ready',
+      next: {
+        ...readyNext,
+        action: 'Build the comparison between your two sources',
+        aiGenerated: true,
+        insight: { kind: 'continue', text: 'Last time you added 240 words to this essay and saved 2 sources.', aiFound: false },
+      },
+      rest: [vocab, reflection, lab],
+      lastCheck,
+      resume: { ...essayResume(false), nextStep: { text: 'Build the comparison between your two sources', aiGenerated: true } },
+      olderReview: null,
+      crowded: null,
+      brief: null,
+      room: [],
+      yourChanges: [],
+    },
+
     'resume-changed': {
       status: 'ready',
       next: {
