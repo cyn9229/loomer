@@ -90,7 +90,8 @@ export type PrepStep = {
   minutes: number;
   counts: TestPrep['counts'];
   readiness: string;
-  waiting: { label: string; step: string; remindAt: string; reminder: boolean } | null;
+  /** sessionId: for prep:remind from Home. */
+  waiting: { sessionId: string; label: string; step: string; remindAt: string; reminder: boolean } | null;
 };
 
 /** The one practice in progress or just finished (usePracticeModel). */

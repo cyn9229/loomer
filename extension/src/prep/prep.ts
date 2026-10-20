@@ -592,7 +592,7 @@ export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typ
       minutes: session.minutes,
       counts: counts(topics),
       readiness: readiness(topics, checks),
-      waiting: waiting ? { label: `Next at ${new Date(session.remindAt!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`, step: session.step, remindAt: session.remindAt!, reminder: session.reminder } : null,
+      waiting: waiting ? { sessionId: session.id, label: `Next at ${new Date(session.remindAt!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`, step: session.step, remindAt: session.remindAt!, reminder: session.reminder } : null,
     },
     action: session.step,
     insight,
