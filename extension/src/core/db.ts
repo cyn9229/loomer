@@ -4,7 +4,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
 import type { Attachment, ChatBlock } from '../model/chat';
-import type { PracticeAnswer, PracticeKind, PrepDayKind, PrepFormat } from '../model/prep';
+import type { PracticeAnswer, PracticeKind, PracticeSkill, PrepFormat, PrepSessionKind, TeachBlock } from '../model/prep';
 import type { EffortLabel, RoomLevel, WorkType } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import type { PolicyAnswer } from './gate';
@@ -432,7 +432,14 @@ export type PrepRecord = {
   terms: { term: string; definition: string }[];
   formats: { selected: PrepFormat[]; found: Partial<Record<PrepFormat, 'canvas' | 'guide' | 'notes'>>; asked: boolean };
   notes: { photos: number; found: string | null };
+  /** The time the student gave this test on `day` (prep:time). */
+  today?: { day: string; minutes: number };
+  /** Session ids with a reminder set (prep:remind). */
+  reminders?: string[];
 };
+
+/** A teaching block after a miss, shown before its check questions. Pending while the AI writes it. */
+export type TeachRecord = { afterQuestionId: string; status: 'pending' | 'ready' | 'failed'; shown: boolean; block: TeachBlock };
 
 /** One practice question as written, with its answer key (never shown before the student answers). */
 export type PracticeQuestionRecord = {
@@ -440,6 +447,7 @@ export type PracticeQuestionRecord = {
   topicId: string;
   topic: string;
   kind: PracticeKind;
+  skill: PracticeSkill;
   label: string;
   prompt: string;
   options: string[];
@@ -451,6 +459,8 @@ export type PracticeQuestionRecord = {
   worked: { problem: string; steps: string[] } | null;
   needs: string[];
   like: boolean;
+  /** A check after this teaching block (TeachBlock.id). */
+  checkOf?: string;
 };
 
 /** A practice run: its questions, the student's answers, and when it ended. `dayKind` ties it to the plan. */
@@ -458,7 +468,9 @@ export type PracticeRecord = {
   id: string;
   assignmentId: string;
   /** mistake: practice on one earlier wrong answer (prep:start with mistakeId). */
-  dayKind: PrepDayKind | 'comeback' | 'mistake';
+  dayKind: PrepSessionKind | 'mistake';
+  /** The plan session it belongs to (PrepSession.id), or null for a mistake. */
+  sessionId: string | null;
   day: string;
   createdAt: string;
   startedAt: string | null;
@@ -471,6 +483,9 @@ export type PracticeRecord = {
   index: number;
   questions: PracticeQuestionRecord[];
   answers: Record<string, PracticeAnswer>;
+  blocks: TeachRecord[];
+  /** The teaching block on screen (prep:next shows it, then moves to its check). */
+  showing: string | null;
 };
 
 export class LoomerDb extends Dexie {

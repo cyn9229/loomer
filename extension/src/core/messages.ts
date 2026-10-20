@@ -100,9 +100,13 @@ export const messageSchema = z.discriminatedUnion('type', [
   /** "Build my plan": set up prep now (or retry a failed setup). */
   z.object({ type: z.literal('prep:setup'), assignmentId: z.string() }),
   /** An answer: choice for multiple choice, text for math and written answers, knew for a flashcard. */
-  z.object({ type: z.literal('prep:answer'), practiceId: z.string(), questionId: z.string(), choice: z.number().int().min(0).max(9).optional(), text: z.string().max(8_000).optional(), knew: z.boolean().optional() }),
+  z.object({ type: z.literal('prep:answer'), practiceId: z.string(), questionId: z.string(), choice: z.number().int().min(0).max(9).optional(), text: z.string().max(8_000).optional(), knew: z.boolean().optional(), confidence: z.enum(['sure', 'guessing']).optional() }),
   /** "Try one like it": a new question on the same idea, shown next. */
   z.object({ type: z.literal('prep:like'), practiceId: z.string(), questionId: z.string() }),
+  /** "How much time can you give this test today?" (15, 30, 60, or 90 for More). */
+  z.object({ type: z.literal('prep:time'), assignmentId: z.string(), minutes: z.number().int().min(5).max(600) }),
+  /** A reminder for a later-today session. Request Chrome's notifications permission first when turning it on. */
+  z.object({ type: z.literal('prep:remind'), assignmentId: z.string(), sessionId: z.string(), on: z.boolean() }),
   z.object({ type: z.literal('prep:next'), practiceId: z.string() }),
   /** End now; the summary shows, and one line goes into the test's chat. */
   z.object({ type: z.literal('prep:end'), practiceId: z.string() }),

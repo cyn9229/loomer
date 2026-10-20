@@ -1,24 +1,45 @@
 // Test prep rules, pure: where each topic stands from the student's own
-// practice answers, the plan of days back from the test, the readiness line,
-// the mistakes list, and what each day's practice asks. Never a grade.
+// practice answers, study sessions that fit the time left before the test,
+// the readiness line, the diagnosis, the mistakes list, and what each session
+// asks. Never a grade, and never a guess at how long the student needs.
 import type { PracticeRecord, PrepRecord, TopicCheckRecord } from '../core/db';
-import type { PracticeKind, PrepDay, PrepDayKind, PrepMistake, PrepTopic, Standing } from '../model/prep';
+import type { Confidence, Outcome, PracticeKind, PrepMistake, PrepSession, PrepSessionKind, PrepTopic, Standing } from '../model/prep';
 import { lastCheck, standingOf, topicKey } from '../analysis/topicStanding';
 import { dayIndex, localDay } from '../analysis/plan';
 
-/** A topic answered right comes back after this many days, so it sticks. */
-const COMEBACK_DAYS = 2;
+export const SESSION_MINUTES: Record<PrepSessionKind, number> = { diagnostic: 15, focus: 20, 'mixed-check': 10, 'practice-test': 25, review: 10, 'warm-up': 5, rescue: 10 };
+/** A later-today check opens at 7 PM; after 9:30 PM Loomer plans nothing, because sleep helps memory more. */
+const EVENING_HOUR = 19;
+const LAST_HOUR = 21.5;
 const FOCUS_TOPICS = 2;
-export const DAY_MINUTES: Record<PrepDayKind | 'comeback', number> = { 'check-all': 10, focus: 10, 'practice-test': 25, 'warm-up': 5, comeback: 5 };
 
 type Active = PrepRecord['topics'][number];
 export const activeTopics = (prep: PrepRecord) => prep.topics.filter((t) => !t.removed);
 
+/** Multiple choice: right and sure is solid, right but a guess is shaky, wrong but sure is a mix-up, wrong and a guess is a gap. No confidence counts as sure. */
+export function outcomeOf(right: boolean, confidence: Confidence | null): Outcome {
+  if (right) return confidence === 'guessing' ? 'shaky' : 'solid';
+  return confidence === 'guessing' ? 'gap' : 'mixup';
+}
+
+/** Topics whose latest multiple-choice answer was sure but wrong, and not answered solidly since. */
+export function mixupTopics(practices: PracticeRecord[]): Set<string> {
+  const latest = new Map<string, Outcome>();
+  for (const p of practices.slice().sort((x, y) => x.createdAt.localeCompare(y.createdAt))) {
+    for (const q of p.questions) {
+      const a = p.answers[q.id];
+      if (a?.kind === 'mcq') latest.set(q.topicId, a.outcome);
+    }
+  }
+  return new Set([...latest].flatMap(([id, o]) => (o === 'mixup' ? [id] : [])));
+}
+
 /** Each active topic with its standing from the latest practice that covered it. */
-export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[]): PrepTopic[] {
+export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[], practices: PracticeRecord[] = []): PrepTopic[] {
+  const mixups = mixupTopics(practices);
   return activeTopics(prep).map((t) => {
     const check = lastCheck(checks.filter((c) => c.topic === topicKey(t.text)));
-    return { id: t.id, text: t.text, standing: standingOf(check), lastCheck: check && { correct: check.correct, total: check.total }, source: t.source, new: t.new };
+    return { id: t.id, text: t.text, standing: standingOf(check), lastCheck: check && { correct: check.correct, total: check.total }, source: t.source, new: t.new, mixup: mixups.has(t.id) };
   });
 }
 
@@ -27,24 +48,21 @@ export function counts(topics: PrepTopic[]): Record<Standing, number> {
 }
 
 const ratio = (t: PrepTopic) => (t.lastCheck && t.lastCheck.total ? t.lastCheck.correct / t.lastCheck.total : 0);
+const lastAt = (t: PrepTopic, checks: TopicCheckRecord[]) => checks.filter((c) => c.topic === topicKey(t.text)).reduce((max, c) => (c.at > max ? c.at : max), '');
 
-/** Shakiest first (lowest share right), then unchecked, then the oldest solid. */
+/** Mix-ups first, then the shakiest (lowest share right), then unchecked, then the oldest solid. */
 export function weakest(topics: PrepTopic[], checks: TopicCheckRecord[], n: number): PrepTopic[] {
-  const lastAt = (t: PrepTopic) => checks.filter((c) => c.topic === topicKey(t.text)).reduce((max, c) => (c.at > max ? c.at : max), '');
-  const shaky = topics.filter((t) => t.standing === 'shaky').sort((a, b) => ratio(a) - ratio(b));
-  const unchecked = topics.filter((t) => t.standing === 'unchecked');
-  const solid = topics.filter((t) => t.standing === 'solid').sort((a, b) => lastAt(a).localeCompare(lastAt(b)));
-  return [...shaky, ...unchecked, ...solid].slice(0, n);
+  const mixups = topics.filter((t) => t.mixup);
+  const shaky = topics.filter((t) => !t.mixup && t.standing === 'shaky').sort((a, b) => ratio(a) - ratio(b));
+  const unchecked = topics.filter((t) => !t.mixup && t.standing === 'unchecked');
+  const solid = topics.filter((t) => !t.mixup && t.standing === 'solid').sort((a, b) => lastAt(a, checks).localeCompare(lastAt(b, checks)));
+  return [...mixups, ...shaky, ...unchecked, ...solid].slice(0, n);
 }
 
-/** Solid topics last checked at least two days ago: a quick check today helps them stick. */
-export function comebacks(topics: PrepTopic[], checks: TopicCheckRecord[], now: Date): PrepTopic[] {
+/** Solid topics last checked at least `days` days ago: a quick check helps them stick. */
+export function comebacks(topics: PrepTopic[], checks: TopicCheckRecord[], now: Date, days = 1): PrepTopic[] {
   const today = dayIndex(now.getTime());
-  return topics.filter((t) => {
-    if (t.standing !== 'solid') return false;
-    const at = checks.filter((c) => c.topic === topicKey(t.text)).reduce((max, c) => (c.at > max ? c.at : max), '');
-    return at !== '' && today - dayIndex(Date.parse(at)) >= COMEBACK_DAYS;
-  });
+  return topics.filter((t) => t.standing === 'solid' && !t.mixup && lastAt(t, checks) !== '' && today - dayIndex(Date.parse(lastAt(t, checks))) >= days);
 }
 
 /** "the Congo and Latin America", "Hawaii, the Congo, and Panama". */
@@ -63,100 +81,183 @@ export function readiness(topics: PrepTopic[], checks: TopicCheckRecord[]): stri
   const c = counts(topics);
   const n = topics.length;
   if (n === 0) return "Loomer hasn't found the topics on this test yet, so add your notes or a topic to start.";
-  if (c.unchecked === n) return `Loomer found ${topicCount(n)} on this test and hasn't checked any yet, so start with the quick check.`;
-  if (c.solid === n) return n === 1 ? "The one topic on this test is solid, so a warm-up is all that's left." : `All ${n} topics on this test are solid, so a warm-up is all that's left.`;
+  if (c.unchecked === n) return `Loomer found ${topicCount(n)} on this test and hasn't checked any yet, so start with the diagnostic.`;
   const weak = weakest(topics, checks, 1)[0]!;
-  return `${c.solid} of ${topicCount(n)} on this test ${c.solid === 1 ? 'is' : 'are'} solid, and ${weak.text} still needs work.`;
+  if (c.solid === n && !weak.mixup) return n === 1 ? "The one topic on this test is solid, so a warm-up is all that's left." : `All ${n} topics on this test are solid, so a warm-up is all that's left.`;
+  return `${c.solid} of ${topicCount(n)} on this test ${c.solid === 1 ? 'is' : 'are'} solid, and ${weak.mixup ? `the ${weak.text} mix-up` : weak.text} still needs work.`;
 }
 
 const dayOf = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
   return new Date(y!, m! - 1, d!, 12);
 };
-const weekday = (ymd: string, style: 'short' | 'long' = 'short') => dayOf(ymd).toLocaleDateString(undefined, { weekday: style });
+const addDays = (ymd: string, n: number) => localDay(new Date(dayOf(ymd).getTime() + n * 86_400_000));
+const weekdayLong = (ymd: string) => dayOf(ymd).toLocaleDateString(undefined, { weekday: 'long' });
+const weekdayShort = (ymd: string) => dayOf(ymd).toLocaleDateString(undefined, { weekday: 'short' });
+const daysBetween = (a: string, b: string) => Math.round((dayOf(b).getTime() - dayOf(a).getTime()) / 86_400_000);
+const clock = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: d.getMinutes() ? '2-digit' : undefined });
 
-/** The plan's day kinds back from the test: a quick check first, focus days, a practice test the day before, a warm-up the morning of. */
-export function dayKinds(count: number): PrepDayKind[] {
-  if (count <= 1) return ['warm-up'];
-  if (count === 2) return ['practice-test', 'warm-up'];
-  return ['check-all', ...Array<PrepDayKind>(count - 3).fill('focus'), 'practice-test', 'warm-up'];
+type Slot = { date: string; kind: PrepSessionKind; when: PrepSession['when'] };
+
+/**
+ * The sessions from the first prep day to the test, by the days between them:
+ * - test today: a 10-minute rescue;
+ * - tomorrow: the diagnostic now, teaching and practice next, a mixed check after dinner, a warm-up in the morning;
+ * - 2 days: the diagnostic and focus, a practice test the day before, the warm-up;
+ * - 3 to 6 days: the diagnostic, focus days where topics come back the next day, a practice test the day before;
+ * - a week or more: focus days about 1, 3, and 6 days in, a practice test 2 days before, a light review the day before.
+ */
+export function sessionSlots(startDay: string, testDay: string): Slot[] {
+  const span = daysBetween(startDay, testDay);
+  if (span <= 0) return [{ date: startDay, kind: 'rescue', when: 'now' }];
+  const morning: Slot = { date: testDay, kind: 'warm-up', when: 'morning' };
+  if (span === 1) return [{ date: startDay, kind: 'diagnostic', when: 'now' }, { date: startDay, kind: 'focus', when: 'next' }, { date: startDay, kind: 'mixed-check', when: 'later-today' }, morning];
+  const first: Slot[] = [{ date: startDay, kind: 'diagnostic', when: 'now' }, { date: startDay, kind: 'focus', when: 'next' }];
+  if (span === 2) return [...first, { date: addDays(startDay, 1), kind: 'practice-test', when: 'day' }, morning];
+  if (span <= 6) {
+    const focus = Array.from({ length: span - 2 }, (_, i): Slot => ({ date: addDays(startDay, i + 1), kind: 'focus', when: 'day' }));
+    return [...first, ...focus, { date: addDays(testDay, -1), kind: 'practice-test', when: 'day' }, morning];
+  }
+  // Topics come back after about 1, 3, and 6 days, then every few days.
+  const offsets = [1, 3, 6];
+  for (let o = 9; o < span - 2; o += 3) offsets.push(o);
+  const focus = offsets.filter((o) => o < span - 2).map((o): Slot => ({ date: addDays(startDay, o), kind: 'focus', when: 'day' }));
+  return [...first, ...focus, { date: addDays(testDay, -2), kind: 'practice-test', when: 'day' }, { date: addDays(testDay, -1), kind: 'review', when: 'day' }, morning];
 }
 
-/** What a day's practice covers and asks, from the test's formats and where each topic stands. */
-export function practiceFor(kind: PrepDayKind | 'comeback', prep: PrepRecord, topics: PrepTopic[], checks: TopicCheckRecord[], now: Date): { topics: PrepTopic[]; kinds: { kind: PracticeKind; count: number }[] } {
+/** "10 minutes on the Congo and Latin America". */
+export function stepText(kind: PrepSessionKind, topics: PrepTopic[], checks: TopicCheckRecord[], minutes = SESSION_MINUTES[kind]): string {
+  const weak = (n: number) => names(weakest(topics, checks, n));
+  switch (kind) {
+    case 'diagnostic':
+      return topics.length === 1 ? 'Diagnostic on the one topic' : `Diagnostic on all ${topics.length} topics`;
+    case 'focus':
+      return `${minutes} minutes on ${weak(FOCUS_TOPICS)}`;
+    case 'mixed-check':
+      return `A ${minutes}-minute mixed check on ${weak(3)}`;
+    case 'practice-test':
+      return "A practice test in this test's formats";
+    case 'review':
+      return `A light review of ${weak(3)}`;
+    case 'warm-up':
+      return `${minutes}-minute warm-up on ${weak(2)}`;
+    case 'rescue':
+      return `${minutes} minutes on ${weak(2)}, the weakest topics`;
+  }
+}
+
+const MINUTE_WORDS: Record<number, string> = { 15: '15 minutes', 30: '30 minutes', 60: '1 hour' };
+
+/**
+ * The plan: every session with its status. Today's sessions fit the minutes
+ * the student gave (the first always stays), a later-today session opens at
+ * 7 PM, and nothing is planned after 9:30 PM.
+ */
+export function planSessions(
+  prep: PrepRecord,
+  testAt: string,
+  topics: PrepTopic[],
+  practices: PracticeRecord[],
+  checks: TopicCheckRecord[],
+  now: Date,
+): { sessions: PrepSession[]; fits: string | null; note: string | null } {
+  const today = localDay(now);
+  const testDay = localDay(new Date(testAt));
+  const start = prep.startDay < today ? prep.startDay : today;
+  const slots = sessionSlots(start, testDay);
+  const hour = now.getHours() + now.getMinutes() / 60;
+  const minutesToday = prep.today?.day === today ? prep.today.minutes : null;
+  const solid = counts(topics).solid;
+
+  let left = minutesToday ?? Number.POSITIVE_INFINITY;
+  let current = false;
+  const sessions: PrepSession[] = [];
+  slots.forEach((slot, i) => {
+    const id = `${slot.date}:${slot.kind}:${i}`;
+    const done = practices.some((p) => p.sessionId === id && p.endedAt);
+    const isToday = slot.date === today;
+    if (isToday && slot.when === 'later-today' && !done && hour >= LAST_HOUR) return;
+    let minutes = SESSION_MINUTES[slot.kind];
+    if (isToday && !done && current) {
+      // Fit today's remaining sessions into the student's time; a focus session can shrink to 10 minutes.
+      if (slot.kind === 'focus' && minutes > left) minutes = Math.max(10, Math.min(minutes, left));
+      if (minutes > left) return;
+    }
+    const status: PrepSession['status'] = done ? 'done' : slot.date < today ? 'missed' : isToday && !current ? 'today' : 'later';
+    if (status === 'today') current = true;
+    if (isToday && !done) left -= minutes;
+    const evening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), EVENING_HOUR);
+    const remindAt = slot.when === 'later-today' ? (hour >= EVENING_HOUR ? now : evening).toISOString() : null;
+    const prev = slots.slice(0, i).filter((s) => s.kind === 'focus' || s.kind === 'diagnostic').at(-1);
+    const gap = slot.kind === 'focus' && prev && prev.date < slot.date ? daysBetween(prev.date, slot.date) : 0;
+    sessions.push({
+      id,
+      date: slot.date,
+      when: slot.when === 'now' && !isToday ? 'day' : slot.when === 'next' && !isToday ? 'day' : slot.when,
+      label: labelOf(slot, today, testDay, remindAt),
+      kind: slot.kind,
+      minutes,
+      step: stepText(slot.kind, topics, checks, minutes),
+      sub: done ? `Done, ${solid} solid` : status === 'missed' ? 'Skipped' : '',
+      status,
+      back: gap ? `Back after ${gap} ${gap === 1 ? 'day' : 'days'}` : null,
+      remindAt,
+      reminder: (prep.reminders ?? []).includes(id),
+    });
+  });
+  const tomorrow = daysBetween(today, testDay) === 1;
+  return {
+    sessions,
+    fits: minutesToday && MINUTE_WORDS[minutesToday] ? `Fits your ${MINUTE_WORDS[minutesToday]}` : null,
+    note: tomorrow ? "Loomer won't plan anything late tonight, because sleep helps you remember more than another hour of studying." : null,
+  };
+}
+
+function labelOf(slot: Slot, today: string, testDay: string, remindAt: string | null): string {
+  if (slot.date === today) {
+    if (slot.when === 'later-today' && remindAt) return new Date(remindAt).getHours() === EVENING_HOUR ? `After dinner, around ${clock(new Date(remindAt))}` : 'Later today';
+    return slot.when === 'next' ? 'Next' : 'Now';
+  }
+  if (slot.date === testDay) return daysBetween(today, testDay) === 1 ? 'Tomorrow morning' : `${weekdayLong(slot.date)} morning`;
+  if (daysBetween(today, slot.date) === 1) return 'Tomorrow';
+  return weekdayLong(slot.date);
+}
+
+/** What a session covers and asks, from the test's formats and where each topic stands. */
+export function practiceFor(kind: PrepSessionKind, prep: PrepRecord, topics: PrepTopic[], checks: TopicCheckRecord[], now: Date, practicedToday: string[] = []): { topics: PrepTopic[]; kinds: { kind: PracticeKind; count: number }[]; perTopic: number | null } {
   const f = new Set(prep.formats.selected);
   const terms = prep.terms.length > 0 && f.has('vocab');
-  const extra = (counts: Partial<Record<PracticeKind, number>>) =>
-    Object.entries(counts).flatMap(([kind, count]) => (count ? [{ kind: kind as PracticeKind, count }] : []));
+  const extra = (counts: Partial<Record<PracticeKind, number>>) => Object.entries(counts).flatMap(([kind, count]) => (count ? [{ kind: kind as PracticeKind, count }] : []));
   switch (kind) {
-    case 'check-all': {
-      const all = topics.slice(0, 12);
-      return { topics: all, kinds: [{ kind: 'mcq', count: Math.min(Math.max(all.length, 3), 10) }] };
+    case 'diagnostic': {
+      const all = topics.slice(0, 10);
+      const perTopic = all.length <= 4 ? 3 : 2;
+      return { topics: all, kinds: [{ kind: 'mcq', count: Math.min(all.length * perTopic, 12) }], perTopic: all.length * perTopic <= 12 ? perTopic : null };
     }
     case 'focus': {
       const focus = weakest(topics, checks, FOCUS_TOPICS);
       const back = comebacks(topics, checks, now).filter((t) => !focus.includes(t)).slice(0, 2);
-      return {
-        topics: [...focus, ...back],
-        kinds: extra({ mcq: focus.length * 2 + back.length, short: f.has('frq') || f.has('short') ? 1 : 0, vocab: terms ? 2 : 0, math: f.has('math') ? 2 : 0 }),
-      };
+      return { topics: [...focus, ...back], kinds: extra({ mcq: focus.length * 2 + back.length, short: f.has('frq') || f.has('short') ? 1 : 0, vocab: terms ? 2 : 0, math: f.has('math') ? 2 : 0 }), perTopic: null };
     }
-    case 'comeback': {
-      const back = comebacks(topics, checks, now).slice(0, 3);
-      return { topics: back.length ? back : weakest(topics, checks, 2), kinds: [{ kind: 'mcq', count: Math.max(back.length, 2) }] };
+    case 'mixed-check': {
+      const today = topics.filter((t) => practicedToday.includes(t.id));
+      const mix = (today.length ? today : weakest(topics, checks, 3)).slice(0, 4);
+      return { topics: mix, kinds: extra({ mcq: Math.max(mix.length + 2, 4), vocab: terms ? 1 : 0 }), perTopic: null };
     }
     case 'practice-test':
-      return {
-        topics: topics.slice(0, 12),
-        kinds: extra({ mcq: 8, frq: f.has('frq') ? 1 : 0, short: f.has('short') ? 2 : 0, vocab: terms ? 3 : 0, math: f.has('math') ? 3 : 0 }),
-      };
+      return { topics: topics.slice(0, 12), kinds: extra({ mcq: 8, frq: f.has('frq') ? 1 : 0, short: f.has('short') ? 2 : 0, vocab: terms ? 3 : 0, math: f.has('math') ? 3 : 0 }), perTopic: null };
+    case 'review': {
+      const weak = weakest(topics, checks, 3);
+      return { topics: weak, kinds: extra({ mcq: 4, vocab: terms ? 2 : 0 }), perTopic: null };
+    }
     case 'warm-up': {
       const weak = weakest(topics, checks, 2);
-      return { topics: weak, kinds: extra({ mcq: 3, vocab: terms ? 2 : 0 }) };
+      return { topics: weak, kinds: extra({ mcq: 3, vocab: terms ? 2 : 0 }), perTopic: null };
     }
-  }
-}
-
-/** The plan, one row per day from the first prep day to the test day. */
-export function planDays(prep: PrepRecord, testAt: string, topics: PrepTopic[], practices: PracticeRecord[], checks: TopicCheckRecord[], now: Date): PrepDay[] {
-  const today = localDay(now);
-  const testDay = localDay(new Date(testAt));
-  const start = prep.startDay < today ? prep.startDay : today;
-  const dates: string[] = [];
-  for (let d = dayOf(start); localDay(d) <= testDay && dates.length < 21; d = new Date(d.getTime() + 86_400_000)) dates.push(localDay(d));
-  const kinds = dayKinds(dates.length);
-  const solid = counts(topics).solid;
-  const back = comebacks(topics, checks, now).length;
-  return dates.map((date, i) => {
-    const kind = kinds[i]!;
-    const ended = practices.filter((p) => p.endedAt && p.day === date);
-    const done = date < today ? ended.length > 0 : ended.some((p) => p.dayKind === kind);
-    const status: PrepDay['status'] = done ? 'done' : date < today ? 'missed' : date === today ? 'today' : 'later';
-    const step = stepText(kind, topics, checks);
-    const sub =
-      status === 'done' ? `Done, ${solid} solid`
-      : status === 'missed' ? 'Skipped'
-      : status === 'today' ? (kind === 'focus' && back > 0 ? `Today · ${back} ${back === 1 ? 'topic comes' : 'topics come'} back so ${back === 1 ? 'it sticks' : 'they stick'}` : 'Today')
-      : kind === 'practice-test' ? 'The day before'
-      : kind === 'warm-up' ? 'Morning of'
-      : weekday(date, 'long');
-    return { date, kind, step, sub, status };
-  });
-}
-
-/** "10 minutes on the Congo and Latin America". */
-export function stepText(kind: PrepDayKind | 'comeback', topics: PrepTopic[], checks: TopicCheckRecord[]): string {
-  switch (kind) {
-    case 'check-all':
-      return topics.length === 1 ? 'Quick check on the one topic' : `Quick check on all ${topics.length} topics`;
-    case 'focus':
-      return `10 minutes on ${names(weakest(topics, checks, FOCUS_TOPICS))}`;
-    case 'comeback':
-      return `Quick check: ${names(weakest(topics.filter((t) => t.standing === 'solid'), checks, 2))}, so it sticks`;
-    case 'practice-test':
-      return "A practice test in this test's formats";
-    case 'warm-up':
-      return `5-minute warm-up on ${names(weakest(topics, checks, 2))}`;
+    case 'rescue': {
+      const weak = weakest(topics, checks, 2);
+      return { topics: weak, kinds: [{ kind: 'mcq', count: 4 }], perTopic: null };
+    }
   }
 }
 
@@ -176,6 +277,11 @@ export function answerRight(a: PracticeRecord['answers'][string]): boolean | nul
   }
 }
 
+/** Counts toward a topic being solid: right, and not a guess. */
+export function answerSolid(a: PracticeRecord['answers'][string]): boolean | null {
+  return a.kind === 'mcq' ? a.outcome === 'solid' : answerRight(a);
+}
+
 /** Wrong answers, newest first; "then right" once a later answer on the same topic was right. */
 export function mistakes(practices: PracticeRecord[]): PrepMistake[] {
   const answered = practices
@@ -186,10 +292,42 @@ export function mistakes(practices: PracticeRecord[]): PrepMistake[] {
     .flatMap(({ p, q, right }, i) => {
       if (right !== false) return [];
       const later = answered.slice(i + 1).some((x) => x.q.topicId === q.topicId && x.right === true);
-      return [{ id: q.id, topicId: q.topicId, topic: q.topic, label: q.label, sub: `Missed ${weekday(p.day)}${later ? ', then right' : ''}` }];
+      return [{ id: q.id, topicId: q.topicId, topic: q.topic, label: q.label, sub: `Missed ${weekdayShort(p.day)}${later ? ', then right' : ''}` }];
     })
     .reverse()
     .slice(0, 10);
+}
+
+const ORDER: Record<Outcome, number> = { mixup: 0, gap: 1, shaky: 2, solid: 3 };
+const capFirst = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** After a diagnostic: one calm line per topic, from its answers and their skills. Mix-ups and gaps first. */
+export function diagnosis(p: PracticeRecord, laterToday: boolean): { topicId: string; topic: string; outcome: Outcome; line: string }[] {
+  const byTopic = new Map<string, { topic: string; answers: { skill: string; outcome: Outcome }[] }>();
+  for (const q of p.questions) {
+    const a = p.answers[q.id];
+    if (a?.kind !== 'mcq') continue;
+    const entry = byTopic.get(q.topicId) ?? { topic: q.topic, answers: [] };
+    entry.answers.push({ skill: q.skill, outcome: a.outcome });
+    byTopic.set(q.topicId, entry);
+  }
+  const back = laterToday ? 'comes back later today' : 'comes back soon';
+  return [...byTopic.entries()]
+    .map(([topicId, { topic, answers }]) => {
+      const has = (o: Outcome) => answers.some((a) => a.outcome === o);
+      const outcome: Outcome = has('mixup') ? 'mixup' : has('gap') && !has('solid') ? 'gap' : has('gap') || has('shaky') ? 'shaky' : 'solid';
+      const solidSkill = (s: string) => answers.some((a) => a.skill === s && a.outcome === 'solid');
+      const weakSkill = (s: string) => answers.some((a) => a.skill === s && a.outcome !== 'solid');
+      const line =
+        outcome === 'mixup' ? `You were sure about a wrong answer on ${topic}, so Loomer fixes that first.`
+        : outcome === 'gap' ? `${capFirst(topic)} isn't learned yet, so Loomer teaches it next.`
+        : outcome === 'solid' ? `${capFirst(topic)} is solid.`
+        : solidSkill('remember') && weakSkill('understand') ? `You know the facts of ${topic}, but its causes are shaky, so Loomer starts with why it happened.`
+        : solidSkill('remember') && weakSkill('apply') ? `You know ${topic}, but using it on a new case is shaky, so Loomer practices that next.`
+        : `You got ${topic} partly right or guessed, so it ${back}.`;
+      return { topicId, topic, outcome, line };
+    })
+    .sort((a, b) => ORDER[a.outcome] - ORDER[b.outcome]);
 }
 
 /** Matches the AI's topic name to one of the test's topics. */

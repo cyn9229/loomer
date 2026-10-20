@@ -18,7 +18,7 @@ import { effectiveDue, isOpen } from '../src/analysis/facts';
 import { localDay } from '../src/analysis/plan';
 import { nextPlanSnapshot } from '../src/analysis/recommend';
 import { answerSlip, recordSuggestedStart } from '../src/analysis/slip';
-import { addNotes, answerPractice, editTopics, endPractice, nextQuestion, practiceLike, prepEligible, setFormats, setupPrep, startPractice, todayKind, writePractice } from '../src/prep/prep';
+import { addNotes, answerPractice, currentPrepSession, editTopics, endPractice, nextQuestion, practiceLike, prepEligible, setFormats, setReminder, setTodayMinutes, setupPrep, startPractice, teachAfter, writePractice } from '../src/prep/prep';
 import { loadHomeData } from '../src/model/homeData';
 import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
@@ -43,6 +43,8 @@ const SESSION_LOOP_MS = 5_000;
 const CAPTURE_MENU = 'loomer-add-page';
 const SCREENSHOT_MENU = 'loomer-screenshot';
 const CHAT_SHOT_MENU = 'loomer-chat-screenshot';
+/** Alarm name prefix for a test prep reminder: `${PREP_REMIND}${assignmentId}|${sessionId}`. */
+const PREP_REMIND = 'prep-remind:';
 /** Session that already got its one research reminder notification. */
 const remindedItem = storage.defineItem<number | null>('session:reminded', { fallback: null });
 
@@ -161,6 +163,14 @@ async function runDiscovery() {
       await notify(`research-${next.sessionId}`, 'Researching for this assignment?', `Add "${next.suggestion.title}" to Loomer from the side panel.`);
     }
   }
+}
+
+/** A test prep reminder the student set for a later-today session. It needs only Chrome's permission, since the student asked for this one. */
+async function prepReminder(key: string) {
+  const [assignmentId, sessionId] = key.split('|');
+  const [a, prep] = await Promise.all([db.assignments.get(assignmentId!), db.preps.get(assignmentId!)]);
+  if (!a || !prep?.reminders?.includes(sessionId!) || !(await browser.permissions.contains({ permissions: ['notifications'] }))) return;
+  await browser.notifications.create(`prep-${key}`, { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: `Time for your check on ${a.title}`, message: 'Coming back after a few hours helps it stick, so open Loomer when you are ready.', priority: 0 });
 }
 
 /** Shows a desktop notification only when the student enabled them and Chrome granted the permission. */
@@ -511,9 +521,9 @@ async function runPrep() {
     const prep = await db.preps.get(a.id);
     const testAt = effectiveDue(a, now).at;
     if (prep?.status !== 'ready' || !testAt || Date.parse(testAt) - now.getTime() > 7 * 86_400_000) continue;
-    const kind = await todayKind(db, prep, testAt, now);
-    const written = (await db.practices.where('assignmentId').equals(a.id).toArray()).some((p) => p.day === localDay(now) && p.dayKind === kind);
-    if (kind && !written) await writePractice(prepDeps(), a.id, kind);
+    const session = await currentPrepSession(db, prep, a, now);
+    const written = (await db.practices.where('assignmentId').equals(a.id).toArray()).some((p) => p.sessionId === session?.id);
+    if (session && !written) await writePractice(prepDeps(), a.id, session);
   }
 }
 
@@ -763,9 +773,23 @@ async function handle(message: Message): Promise<Reply> {
       const prep = await db.preps.get(a.id);
       return prep ? { ok: true } : { ok: false, error: "AI help is off for this test, so Loomer can't build a plan." };
     }
-    case 'prep:answer':
-      await answerPractice(prepDeps(), message.practiceId, message.questionId, message);
+    case 'prep:answer': {
+      const teach = await answerPractice(prepDeps(), message.practiceId, message.questionId, message);
+      // The teaching block is written while the student reads the result.
+      if (teach) void teachAfter(prepDeps(), message.practiceId, message.questionId).catch((error: unknown) => console.error('loomer: teaching failed', error));
       return { ok: true };
+    }
+    case 'prep:time':
+      await setTodayMinutes(db, message.assignmentId, message.minutes, new Date());
+      return { ok: true };
+    case 'prep:remind': {
+      if (message.on && !(await browser.permissions.contains({ permissions: ['notifications'] }))) return { ok: false, error: "Chrome didn't allow notifications." };
+      const at = await setReminder(db, message.assignmentId, message.sessionId, message.on, new Date());
+      const name = `${PREP_REMIND}${message.assignmentId}|${message.sessionId}`;
+      await browser.alarms.clear(name);
+      if (at && Date.parse(at) > Date.now()) await browser.alarms.create(name, { when: Date.parse(at) });
+      return { ok: true };
+    }
     case 'prep:like':
       await practiceLike(prepDeps(), message.practiceId, message.questionId);
       return { ok: true };
@@ -953,6 +977,7 @@ export default defineBackground(() => {
       void checkAiService();
     }
     if (alarm.name === SESSION_ALARM) runSessionLoop();
+    if (alarm.name.startsWith(PREP_REMIND)) void prepReminder(alarm.name.slice(PREP_REMIND.length));
   });
 
   // Discovery watches only the foreground tab, and only while a session is active.

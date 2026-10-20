@@ -279,13 +279,18 @@ export const practiceRequestSchema = z.strictObject({
   like: z.strictObject({ topic: z.string().max(160), kind: z.enum(PRACTICE_KINDS), prompt: z.string().max(2_000) }).nullable(),
   /** Prompts already asked in this test's practice, so new ones differ. */
   avoid: z.array(z.string().max(400)).max(60),
+  /** Diagnostic: exactly this many questions per topic, each testing a different skill. */
+  perTopic: z.number().int().min(1).max(3).nullable(),
 });
+
+export const PRACTICE_SKILLS = ['remember', 'understand', 'apply'] as const;
 
 export const practiceResponseSchema = z.strictObject({
   questions: z.array(
     z.strictObject({
       topic: z.string(),
       kind: z.enum(PRACTICE_KINDS),
+      skill: z.enum(PRACTICE_SKILLS),
       label: z.string(),
       prompt: z.string(),
       options: z.array(z.string()),
@@ -319,3 +324,35 @@ export type PrepTopicsRequest = z.infer<typeof prepTopicsRequestSchema>;
 export type PracticeRequest = z.infer<typeof practiceRequestSchema>;
 export type PracticeResponse = z.infer<typeof practiceResponseSchema>;
 export type PracticeGradeRequest = z.infer<typeof practiceGradeRequestSchema>;
+
+export const TEACH_ROUTE = '/ai/teach';
+export const TEACH_KINDS = ['explain', 'compare', 'timeline', 'frq-skill', 'visual'] as const;
+
+/** A short teaching block after a miss, starting from the student's exact answer, plus 1 or 2 check questions on the same idea. */
+export const teachRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  source: z.string().max(12_000),
+  topic: z.string().max(160),
+  question: z.strictObject({ kind: z.enum(PRACTICE_KINDS), prompt: z.string().max(2_000), options: z.array(z.string().max(400)).max(6), correct: z.string().max(400) }),
+  /** What the student picked or wrote. */
+  given: z.string().max(4_000),
+  /** Block kinds already used for this idea; the new one must differ. */
+  avoidKinds: z.array(z.enum(TEACH_KINDS)).max(5),
+  /** Prompts already asked, so the checks are new. */
+  avoid: z.array(z.string().max(400)).max(60),
+});
+
+export const teachResponseSchema = z.strictObject({
+  block: z.strictObject({
+    kind: z.enum(TEACH_KINDS),
+    title: z.string(),
+    text: z.string(),
+    quote: z.string(),
+    compare: z.strictObject({ heads: z.array(z.string()), rows: z.array(z.strictObject({ label: z.string(), a: z.string(), b: z.string() })) }).nullable(),
+    steps: z.array(z.strictObject({ when: z.string(), text: z.string() })).nullable(),
+    frame: z.array(z.strictObject({ text: z.string(), blank: z.string() })).nullable(),
+  }),
+  checks: practiceResponseSchema.shape.questions,
+});
+
+export type TeachRequest = z.infer<typeof teachRequestSchema>;

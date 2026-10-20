@@ -1,14 +1,14 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LoomerDb, type Assignment, type PrepRecord } from '../core/db';
-import { dayKinds, planDays, readiness, topicStandings } from './plan';
-import { answerPractice, endPractice, loadPracticeModel, loadPrep, mathRight, practiceLike, setupPrep, startPractice } from './prep';
+import { outcomeOf, planSessions, sessionSlots, topicStandings } from './plan';
+import { answerPractice, endPractice, loadPracticeModel, loadPrep, mathRight, nextQuestion, practiceLike, setupPrep, startPractice, teachAfter } from './prep';
 
 // Tuesday Oct 20, local 9 AM; the test is Friday morning.
 const now = new Date(2026, 9, 20, 9);
 const test: Assignment = {
   id: 't', sourceKey: 'k', origin: 'https://s.test', replay: false, kind: 'assignment', canvasId: '1', courseId: '1', courseName: 'US History',
-  title: 'Unit 5 Test: Imperialism', url: null, dueAt: new Date(2026, 9, 23, 9).toISOString(), pointsPossible: null, submission: null,
+  title: 'Unit 5 Test', url: null, dueAt: new Date(2026, 9, 23, 9).toISOString(), pointsPossible: null, submission: null,
   firstSeenAt: now.toISOString(), lastSeenAt: now.toISOString(), presence: 'seen-in-last-check',
   detail: { observedAt: now.toISOString(), hash: 'h', text: 'Study guide: the annexation of Hawaii, the Congo under Leopold II, and the Roosevelt Corollary. Multiple choice and one free response.', links: [], rubric: [], submissionTypes: [], canvasUpdatedAt: null },
   detailError: null,
@@ -21,8 +21,7 @@ function service(replies: Record<string, object[]>) {
   const f = async (url: unknown, init?: RequestInit) => {
     const route = new URL(String(url)).pathname;
     calls.push({ route, body: JSON.parse(String(init?.body)) });
-    const result = replies[route]!.shift();
-    return new Response(JSON.stringify({ ok: true, model: 'test', result }));
+    return new Response(JSON.stringify({ ok: true, model: 'test', result: replies[route]!.shift() }));
   };
   return Object.assign(f, { calls });
 }
@@ -36,55 +35,95 @@ const topicsReply = {
   terms: [{ term: 'Roosevelt Corollary', definition: 'The US claim to police Latin America.' }],
   formats: { mcq: true, frq: true, vocab: false, short: false, math: false },
 };
-const mcq = (topic: string, n: number) => ({ topic, kind: 'mcq', label: `Q${n}`, prompt: `Question ${n}?`, options: ['A', 'B', 'C', 'D'], answerIndex: 1, why: 'Because B.', term: '', definition: '', answer: '', worked: null, needs: [] });
+const mcq = (topic: string, n: number, skill = 'remember') => ({ topic, kind: 'mcq', skill, label: `Q${n}`, prompt: `Question ${n}?`, options: ['A', 'B', 'C', 'D'], answerIndex: 1, why: 'Because B.', term: '', definition: '', answer: '', worked: null, needs: [] });
+const teachReply = {
+  block: { kind: 'compare', title: 'Hawaii and the Congo', text: 'Both were taken by outsiders.', quote: 'the annexation of Hawaii', compare: { heads: ['Hawaii', 'Congo'], rows: [{ label: 'Who', a: 'US planters', b: 'Leopold II' }] }, steps: null, frame: null },
+  checks: [mcq('Annexation of Hawaii', 9, 'understand')],
+};
 
 let db: LoomerDb;
+const deps = (f: typeof fetch) => ({ db, ai, fetch: f, now: () => now });
 beforeEach(async () => {
   db = new LoomerDb(`test-${crypto.randomUUID()}`);
   await db.assignments.put(test);
   await db.courses.put({ id: 'k#course:1', sourceKey: 'k', canvasId: '1', name: 'US History', syllabus: { observedAt: '', hash: '', text: '' }, syllabusError: null });
 });
 
-describe('plan rules', () => {
-  it('plans a quick check first, focus days, a practice test the day before, and a warm-up the morning of', () => {
-    expect(dayKinds(5)).toEqual(['check-all', 'focus', 'focus', 'practice-test', 'warm-up']);
-    expect(dayKinds(2)).toEqual(['practice-test', 'warm-up']);
-    expect(dayKinds(1)).toEqual(['warm-up']);
+describe('sessions by the time left', () => {
+  it('plans a rescue, a spaced day, a short run, and a week with topics coming back', () => {
+    const kinds = (start: string, end: string) => sessionSlots(start, end).map((s) => `${s.date.slice(8)} ${s.kind} ${s.when}`);
+    expect(kinds('2026-10-20', '2026-10-20')).toEqual(['20 rescue now']);
+    expect(kinds('2026-10-20', '2026-10-21')).toEqual(['20 diagnostic now', '20 focus next', '20 mixed-check later-today', '21 warm-up morning']);
+    expect(kinds('2026-10-20', '2026-10-23')).toEqual(['20 diagnostic now', '20 focus next', '21 focus day', '22 practice-test day', '23 warm-up morning']);
+    expect(kinds('2026-10-20', '2026-10-30').map((k) => k.split(' ')[1])).toEqual(['diagnostic', 'focus', 'focus', 'focus', 'focus', 'practice-test', 'review', 'warm-up']);
   });
 
-  it('accepts math answers as numbers within rounding', () => {
-    expect([mathRight('3.14', '3.14159'), mathRight(' 1,200 ', '1200'), mathRight('x=4', 'X = 4'), mathRight('5', '6')]).toEqual([true, true, true, false]);
+  it('fits today to the time given, opens the evening check at 7 PM, and plans nothing late', () => {
+    const prep: PrepRecord = { assignmentId: 't', startDay: '2026-10-20', status: 'ready', topics: [{ id: 'a', text: 'Hawaii', source: 'guide', new: false, removed: false }], terms: [], formats: { selected: ['mcq'], found: {}, asked: false }, notes: { photos: 0, found: null }, today: { day: '2026-10-20', minutes: 30 } };
+    const tomorrow = new Date(2026, 9, 21, 9).toISOString();
+    const topics = topicStandings(prep, []);
+    const plan = planSessions(prep, tomorrow, topics, [], [], now);
+    expect(plan.sessions.map((s) => [s.kind, s.minutes, s.status])).toEqual([['diagnostic', 15, 'today'], ['focus', 15, 'later'], ['warm-up', 5, 'later']]);
+    expect([plan.fits, plan.note?.startsWith("Loomer won't plan anything late tonight")]).toEqual(['Fits your 30 minutes', true]);
+    const roomy = planSessions({ ...prep, today: undefined }, tomorrow, topics, [], [], now);
+    expect(roomy.sessions.find((s) => s.kind === 'mixed-check')).toMatchObject({ label: 'After dinner, around 7 PM', when: 'later-today' });
+    const late = planSessions({ ...prep, today: undefined }, tomorrow, topics, [], [], new Date(2026, 9, 20, 22));
+    expect(late.sessions.some((s) => s.kind === 'mixed-check')).toBe(false);
+  });
+});
+
+describe('diagnostic, teaching, and diagnosis', () => {
+  it('tells right-and-sure from a guess, and wrong-but-sure from a gap', () => {
+    expect([outcomeOf(true, 'sure'), outcomeOf(true, 'guessing'), outcomeOf(false, 'sure'), outcomeOf(false, 'guessing'), outcomeOf(true, null)]).toEqual(['solid', 'shaky', 'mixup', 'gap', 'solid']);
+  });
+
+  it('teaches a mix-up as its own step, checks it, and ends with a calm diagnosis', async () => {
+    const f = service({
+      '/ai/prep-topics': [topicsReply],
+      '/ai/practice': [{ questions: [mcq('Annexation of Hawaii', 1), mcq('Annexation of Hawaii', 2, 'understand'), mcq('The Congo under Leopold II', 3), mcq('The Congo under Leopold II', 4, 'understand')] }],
+      '/ai/teach': [teachReply],
+    });
+    await setupPrep(deps(f), test);
+    expect(await startPractice(deps(f), 't')).toBeNull();
+    expect(f.calls.at(-1)!.body).toMatchObject({ perTopic: 3, kinds: [{ kind: 'mcq', count: 6 }] });
+    const answer = async (confidence: 'sure' | 'guessing', right: boolean) => {
+      const p = (await loadPracticeModel(db, now))!;
+      const correct = p.question!.options.indexOf('B');
+      const teach = await answerPractice(deps(f), p.id, p.question!.id, { choice: right ? correct : (correct + 1) % 4, confidence });
+      if (teach) await teachAfter(deps(f), p.id, p.question!.id);
+      return p;
+    };
+
+    let p = await answer('sure', false);
+    expect((await loadPracticeModel(db, now))!.answer).toMatchObject({ outcome: 'mixup', next: 'You were sure, and the answer was “B”, so Loomer explains this one next.' });
+    await nextQuestion(db, p.id, now);
+    const teach = (await loadPracticeModel(db, now))!;
+    expect([teach.question, teach.teach?.kind, teach.teach?.miss?.endsWith('and the answer is “B”.'), teach.teach?.quote?.source]).toEqual([null, 'compare', true, 'Your study guide']);
+    await nextQuestion(db, p.id, now);
+    expect((await loadPracticeModel(db, now))!.question).toMatchObject({ prompt: 'Question 9?', like: true });
+
+    for (const [confidence, right] of [['sure', true], ['sure', true], ['sure', true], ['guessing', true]] as const) {
+      p = await answer(confidence, right);
+      await nextQuestion(db, p.id, now);
+    }
+    const done = (await loadPracticeModel(db, now))!.done!;
+    expect(done.line).toBe("Here's where you are for Friday's Unit 5 Test.");
+    expect(done.diagnosis!.map((d) => [d.outcome, d.line])).toEqual([
+      ['mixup', 'You were sure about a wrong answer on Annexation of Hawaii, so Loomer fixes that first.'],
+      ['shaky', 'You know the facts of The Congo under Leopold II, but its causes are shaky, so Loomer starts with why it happened.'],
+    ]);
+    const prep = (await loadPrep(db, test, now))!;
+    expect([prep.blocks.length, prep.plan[0]!.status]).toEqual([1, 'done']);
   });
 });
 
 describe('test prep', () => {
-  it('finds topics that quote the study guide, then runs a practice that updates standings and the chat', async () => {
-    const f = service({ '/ai/prep-topics': [topicsReply], '/ai/practice': [{ questions: [mcq('Annexation of Hawaii', 1), mcq('The Congo under Leopold II', 2)] }] });
-    await setupPrep({ db, ai, fetch: f, now: () => now }, test);
+  it('finds topics that quote the study guide, and checks math answers within rounding', async () => {
+    await setupPrep(deps(service({ '/ai/prep-topics': [topicsReply] })), test);
     const prep = (await loadPrep(db, test, now))!;
     expect(prep.topics.map((t) => t.text)).toEqual(['Annexation of Hawaii', 'The Congo under Leopold II']);
     expect(prep.formats.selected).toEqual(['mcq', 'frq']);
-    expect(prep.plan.map((d) => [d.kind, d.status])).toEqual([['check-all', 'today'], ['focus', 'later'], ['practice-test', 'later'], ['warm-up', 'later']]);
-
-    expect(await startPractice({ db, ai, fetch: f, now: () => now }, 't')).toBeNull();
-    let practice = (await loadPracticeModel(db, now))!;
-    expect(practice.question).toMatchObject({ prompt: 'Question 1?' });
-    expect([...practice.question!.options].sort()).toEqual(['A', 'B', 'C', 'D']);
-    expect(JSON.stringify(practice)).not.toContain('answerIndex');
-
-    // Options are shuffled; pick wherever "B" (the right one) landed.
-    const right = practice.question!.options.indexOf('B');
-    await answerPractice({ db, ai, fetch: f, now: () => now }, practice.id, practice.question!.id, { choice: right });
-    practice = (await loadPracticeModel(db, now))!;
-    expect(practice.answer).toEqual({ kind: 'mcq', picked: right, correct: right, right: true, why: 'Because B.' });
-
-    await endPractice(db, practice.id, now);
-    expect((await loadPracticeModel(db, now))!.done).toMatchObject({ line: 'You checked 1 topic on this test.', mistakes: 0 });
-    const [line] = await db.chatTurns.where('threadKey').equals('t').toArray();
-    expect(line!.blocks[0]).toMatchObject({ kind: 'practice-result' });
-    const after = (await loadPrep(db, test, now))!;
-    expect(after.plan[0]!.status).toBe('done');
-    expect(after.readiness).toBe('1 of 2 topics on this test is solid, and The Congo under Leopold II still needs work.');
+    expect([mathRight('3.14', '3.14159'), mathRight(' 1,200 ', '1200'), mathRight('x=4', 'X = 4'), mathRight('5', '6')]).toEqual([true, true, true, false]);
   });
 
   it('checks a free response against its needs, keeping only quotes from the student\'s own words, and inserts "Try one like it" next', async () => {
@@ -94,11 +133,10 @@ describe('test prep', () => {
       '/ai/practice': [{ questions: [frq, mcq('Annexation of Hawaii', 4)] }, { questions: [{ ...frq, prompt: 'Compare Hawaii and the Philippines.' }] }],
       '/ai/practice-grade': [{ needs: [{ need: 'A clear claim', met: true, quote: 'both were about money', hint: '' }, { need: 'Evidence from Hawaii', met: true, quote: 'invented quote', hint: '' }] }],
     });
-    const deps = { db, ai, fetch: f, now: () => now };
-    await setupPrep(deps, test);
-    await startPractice(deps, 't');
+    await setupPrep(deps(f), test);
+    await startPractice(deps(f), 't');
     const p = (await loadPracticeModel(db, now))!;
-    await answerPractice(deps, p.id, p.question!.id, { text: 'I think both were about money and land.' });
+    await answerPractice(deps(f), p.id, p.question!.id, { text: 'I think both were about money and land.' });
     expect((await loadPracticeModel(db, now))!.answer).toEqual({
       kind: 'frq',
       text: 'I think both were about money and land.',
@@ -108,31 +146,23 @@ describe('test prep', () => {
         { need: 'Evidence from Hawaii', met: true, note: '' },
       ],
     });
-    await practiceLike(deps, p.id, p.question!.id);
+    await practiceLike(deps(f), p.id, p.question!.id);
     const next = (await loadPracticeModel(db, now))!;
     expect([next.index, next.total, next.question?.prompt, next.question?.like]).toEqual([1, 3, 'Compare Hawaii and the Philippines.', true]);
   });
 
   it('practices one mistake with a question like it on the same topic', async () => {
     const f = service({ '/ai/prep-topics': [topicsReply], '/ai/practice': [{ questions: [mcq('Annexation of Hawaii', 1)] }, { questions: [mcq('Annexation of Hawaii', 5), mcq('Annexation of Hawaii', 6)] }] });
-    const deps = { db, ai, fetch: f, now: () => now };
-    await setupPrep(deps, test);
-    await startPractice(deps, 't');
+    await setupPrep(deps(f), test);
+    await startPractice(deps(f), 't');
     const p = (await loadPracticeModel(db, now))!;
     const wrong = p.question!.options.findIndex((o) => o !== 'B');
-    await answerPractice(deps, p.id, p.question!.id, { choice: wrong });
+    await answerPractice(deps(f), p.id, p.question!.id, { choice: wrong, confidence: 'guessing' });
     await endPractice(db, p.id, now);
     const [mistake] = (await loadPrep(db, test, now))!.mistakes;
     expect(mistake).toMatchObject({ topic: 'Annexation of Hawaii', label: 'Q1', sub: 'Missed Tue' });
-    expect(await startPractice(deps, 't', mistake!.id)).toBeNull();
+    expect(await startPractice(deps(f), 't', mistake!.id)).toBeNull();
     expect(f.calls.at(-1)!.body).toMatchObject({ topics: ['Annexation of Hawaii'], like: { kind: 'mcq', prompt: 'Question 1?' } });
-    expect((await loadPracticeModel(db, now))!.question?.prompt).toBe('Question 5?');
-  });
-
-  it('reads the readiness line honestly before any practice', () => {
-    const prep: PrepRecord = { assignmentId: 't', startDay: '2026-10-20', status: 'ready', topics: [{ id: 'a', text: 'Hawaii', source: 'guide', new: false, removed: false }], terms: [], formats: { selected: ['mcq'], found: {}, asked: false }, notes: { photos: 0, found: null } };
-    const topics = topicStandings(prep, []);
-    expect(readiness(topics, [])).toBe("Loomer found 1 topic on this test and hasn't checked any yet, so start with the quick check.");
-    expect(planDays(prep, test.dueAt!, topics, [], [], now).at(-1)).toMatchObject({ kind: 'warm-up', sub: 'Morning of' });
+    expect((await loadPracticeModel(db, now))!).toMatchObject({ mode: 'mistake', question: { prompt: 'Question 5?' } });
   });
 });
