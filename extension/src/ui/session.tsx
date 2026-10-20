@@ -1,10 +1,11 @@
 // The Working screen's pieces. WorkHeader: which assignment and what kind of
-// work, then by type: writing gets what Loomer last read and a stat strip
-// (words, sources, next to fix); practice and study get the topics on the
-// linked sheet to tick off; reading gets neither; a quiz gets only the title.
-// Then the Help | Sources switch (not for a quiz, see QuizNote).
-// SessionControls (Pause or Resume, and End) sit in the top bar; SessionStrip
-// shows the running session on Home. SourcesBody: the draft or sheet, saved
+// work, then by type: writing gets the session focus and one row of sources
+// and the checklist; practice and study get the teacher's sheets, a Next topic,
+// and the topics with their last Quick check; reading gets neither; a quiz gets
+// only the title. Then the Help | Sources switch (not for a quiz, see QuizNote).
+// SessionControls (Pause or Resume, and End) sit in the top bar and on
+// SessionStrip, which shows the running session on Home. End opens the end
+// sheet (endSheet.tsx). SourcesBody: the draft or sheet, saved
 // pages and screenshots, and what happened this session. HintCard,
 // SuggestionRow and LinkDocStep render inside Help. Every change goes through
 // PanelApi messages.
@@ -74,10 +75,10 @@ export function sessionClock(session: ActiveSession, now: Date): { text: string;
 
 /**
  * The student's time limit inside the Working screen. In the last 5 minutes, a
- * quiet note; at time up, Stop here (session:end) or Keep going (session:time
- * null, which clears the limit). Loomer never stops a session by itself.
+ * quiet note; at time up, Stop here (opens the end sheet) or Keep going
+ * (session:time null, which clears the limit). Loomer never stops a session by itself.
  */
-export function SessionTime({ session, now, api, onStopped }: { session: ActiveSession; now: Date; api: PanelApi; onStopped: (item: ActiveSession['assignment']) => void }) {
+export function SessionTime({ session, now, api, onStop }: { session: ActiveSession; now: Date; api: PanelApi; onStop: () => void }) {
   const act = useAction();
   const [noted, setNoted] = useState<string | null>(null);
   const left = minutesLeft(session, now);
@@ -101,18 +102,7 @@ export function SessionTime({ session, now, api, onStopped }: { session: ActiveS
       </p>
       <p className="tup-p">You can stop here or keep going.</p>
       <div className="pc-act">
-        <button
-          type="button"
-          className="btn-primary sm"
-          disabled={act.busy}
-          onClick={() =>
-            act.run(async () => {
-              const reply = await api.send({ type: 'session:end' });
-              if (reply.ok) onStopped(session.assignment);
-              return reply;
-            })
-          }
-        >
+        <button type="button" className="btn-primary sm" disabled={act.busy} onClick={onStop}>
           Stop here
         </button>
         <button type="button" className="btn" disabled={act.busy} onClick={() => act.run(() => api.send({ type: 'session:time', minutes: null }))}>
@@ -312,10 +302,9 @@ function OwnCopy({ assignmentId, candidates, api }: { assignmentId: string; cand
 
 /**
  * A quiz or test in a work session: one calm note, no help box. Ask Loomer is
- * paused everywhere until the session ends.
+ * paused everywhere until the session ends. End session opens the end sheet.
  */
-export function QuizNote({ api }: { api: PanelApi }) {
-  const end = useAction();
+export function QuizNote({ onEnd }: { onEnd: () => void }) {
   return (
     <section className="state">
       <span className="subject lg gray">
@@ -327,10 +316,9 @@ export function QuizNote({ api }: { api: PanelApi }) {
         <Icon name="pauseCircle" size="sm" />
         Ask Loomer is paused while this is open.
       </p>
-      <button type="button" className="btn sm" disabled={end.busy} aria-busy={end.busy} onClick={() => end.run(() => api.send({ type: 'session:end' }))}>
-        {end.busy ? 'Ending…' : 'End session'}
+      <button type="button" className="btn sm" onClick={onEnd}>
+        End session
       </button>
-      {end.error && <p className="status-line error">{end.error}</p>}
     </section>
   );
 }
@@ -710,11 +698,11 @@ export function verbMessage(verb: SessionVerb) {
 }
 
 /**
- * Pause or Resume, and End, one tap each. Sits next to the clock in the
- * Working top bar; Home's session strip uses the pause button alone. `run` is
- * the panel's action runner, so errors show at the top of the screen.
+ * Pause or Resume, and End, one tap each, in the Working top bar and on Home's
+ * session strip. End opens the end sheet rather than ending right away. `run`
+ * is the panel's action runner, so errors show at the top of the screen.
  */
-export function SessionControls({ session, run, busy, end = true }: { session: ActiveSession; run: (verb: SessionVerb) => void; busy: boolean; end?: boolean }) {
+export function SessionControls({ session, run, busy }: { session: ActiveSession; run: (verb: SessionVerb) => void; busy: boolean }) {
   const paused = session.status === 'paused';
   return (
     <>
@@ -728,18 +716,16 @@ export function SessionControls({ session, run, busy, end = true }: { session: A
       >
         <Icon name={paused ? 'play' : 'pause'} size="sm" />
       </button>
-      {end && (
-        <button type="button" className="end-btn" disabled={busy} onClick={() => run('end')}>
-          End
-        </button>
-      )}
+      <button type="button" className="end-btn" disabled={busy} onClick={() => run('end')}>
+        End
+      </button>
     </>
   );
 }
 
 /**
- * Home's session strip: "Working", "Paused", or the countdown, the assignment, and a pause
- * or resume button. Tapping the strip opens the session.
+ * Home's session strip: "Working", "Paused", or the countdown, the assignment,
+ * Pause or Resume, and End. Tapping the strip opens the session.
  */
 export function SessionStrip({
   session,
@@ -765,7 +751,7 @@ export function SessionStrip({
         <span className="ss-n">{session.assignment.title}</span>
         {hintWaiting && <span className="ss-hint">1 hint</span>}
       </button>
-      <SessionControls session={session} run={run} busy={busy} end={false} />
+      <SessionControls session={session} run={run} busy={busy} />
       <button type="button" className="icon-btn" aria-label="Open the session" onClick={onOpen}>
         <Icon name="chevronRight" size="sm" />
       </button>

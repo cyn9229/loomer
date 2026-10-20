@@ -76,6 +76,9 @@ export function buildSessionFixtures(now: Date) {
     focus: { text: 'Build the comparison between your two sources', why: 'Your draft summarizes each source but does not compare them yet.', requirement: 'Compare the two sources' },
     handledHints: [{ id: 30, text: 'What does the EPA number show about your city?', at: ago(9) }],
     suggestion: null,
+    // What End shows: the planner's recap sentence, and the next step once asked for.
+    recap: { text: 'You added 240 words and saved 2 sources in 35 minutes.', noun: 'this essay', minutes: 35, wordsDelta: 240, edits: 3, sourcesSaved: 2, topicsChecked: 0 },
+    nextStep: { status: 'ready' as const, text: 'Build the comparison between your two sources', aiGenerated: true },
   };
 
   return {

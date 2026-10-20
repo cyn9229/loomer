@@ -317,13 +317,14 @@ function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null;
 const correctionText: Record<Exclude<StudentCorrection, null>, string> = {
   'done-offline': 'You did this on paper, so it’s off your list.',
   'kept-active': 'You asked to keep this on your list.',
+  'turned-in': 'You turned this in, so it’s off your plan until Canvas shows your submission.',
 };
 
 /** "Did it already?" Loomer only knows what Canvas shows, so the student can say. */
 function Corrections({ item, correction, actions }: { item: WorkItem; correction: StudentCorrection; actions: HomeActions }) {
   const act = useAction();
   const [open, setOpen] = useState(false);
-  const set = (value: StudentCorrection) => act.run(() => actions.send({ type: 'context:set', assignmentId: item.assignmentId, correction: value }));
+  const set = (value: Exclude<StudentCorrection, 'turned-in'>) => act.run(() => actions.send({ type: 'context:set', assignmentId: item.assignmentId, correction: value }));
   return (
     <div className="correct">
       {correction ? (

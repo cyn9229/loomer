@@ -279,6 +279,7 @@ export function buildFixtures(now: Date) {
     recommendationChanged,
     focus: 'Build the comparison between your two sources',
     handledHints: 2,
+    nextStep: null,
   });
 
   return {

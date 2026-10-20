@@ -13,6 +13,7 @@ import { useAction, type PanelApi } from './api';
 import { AskView } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
+import { EndSheet } from './endSheet';
 import { type HomeActions, HomeView } from './home';
 import { Icon } from './Icon';
 import { Logo } from './Logo';
@@ -51,8 +52,12 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
   const [planMode, setPlanMode] = useState<PlanMode>('list');
-  // After Stop here on a timed session, Home asks roughly how much is left (only when the item has a guess).
+  // After "Done for today", Home asks roughly how much is left (only when the item has a guess).
   const [askLeft, setAskLeft] = useState<WorkItem | null>(null);
+  // End opens the end sheet over the Working screen; the session runs until the student picks.
+  const [endOpen, setEndOpen] = useState(false);
+  // After "I turned it in", Home says so once, with Undo.
+  const [turnedIn, setTurnedIn] = useState<{ assignmentId: string; noun: string } | null>(null);
   const [workTab, setWorkTab] = useState<WorkTab>('help');
   const [openId, setOpenId] = useState<string | null>(null);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
@@ -100,7 +105,15 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
       });
     },
     continueSession: goWork,
-    sessionVerb: (verb) => start.run(() => api.send(verbMessage(verb))),
+    sessionVerb: (verb) => {
+      // End asks where the assignment stands first, from Home's strip too.
+      if (verb === 'end') {
+        goWork();
+        setEndOpen(true);
+        return;
+      }
+      start.run(() => api.send(verbMessage(verb)));
+    },
     requestOrigins: api.requestOrigins,
     sessionBusy: start.busy,
     openAsk: (threadKey) => {
@@ -238,18 +251,28 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           api={api}
           onAsk={actions.openAsk}
         />
-        <SessionTime
-          key={active.plannedUntil ?? 'none'}
-          session={active}
-          now={now}
-          api={api}
-          onStopped={(item) => {
-            if (item.guessMinutes !== null) setAskLeft(item);
-            setView('home');
-          }}
-        />
+        <SessionTime key={active.plannedUntil ?? 'none'} session={active} now={now} api={api} onStop={() => setEndOpen(true)} />
+        {endOpen && (
+          <EndSheet
+            session={active}
+            noun={active.recap.noun}
+            requestNextStep={() => api.send({ type: 'session:next-step' })}
+            close={async (outcome, nextStep) => {
+              const item = active.assignment;
+              const noun = active.recap.noun;
+              const reply = await api.send({ type: 'session:close', outcome, nextStep });
+              if (!reply.ok) return reply.error;
+              setEndOpen(false);
+              setView('home');
+              if (outcome === 'turned-in') setTurnedIn({ assignmentId: item.assignmentId, noun });
+              else if (item.guessMinutes !== null) setAskLeft(item);
+              return null;
+            }}
+            onKeepGoing={() => setEndOpen(false)}
+          />
+        )}
         {active.assignment.quiz ? (
-          <QuizNote api={api} />
+          <QuizNote onEnd={() => setEndOpen(true)} />
         ) : workTab === 'help' ? (
           <ChatView
             session={active}
@@ -309,6 +332,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         aiDown={aiService?.up === false}
         askLeft={askLeft}
         onAskLeftDone={() => setAskLeft(null)}
+        turnedIn={turnedIn}
+        onTurnedInDone={() => setTurnedIn(null)}
         nudge={nudgeLine}
       />
     ) : (

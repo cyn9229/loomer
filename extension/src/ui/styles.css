@@ -4132,3 +4132,155 @@ details > summary .icon {
   line-height: 1.45;
   color: var(--ink);
 }
+
+/* ------------------------------------------------------------ End of a session
+   A sheet over the Working screen: the recap, where the assignment stands, and
+   for "Done for today" one step for next time. It slides up once when it opens. */
+.end-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.end-dim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(17, 16, 24, 0.32);
+  transition: opacity var(--d-open) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.end-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+  padding: 8px 18px 18px;
+  border-radius: 20px 20px 0 0;
+  background: var(--page);
+  box-shadow: 0 -10px 30px -12px rgba(17, 16, 24, 0.25);
+  transition: transform var(--d-open) var(--ease-out);
+  @starting-style {
+    transform: translateY(100%);
+  }
+}
+.end-grab {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 6px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.end-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.end-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.end-recap {
+  margin-top: 6px;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--ink);
+}
+.end-q {
+  margin-top: 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.end-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.end-btns .btn {
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+}
+.end-keep {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 10px;
+  padding: 4px 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.end-next {
+  margin-top: 8px;
+}
+.end-next.plain {
+  padding: 11px 13px 12px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.ai-k.plain {
+  color: var(--text);
+}
+.ai-k.plain .icon {
+  color: var(--muted);
+}
+.end-next-t {
+  margin-top: 4px;
+  font-size: 15.5px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ink);
+}
+.end-edit {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--ink);
+  resize: none;
+}
+.end-edit:focus {
+  outline: none;
+}
+.end-loading {
+  margin-top: 8px;
+  padding: 12px 13px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 14px;
+  color: var(--muted);
+}
+.end-sheet .btn-primary {
+  margin-top: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .end-sheet {
+    transition: opacity 150ms ease;
+    @starting-style {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}

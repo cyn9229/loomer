@@ -70,14 +70,17 @@ type HomeProps = {
   onPlanMode: (mode: PlanMode) => void;
   /** AI is on but the local AI service didn't answer its last health check. */
   aiDown: boolean;
-  /** The student stopped a timed session on an item with a guess: ask roughly how much is left. */
+  /** The student ended a session "Done for today" on an item with a guess: ask roughly how much is left. */
   askLeft: WorkItem | null;
   onAskLeftDone: () => void;
+  /** The student just said "I turned it in": say so once, with Undo. */
+  turnedIn: { assignmentId: string; noun: string } | null;
+  onTurnedInDone: () => void;
   /** The "working on this?" line, shown above the Ask bar. */
   nudge: ReactNode;
 };
 
-export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone, nudge }: HomeProps) {
+export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone, turnedIn, onTurnedInDone, nudge }: HomeProps) {
   const [whyOpen, setWhyOpen] = useState(false);
   if (model.status === 'not-connected') {
     return (
@@ -158,6 +161,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
     <>
       {active && <SessionStrip session={active} now={now} hintWaiting={hintWaiting} onOpen={actions.continueSession} run={actions.sessionVerb} busy={actions.sessionBusy} />}
       {askLeft && <LeftQuestion item={askLeft} send={actions.send} onDone={onAskLeftDone} />}
+      {turnedIn && <TurnedInNotice turnedIn={turnedIn} send={actions.send} onDone={onTurnedInDone} />}
       {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
       <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} />
       {next && whyOpen && (
@@ -361,6 +365,7 @@ function Finding() {
  */
 const insightLabel: Record<Exclude<InsightKind, 'countdown'>, { icon: IconName; text: string }> = {
   change: { icon: 'refresh', text: 'Changed since you last looked' },
+  continue: { icon: 'flag', text: 'Where you left off' },
   'hidden-deadline': { icon: 'doc', text: 'Found in the instructions' },
   'busy-day': { icon: 'calendar', text: 'Planned around your week' },
   'weak-topic': { icon: 'target', text: 'From your quick checks' },
@@ -478,6 +483,42 @@ function NextStep({
 }
 
 /** "Keep going" on another assignment, from the last session's briefing. */
+/**
+ * After "I turned it in" at the end of a session: the assignment is off the
+ * plan, and Loomer confirms once Canvas shows the submission. Undo clears the
+ * correction (context:set null), which puts it back.
+ */
+function TurnedInNotice({ turnedIn, send, onDone }: { turnedIn: { assignmentId: string; noun: string }; send: HomeActions['send']; onDone: () => void }) {
+  const undo = useAction();
+  return (
+    <div className="notice">
+      <Icon name="checkCircle" />
+      <span className="grow">
+        You turned in {turnedIn.noun}, so Loomer took it off your plan and will check Canvas for your submission.
+        {undo.error && <span className="notice-sub danger-text">{undo.error}</span>}
+      </span>
+      <button
+        type="button"
+        className="link"
+        disabled={undo.busy}
+        aria-busy={undo.busy}
+        onClick={() =>
+          undo.run(async () => {
+            const reply = await send({ type: 'context:set', assignmentId: turnedIn.assignmentId, correction: null });
+            if (reply.ok) onDone();
+            return reply;
+          })
+        }
+      >
+        Undo
+      </button>
+      <button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" onClick={onDone}>
+        <Icon name="x" size="sm" />
+      </button>
+    </div>
+  );
+}
+
 function ResumeNotice({ resume, now, actions }: { resume: ResumeBriefing; now: Date; actions: HomeActions }) {
   const dismiss = useAction();
   const { assignment } = resume;
