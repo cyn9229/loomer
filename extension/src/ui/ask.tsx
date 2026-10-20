@@ -3,7 +3,7 @@
 // in as blocks (Markdown, tool lines, visuals, quizzes, assignment links). An
 // assignment thread follows that assignment's AI rule: blocked shows the rule
 // and offers General instead; an unknown rule asks the one-time question first.
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { GENERAL_THREAD, type AddDraft, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
 import type { HelpAvailability } from '../model/session';
 import type { DayRoom, WorkItem } from '../model/home';
@@ -163,9 +163,12 @@ export function shortTitle(title: string): string {
 /**
  * The thread switcher, the title of Ask Loomer's top bar. General first, then
  * current work (listed even before a first message), then Earlier: past due,
- * done, turned in, or hidden work that has a chat, so nothing vanishes. Start
- * fresh and the chats set aside sit at the bottom. Closes on pick, Escape, or
- * a click outside.
+ * done, turned in, or hidden work that has a chat, so nothing vanishes. A
+ * search field at the top (cursor already in it) filters by assignment or
+ * class, and a class filter narrows to one class; either shows one flat list.
+ * Keys: Ctrl K (Cmd K) opens it, arrows move, Enter opens, Escape clears the
+ * search and then closes. Start fresh and the chats set aside sit at the
+ * bottom. Closes on pick, Escape, or a click outside.
  */
 export function ThreadMenu({
   threadKey,
@@ -187,67 +190,266 @@ export function ThreadMenu({
   onShowSetAside: () => void;
 }) {
   const { open, setOpen, ref } = usePopover<HTMLDivElement>();
+  const listId = useId();
+  const [query, setQuery] = useState('');
+  const [course, setCourse] = useState<string | null>(null);
+  const [classesOpen, setClassesOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const general = threadKey === GENERAL_THREAD;
+  const current = threads.find((t) => t.threadKey === threadKey);
+
+  const ordered = (['general', 'current', 'earlier'] as const).flatMap((g) => threads.filter((t) => t.group === g));
+  const q = query.trim().toLowerCase();
+  const filtering = q !== '' || course !== null;
+  const visible = ordered.filter(
+    (t) => (course === null || t.courseName === course) && (q === '' || threadName(t).toLowerCase().includes(q) || (t.courseName ?? '').toLowerCase().includes(q)),
+  );
+  const classes = [...new Set(threads.flatMap((t) => (t.courseName ? [t.courseName] : [])))];
+  const optionId = (t: ThreadSummary) => `${listId}-${t.threadKey}`;
+  const active = visible[Math.min(hi, visible.length - 1)];
+
+  const openMenu = () => {
+    setQuery('');
+    setCourse(null);
+    setClassesOpen(false);
+    setHi(Math.max(0, ordered.findIndex((t) => t.threadKey === threadKey)));
+    setOpen(true);
+  };
+  const pick = (key: string) => {
+    setOpen(false);
+    onThread(key);
+  };
   const close = (then: () => void) => () => {
     setOpen(false);
     then();
   };
-  const general = threadKey === GENERAL_THREAD;
-  const current = threads.find((t) => t.threadKey === threadKey);
+
+  // Ctrl K (Cmd K on a Mac) opens the switcher from anywhere in Ask Loomer.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey) {
+        e.preventDefault();
+        openMenu();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  });
+
+  // Keep the highlighted row in view while arrowing through a long list.
+  useEffect(() => {
+    if (open && active) document.getElementById(optionId(active))?.scrollIntoView({ block: 'nearest' });
+  }, [open, active]);
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (visible.length > 0) setHi((i) => (Math.min(i, visible.length - 1) + (e.key === 'ArrowDown' ? 1 : visible.length - 1)) % visible.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (active) pick(active.threadKey);
+    } else if (e.key === 'Escape' && (query || classesOpen)) {
+      // The first Escape clears; the next one reaches usePopover and closes.
+      e.stopPropagation();
+      setQuery('');
+      setClassesOpen(false);
+      setHi(0);
+    }
+  };
+
+  const row = (t: ThreadSummary) => (
+    <ThreadRow key={t.threadKey} id={optionId(t)} thread={t} query={q} current={t.threadKey === threadKey} highlighted={t === active} now={now} onPick={() => pick(t.threadKey)} />
+  );
   const groups = [
-    { key: 'general', label: null, sub: null, items: threads.filter((t) => t.group === 'general') },
-    { key: 'current', label: 'Current work', sub: null, items: threads.filter((t) => t.group === 'current') },
-    { key: 'earlier', label: 'Earlier', sub: 'Past due, done, or hidden', items: threads.filter((t) => t.group === 'earlier') },
-  ];
+    { key: 'general', label: null, sub: null },
+    { key: 'current', label: 'Current work', sub: null },
+    { key: 'earlier', label: 'Earlier', sub: 'Past due, done, or hidden' },
+  ] as const;
+
   return (
     <div className="threads" ref={ref}>
-      <button type="button" className="threadbtn" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="threadbtn" aria-haspopup="listbox" aria-expanded={open} title="Your chats (Ctrl K)" onClick={() => (open ? setOpen(false) : openMenu())}>
         {general || !current ? <Icon name="sparkle" size="sm" /> : <SubjectTile courseName={current.courseName} />}
         <span className="ellipsis">{general ? 'General' : current ? shortTitle(current.title) : 'Assignment'}</span>
         <Icon name="chevronDown" size="xs" />
       </button>
       {open && (
-        <div className="pop" role="listbox" aria-label="Chats">
-          <div className="pop-list">
-            {groups.map(
-              (g) =>
-                g.items.length > 0 && (
-                  <div key={g.key}>
-                    {g.label && (
-                      <p className="pop-k">
-                        {g.label}
-                        {g.sub && <span> {g.sub}</span>}
-                      </p>
-                    )}
-                    {g.items.map((t) => (
-                      <ThreadRow key={t.threadKey} thread={t} current={t.threadKey === threadKey} now={now} onPick={close(() => onThread(t.threadKey))} />
-                    ))}
-                  </div>
-                ),
+        <div className="pop">
+          <div className="pop-find">
+            <label className="pop-search">
+              <Icon name="search" size="sm" />
+              <input
+                ref={inputRef}
+                autoFocus
+                type="text"
+                role="combobox"
+                aria-label="Search chats"
+                aria-expanded="true"
+                aria-controls={listId}
+                aria-activedescendant={active ? optionId(active) : undefined}
+                placeholder="Search chats"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setHi(0);
+                }}
+                onKeyDown={onKeyDown}
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="pop-clear"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setQuery('');
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <Icon name="x" size="xs" />
+                </button>
+              )}
+            </label>
+            {classes.length > 1 && (
+              <button type="button" className={course ? 'pop-class on' : 'pop-class'} aria-expanded={classesOpen} onClick={() => setClassesOpen((o) => !o)}>
+                <span className="ellipsis">{course ?? 'All classes'}</span>
+                <Icon name="chevronDown" size="xs" />
+              </button>
+            )}
+            {classesOpen && (
+              <div className="pop-classes" role="menu" aria-label="Filter by class">
+                {[null, ...classes].map((c) => (
+                  <button
+                    key={c ?? 'all'}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={course === c}
+                    onClick={() => {
+                      setCourse(c);
+                      setClassesOpen(false);
+                      setHi(0);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    <span className="grow ellipsis">{c ?? 'All classes'}</span>
+                    <span className="pop-n">{c === null ? threads.filter((t) => t.courseName).length : threads.filter((t) => t.courseName === c).length}</span>
+                    {course === c && <Icon name="check" size="xs" />}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-          {onStartFresh && (
+          <div className="pop-list" id={listId} role="listbox" aria-label="Chats">
+            {filtering ? (
+              visible.length > 0 ? (
+                <>
+                  <p className="pop-k">
+                    {visible.length === 1 ? '1 chat' : `${visible.length} chats`}
+                    {course && <span> in {course}</span>}
+                  </p>
+                  {visible.map(row)}
+                </>
+              ) : (
+                <div className="pop-none">
+                  <p className="pop-none-t">{q ? `No ${course ? `${course} ` : ''}chats match “${query.trim()}”.` : `No chats in ${course}.`}</p>
+                  <p className="pop-none-s">Search by assignment or class, like {classes[0] ?? 'Biology'}. You can also ask about it in General.</p>
+                  <button type="button" className="link" onClick={() => pick(GENERAL_THREAD)}>
+                    <Icon name="sparkle" size="xs" />
+                    Ask in General
+                  </button>
+                </div>
+              )
+            ) : (
+              groups.map((g) => {
+                const items = visible.filter((t) => t.group === g.key);
+                return (
+                  items.length > 0 && (
+                    <div key={g.key} role="group" aria-label={g.label ?? 'General'}>
+                      {g.label && (
+                        <p className="pop-k">
+                          {g.label}
+                          {g.sub && <span> {g.sub}</span>}
+                        </p>
+                      )}
+                      {items.map(row)}
+                    </div>
+                  )
+                );
+              })
+            )}
+          </div>
+          {!filtering && onStartFresh && (
             <button type="button" className="pop-new" onClick={close(onStartFresh)}>
               <Icon name="plus" size="sm" />
               Start fresh
             </button>
           )}
-          {setAsideCount > 0 && (
+          {!filtering && setAsideCount > 0 && (
             <button type="button" className="pop-new" onClick={close(onShowSetAside)}>
               <Icon name="undo" size="sm" />
               {setAsideCount === 1 ? '1 chat you set aside' : `${setAsideCount} chats you set aside`}
             </button>
           )}
+          <p className="pop-keys" aria-hidden="true">
+            <span>
+              <kbd>↑</kbd>
+              <kbd>↓</kbd>Move
+            </span>
+            <span>
+              <kbd>Enter</kbd>Open
+            </span>
+            <span>
+              <kbd>Esc</kbd>Close
+            </span>
+          </p>
         </div>
       )}
     </div>
   );
 }
 
+/** What a chat is called in the switcher and in search. */
+function threadName(t: ThreadSummary): string {
+  return t.group === 'general' ? 'General' : t.title;
+}
+
+/** The first match of `query` in `text`, marked. */
+function Marked({ text, query }: { text: string; query: string }) {
+  const i = query ? text.toLowerCase().indexOf(query) : -1;
+  if (i < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark>{text.slice(i, i + query.length)}</mark>
+      {text.slice(i + query.length)}
+    </>
+  );
+}
+
 /** One chat in the switcher: its assignment, class, last message, and when. */
-function ThreadRow({ thread, current, now, onPick }: { thread: ThreadSummary; current: boolean; now: Date; onPick: () => void }) {
+function ThreadRow({
+  id,
+  thread,
+  query,
+  current,
+  highlighted,
+  now,
+  onPick,
+}: {
+  id: string;
+  thread: ThreadSummary;
+  query: string;
+  current: boolean;
+  /** The row Enter opens, moved with the arrow keys. */
+  highlighted: boolean;
+  now: Date;
+  onPick: () => void;
+}) {
   const general = thread.group === 'general';
   return (
-    <button type="button" role="option" aria-selected={current} className={current ? 'th on' : 'th'} onClick={onPick}>
+    <button type="button" id={id} role="option" aria-selected={highlighted} className={['th', current && 'on', highlighted && 'hi'].filter(Boolean).join(' ')} tabIndex={-1} onClick={onPick}>
       {general ? (
         <span className="subject gen">
           <Icon name="sparkle" />
@@ -257,10 +459,16 @@ function ThreadRow({ thread, current, now, onPick }: { thread: ThreadSummary; cu
       )}
       <span className="item-body">
         <span className="th-top">
-          <span className="item-title">{general ? 'General' : thread.title}</span>
+          <span className="item-title">
+            <Marked text={threadName(thread)} query={query} />
+          </span>
           {thread.lastAt && <span className="th-when">{observedAt(thread.lastAt, now)}</span>}
         </span>
-        {!general && <span className="item-sub">{thread.courseName ?? 'No class'}</span>}
+        {!general && (
+          <span className="item-sub">
+            <Marked text={thread.courseName ?? 'No class'} query={query} />
+          </span>
+        )}
         <span className="th-last">{thread.lastText ?? (general ? 'Concepts, your week, anything' : 'No messages yet')}</span>
       </span>
     </button>

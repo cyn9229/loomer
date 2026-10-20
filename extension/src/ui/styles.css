@@ -5014,3 +5014,175 @@ details > summary .icon {
   height: 44px;
   margin-top: 8px;
 }
+
+/* ------------------------------------------------------------ Chat switcher search (ask.tsx ThreadMenu)
+   A search field with the cursor in it, a compact class filter beside it, the
+   match marked in orange, a keyboard highlight, and a quiet key legend. */
+.pop-find {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  padding: 2px 2px 4px;
+}
+.pop-search {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 8px 0 10px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  cursor: text;
+}
+.pop-search:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.pop-search > .icon {
+  color: var(--muted);
+  flex: none;
+}
+.pop-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+.pop-search input:focus-visible {
+  box-shadow: none;
+  outline: none;
+}
+.pop-search input::placeholder {
+  color: var(--faint);
+}
+.pop-clear {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--muted);
+  flex: none;
+}
+.pop-clear:hover {
+  background: var(--fill);
+  color: var(--ink);
+}
+.pop-class {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 120px;
+  height: 38px;
+  padding: 0 9px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  flex: none;
+}
+.pop-class:hover {
+  background: var(--fill);
+}
+.pop-class > .icon {
+  color: var(--muted);
+  flex: none;
+}
+.pop-class.on {
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+  color: var(--acc-text);
+}
+.pop-class.on > .icon {
+  color: var(--acc-text);
+}
+.pop-classes {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 2px);
+  right: 2px;
+  width: min(220px, 100%);
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--page);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 14px 30px -14px rgba(17, 16, 24, 0.35);
+}
+.pop-classes button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  text-align: left;
+}
+.pop-classes button:hover,
+.pop-classes button[aria-checked='true'] {
+  background: var(--fill);
+}
+.pop-classes button[aria-checked='true'] {
+  font-weight: 600;
+}
+.pop-classes .icon {
+  color: var(--acc-text);
+}
+.pop-n {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.th.hi {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.th mark {
+  background: none;
+  color: var(--acc-text);
+  font-weight: 700;
+}
+.pop-none {
+  padding: 18px 12px 14px;
+  text-align: center;
+}
+.pop-none-t {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pop-none-s {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.pop-none .link {
+  margin-top: 10px;
+}
+.pop-keys {
+  display: flex;
+  gap: 14px;
+  margin-top: 4px;
+  padding: 8px 10px 4px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.pop-keys kbd {
+  margin-right: 3px;
+  padding: 0 4px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+@media (hover: none) {
+  .pop-keys {
+    display: none;
+  }
+}
