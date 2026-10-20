@@ -149,14 +149,19 @@ export function DayPicker({ item, now, send, onMoved, onCancel }: DayPickerProps
   );
 }
 
+/** Clock slack between the panel and the worker when matching a change to the tap that made it. */
+const SLACK_MS = 5_000;
+
 /**
- * After Not today: Loomer's own line for the new start, like "You picked
- * Thursday to start this essay, which leaves 1 day before it's due." Undo
- * removes the newest applied change that moved this assignment (plan:undo).
+ * After Not today or Today is busy: Loomer's own line for the new start, like
+ * "You picked Thursday to start this essay, which leaves 1 day before it's
+ * due." Undo reverts the change this tap made (plan:undo): the newest change
+ * applied since `since`. Its moves can be empty when the picked day was
+ * already the start day, so the time, not the moves, finds it.
  */
-export function MovedNotice({ item, changes, send, onDone }: { item: WorkItem; changes: PlanChangeView[]; send: PanelApi['send']; onDone: () => void }) {
+export function MovedNotice({ item, since, changes, send, onDone }: { item: WorkItem; since: number; changes: PlanChangeView[]; send: PanelApi['send']; onDone: () => void }) {
   const undo = useAction();
-  const change = changes.find((c) => c.status === 'applied' && c.preview.moves.some((m) => m.assignmentId === item.assignmentId));
+  const change = changes.find((c) => c.status === 'applied' && c.appliedAt !== null && Date.parse(c.appliedAt) >= since - SLACK_MS);
   return (
     <div className="notice">
       <Icon name="calendar" />

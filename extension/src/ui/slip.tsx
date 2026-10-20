@@ -84,13 +84,26 @@ export function PlainWords({ next }: { next: NextAction }) {
   );
 }
 
-/** After "No time": mark today busy (the start moves off today) or pick the day. */
+/**
+ * After "No time": Today is busy marks today busy and moves this start to
+ * tomorrow in one change (the planner never moves a start later by itself), so
+ * one Undo reverts both. Pick a day opens the day picker. Shown only when a
+ * later day is left before the due date.
+ */
 export function NoTimeChoices({ next, now, send, onPickDay, onMoved }: { next: NextAction; now: Date; send: PanelApi['send']; onPickDay: () => void; onMoved: (assignmentId: string) => void }) {
   const busy = useAction();
+  const id = next.item.assignmentId;
+  const tomorrow = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const markBusy = () =>
     busy.run(async () => {
-      const reply = await send({ type: 'plan:set', changes: [{ kind: 'room', date: ymd(now), weekday: null, repeat: false, level: 'busy', minutes: null }] });
-      if (reply.ok) onMoved(next.item.assignmentId);
+      const reply = await send({
+        type: 'plan:set',
+        changes: [
+          { kind: 'room', date: ymd(now), weekday: null, repeat: false, level: 'busy', minutes: null },
+          { kind: 'start_on', assignment_id: id, date: tomorrow },
+        ],
+      });
+      if (reply.ok) onMoved(id);
       return reply;
     });
   return (

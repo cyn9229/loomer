@@ -547,30 +547,30 @@ export function buildFixtures(now: Date) {
     }),
     // After each answer to "What got in the way?".
     'slip-too-big': slipped('too-big', {
-      action: 'List two ways your sources disagree',
+      action: 'Just 10 minutes: list two ways your sources disagree',
       quickStart: { minutes: 10 },
-      insight: { kind: 'slipped', text: 'You said this essay felt too big, so today’s step takes about 10 minutes, and Loomer will time it for you.', aiFound: false },
+      insight: { kind: 'slipped', text: 'You said this essay felt too big, so Loomer cut today’s step down to 10 minutes.', aiFound: false },
     }),
     'slip-not-sure': slipped('not-sure', {
       plainWords: 'Compare what your two sources say about why cities get hotter, then argue which one explains it better. Your outline only needs the main point from each source.',
-      insight: { kind: 'slipped', text: 'You said you weren’t sure how to start this essay, so here is what it asks in plain words.', aiFound: false },
+      insight: { kind: 'slipped', text: 'Here’s what this essay asks for in plain words, so you can talk it through before you start.', aiFound: false },
     }),
     'slip-no-time': slipped('no-time', {
-      insight: { kind: 'slipped', text: `You said there wasn’t time yesterday, so if today is busy too, Loomer can move this essay’s start to another day before ${dayName(essayDue)}.`, aiFound: false },
+      insight: { kind: 'slipped', text: `You said today has no time, so pick a day for this essay before it’s due ${dayName(essayDue)}.`, aiFound: false },
     }),
     'slip-not-feeling': slipped('not-feeling-it', {
-      action: 'List two ways your sources disagree',
+      action: 'Just 10 minutes: list two ways your sources disagree',
       quickStart: { minutes: 10 },
-      insight: { kind: 'slipped', text: `Ten minutes is enough to get this essay moving today, and it’s due ${dayName(essayDue)}.`, aiFound: false },
+      insight: { kind: 'slipped', text: 'Ten minutes on this essay is enough for today, and you can pick a day instead if that works better.', aiFound: false },
     }),
     // A second skipped start with 1 day left: a smaller step, no second question.
     'slip-second': slipped(
       null,
       {
         item: { ...essay, due: { at: at(now, 1, 23, 59), source: 'canvas' } },
-        action: 'Write the first sentence of your intro',
+        action: 'Just 10 minutes: write the first sentence of your intro',
         quickStart: { minutes: 10 },
-        insight: { kind: 'slipped', text: 'This essay is due tomorrow at 11:59 PM, so 10 minutes on the intro tonight leaves tomorrow for the rest.', aiFound: false },
+        insight: { kind: 'slipped', text: 'This essay is due tomorrow, so a 10-minute start today keeps it from all landing on one night.', aiFound: false },
       },
       2,
     ),

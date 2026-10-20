@@ -89,8 +89,8 @@ type HomeProps = {
 
 export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone, turnedIn, onTurnedInDone, nudge }: HomeProps) {
   const [whyOpen, setWhyOpen] = useState(false);
-  // The assignment whose start the student just moved with Not today.
-  const [moved, setMoved] = useState<string | null>(null);
+  // The assignment whose start the student just moved (Not today or Today is busy), and when.
+  const [moved, setMoved] = useState<{ assignmentId: string; at: number } | null>(null);
   if (model.status === 'not-connected') {
     return (
       <section className="focus">
@@ -113,7 +113,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
   const nextId = next?.item.assignmentId ?? null;
   const problem = model.lastCheck && model.lastCheck.outcome !== 'ok' && model.lastCheck.outcome !== 'partial' ? checkProblem(model.lastCheck.outcome) : null;
   const resume = model.resume && !active ? model.resume : null;
-  const movedItem = moved ? ([next?.item, ...model.rest].find((i) => i?.assignmentId === moved) ?? null) : null;
+  const movedItem = moved ? ([next?.item, ...model.rest].find((i) => i?.assignmentId === moved.assignmentId) ?? null) : null;
 
   const notices: ReactNode[] = [];
   if (model.crowded)
@@ -172,9 +172,9 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {active && <SessionStrip session={active} now={now} hintWaiting={hintWaiting} onOpen={actions.continueSession} run={actions.sessionVerb} busy={actions.sessionBusy} />}
       {askLeft && <LeftQuestion item={askLeft} send={actions.send} onDone={onAskLeftDone} />}
       {turnedIn && <TurnedInNotice turnedIn={turnedIn} send={actions.send} onDone={onTurnedInDone} />}
-      {movedItem && <MovedNotice item={movedItem} changes={model.yourChanges} send={actions.send} onDone={() => setMoved(null)} />}
+      {movedItem && moved && <MovedNotice item={movedItem} since={moved.at} changes={model.yourChanges} send={actions.send} onDone={() => setMoved(null)} />}
       {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
-      <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} onMoved={setMoved} />
+      <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} onMoved={(assignmentId) => setMoved({ assignmentId, at: Date.now() })} />
       {next && whyOpen && (
         <section className="why" aria-label="Why this one, in detail">
           <EvidenceList evidence={next.evidence} now={now} />
@@ -457,7 +457,7 @@ function NextStep({
         ) : (
           <>
             {next.chosenByStudent ? 'Your pick' : 'Next step'}
-            {quick ? <> · about {quick.minutes} minutes</> : when && <> · {when}</>}
+            {when && <> · {when}</>}
           </>
         )}
       </div>
@@ -465,7 +465,7 @@ function NextStep({
       <WhyLine next={next} now={now} />
       {asksWhy(next.slip) && <SlipQuestion slip={next.slip} send={actions.send} />}
       {answer === 'not-sure' && <PlainWords next={next} />}
-      {answer === 'no-time' && !picking && <NoTimeChoices next={next} now={now} send={actions.send} onPickDay={() => setPicking(true)} onMoved={onMoved} />}
+      {answer === 'no-time' && canMove && !picking && <NoTimeChoices next={next} now={now} send={actions.send} onPickDay={() => setPicking(true)} onMoved={onMoved} />}
       <div className="ctx">
         <SubjectTile courseName={item.courseName} size="lg" />
         <span className="grow">
