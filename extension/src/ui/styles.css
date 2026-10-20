@@ -4582,10 +4582,39 @@ details > summary .icon {
   font-size: 13px;
   color: var(--muted);
 }
-/* Ask Loomer's thread switcher sits in the top bar as its title. */
-.bar .threads {
-  flex: 1;
+/* Ask Loomer's thread switcher is the top bar's title, centered between Home and
+   settings. It looks like a plain title until hovered; the chevron says it opens. */
+.bar:has(> .threads) {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+}
+.bar:has(> .threads) > :first-child {
+  justify-self: start;
+}
+.bar:has(> .threads) > :last-child {
+  justify-self: end;
+}
+.bar > .threads {
   min-width: 0;
+  max-width: 100%;
+}
+.bar .threadbtn {
+  background: transparent;
+}
+.bar .threadbtn:hover,
+.bar .threadbtn[aria-expanded='true'] {
+  background: var(--fill);
+}
+.bar .threads .pop {
+  left: 50%;
+  translate: -50% 0;
+  transform-origin: top center;
+}
+/* A wide panel would stretch messages and diagrams; the chat keeps a readable width. */
+.chat.ask {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
 }
 .pop-new {
   display: flex;
