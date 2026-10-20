@@ -3,7 +3,7 @@
 // kind, a quiz, a sandboxed widget, a blocked assignment, AI off, and the
 // local AI service not running. `revealTurn` replays a finished reply step by
 // step so the preview shows how replies stream in. Fixture data only.
-import { GENERAL_THREAD, type ChatBlock, type ChatModel, type ChatTurn } from '../model/chat';
+import { GENERAL_THREAD, type ChatBlock, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
 import type { DayRoom, WorkItem } from '../model/home';
 import type { PlanChangeView } from '../model/plan';
 import { roomFixture } from './fixtures';
@@ -92,8 +92,35 @@ function turns(now: Date, pairs: [string, ChatBlock[], Partial<ChatTurn>?][]): C
   ]);
 }
 
+/**
+ * The chat switcher's list for the preview: General, current work (some with
+ * messages, some without), and one Earlier chat for past or hidden work.
+ */
+function threadsFor(now: Date, items: WorkItem[]): ThreadSummary[] {
+  const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
+  const current = items.filter((i) => !i.hidden && i.bucket !== 'past' && !i.correction).slice(0, 5);
+  const earlier = items.filter((i) => i.hidden || i.bucket === 'past').slice(0, 1);
+  const last: (string | null)[] = ['You: Review my draft', 'Loomer: Vertex form puts the turning point right in the equation.', null, null, 'You: what should my hypothesis be'];
+  return [
+    { threadKey: GENERAL_THREAD, title: 'General', courseName: null, lastText: 'You: what’s the best way to study for a vocab quiz?', lastAt: ago(20), group: 'general' },
+    ...current.map((i, n) => ({ threadKey: i.assignmentId, title: i.title, courseName: i.courseName, lastText: last[n] ?? null, lastAt: last[n] ? ago(n * 6 + 1) : null, group: 'current' as const })),
+    ...earlier.map((i) => ({ threadKey: i.assignmentId, title: i.title, courseName: i.courseName, lastText: 'Loomer: Your reflection already names two sources.', lastAt: ago(150), group: 'earlier' as const })),
+  ];
+}
+
+/** Two chats set aside with Start fresh, newest first. */
+function setAsideFor(now: Date): SetAsideChat[] {
+  const days = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+  return [
+    { id: 'sa-2', threadKey: 'a-essay', title: 'Heat islands comparison essay', startedAt: days(4), endedAt: days(2), count: 14, preview: 'You: can you check if my intro sets up the comparison' },
+    { id: 'sa-1', threadKey: GENERAL_THREAD, title: 'General', startedAt: days(9), endedAt: days(9), count: 4, preview: 'You: what’s a counterargument' },
+  ];
+}
+
 export function buildChatFixtures(now: Date, items: WorkItem[]) {
-  const general = (over: Partial<ChatModel>): ChatModel => ({ threadKey: GENERAL_THREAD, assignment: null, availability: 'available', turns: [], streaming: false, planChanges: {}, added: {}, ...over });
+  const threads = threadsFor(now, items);
+  const setAside = setAsideFor(now);
+  const general = (over: Partial<ChatModel>): ChatModel => ({ threadKey: GENERAL_THREAD, assignment: null, availability: 'available', turns: [], streaming: false, planChanges: {}, added: {}, threads, setAside, ...over });
   const essay = items.find((i) => i.assignmentId === 'a-essay') ?? null;
   const blocked = items.find((i) => i.policy.state === 'blocked') ?? null;
   return {
@@ -107,6 +134,8 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       streaming: false,
       planChanges: {},
       added: {},
+      threads,
+      setAside,
       turns: turns(now, [
         [
           'Quick check: Vertex form',
@@ -131,6 +160,22 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
     } satisfies ChatModel,
     'plan-applied': planChat(now, items, 'applied'),
     answer: general({ turns: turns(now, [['why do cities get hotter than the countryside?', ANSWER]]) }),
+    // The essay's one chat: the same thread in the session's Help and in Ask Loomer, ending with a draft check.
+    'essay-thread': {
+      threadKey: essay?.assignmentId ?? 'a-essay',
+      assignment: essay,
+      availability: 'available',
+      streaming: false,
+      planChanges: {},
+      added: {},
+      threads,
+      setAside,
+      turns: turns(now, [
+        ['how do i start the comparison part', [{ kind: 'markdown', text: 'Look at the two causes your sources name. Which one does the tree cover report measure directly?' }]],
+        ['the canopy report measures shade i think', [{ kind: 'markdown', text: 'Right. So which number in the EPA page could the shade explain?' }]],
+        ['Review my draft.', [{ kind: 'draft-check' as const, summary: 'Your draft compares both sources in paragraph 3, and two things would make the comparison stronger.', scope: 'full' as const, findings: [ { issue: 'The second source is summarized but not compared.', criterion: 'Compare the two sources', question: 'What does the canopy report add that the EPA page doesn’t?', quote: 'The city report says shaded blocks are cooler.' }, { issue: 'Only two sources are cited so far.', criterion: 'Use at least 3 sources', question: 'Which source could back up your point about tree cover?', quote: 'According to the EPA, cities can be 7°F warmer.' } ] }]],
+      ]),
+    } satisfies ChatModel,
     // Ask Loomer proposes adding work the student mentioned; the student adds it (or it's already added).
     'add-card': general({ turns: turns(now, [['i have a bio lab due friday, the enzymes one', [{ kind: 'tool' as const, label: 'Suggested adding an assignment', status: 'done' as const }, { kind: 'markdown' as const, text: 'Here’s the bio lab report, ready to add to your plan.' }, { kind: 'add-assignment' as const, draftId: 'draft-lab', draft: { title: 'Bio lab report: enzymes', courseKey: 'course:Biology', courseName: 'Biology', dueAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4, 23, 59).toISOString(), workType: 'practice' as const } }]]]) }),
     'add-card-added': general({ turns: turns(now, [['i have a bio lab due friday, the enzymes one', [{ kind: 'markdown' as const, text: 'Here’s the bio lab report, ready to add to your plan.' }, { kind: 'add-assignment' as const, draftId: 'draft-lab', draft: { title: 'Bio lab report: enzymes', courseKey: 'course:Biology', courseName: 'Biology', dueAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4, 23, 59).toISOString(), workType: 'practice' as const } }]]]), added: { 'draft-lab': 's-lab' } }),
@@ -156,9 +201,11 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       streaming: false,
       planChanges: {},
       added: {},
+      threads,
+      setAside,
     } satisfies ChatModel,
-    blocked: { threadKey: blocked?.assignmentId ?? 'a-reflection', assignment: blocked, availability: 'blocked', turns: [], streaming: false, planChanges: {}, added: {} } satisfies ChatModel,
-    'policy-question': { threadKey: essay?.assignmentId ?? 'a-essay', assignment: essay, availability: 'needs-policy-answer', turns: [], streaming: false, planChanges: {}, added: {} } satisfies ChatModel,
+    blocked: { threadKey: blocked?.assignmentId ?? 'a-reflection', assignment: blocked, availability: 'blocked', turns: [], streaming: false, planChanges: {}, added: {}, threads, setAside } satisfies ChatModel,
+    'policy-question': { threadKey: essay?.assignmentId ?? 'a-essay', assignment: essay, availability: 'needs-policy-answer', turns: [], streaming: false, planChanges: {}, added: {}, threads, setAside } satisfies ChatModel,
     'ai-off': general({ availability: 'ai-off' }),
     'service-down': general({
       turns: turns(now, [
@@ -232,6 +279,8 @@ function planChat(now: Date, items: WorkItem[], status: PlanChangeView['status']
     streaming: false,
     planChanges: { [change.id]: change },
     added: {},
+    threads: threadsFor(now, items),
+    setAside: [],
     turns: turns(now, [
       [
         "thursday i have a game so i'm busy. and tuesdays i only get like 30 min",

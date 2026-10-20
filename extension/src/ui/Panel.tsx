@@ -3,16 +3,16 @@
 // Ask bar opens Ask Loomer, and a waiting screenshot takes over until it is
 // saved or discarded. Each screen has a slim top bar. Takes the models from outside (live hooks or fixtures) and
 // acts only through PanelApi, so it renders the same in both modes.
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ScreenshotDraft } from '../capture/screenshot';
-import { GENERAL_THREAD, type ChatModel } from '../model/chat';
+import { GENERAL_THREAD, type AddDraft, type ChatModel } from '../model/chat';
 import { DOCS_ORIGINS } from '../core/messages';
 import type { AssignmentDetailModel, EditableFields } from '../model/detail';
 import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel, WorkNudge } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { AddSheet } from './addAssignment';
-import { AskView, ThreadMenu } from './ask';
+import { AskView, SetAsideSheet, shortTitle, ThreadMenu } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
 import { EndSheet } from './endSheet';
@@ -48,11 +48,19 @@ export type PanelProps = {
   nudge: WorkNudge;
   /** Nudges are on in settings; only then does the panel report which assignment it shows. */
   nudgesEnabled: boolean;
+  /** The chat Ask Loomer last showed (askThreadItem); reason 'topic' when topic help opened it. Absent in previews. */
+  lastThread?: LastThread | null;
 };
 
-export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled }: PanelProps) {
+type LastThread = { threadKey: string; at: string; reason: 'student' | 'topic' };
+/** A line at the top of Ask Loomer about the chat in view. */
+type ChatNotice = { kind: 'topic' | 'set-aside'; threadKey: string };
+
+export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled, lastThread }: PanelProps) {
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
+  const [chatNotice, setChatNotice] = useState<ChatNotice | null>(null);
+  const [showSetAside, setShowSetAside] = useState(false);
   const [planMode, setPlanMode] = useState<PlanMode>('list');
   // After "Done for today", Home asks roughly how much is left (only when the item has a guess).
   const [askLeft, setAskLeft] = useState<WorkItem | null>(null);
@@ -75,6 +83,34 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   // One detail model at a time: the open assignment, or the session's own (for the stat strip).
   const detail = useDetail(openId ?? (view === 'work' ? (active?.assignment.assignmentId ?? null) : null));
   const chat = useChat(askThread);
+  // The session's Help shows the same thread Ask Loomer shows for its assignment.
+  const sessionChat = useChat(active?.assignment.assignmentId ?? GENERAL_THREAD);
+
+  /** Shows a chat and remembers it (chat:open), so the panel reopens on it. */
+  const openThread = (threadKey: string) => {
+    setAskThread(threadKey);
+    setChatNotice((n) => (n?.threadKey === threadKey ? n : null));
+    void api.send({ type: 'chat:open', threadKey });
+  };
+
+  /** Opens the add sheet with an Ask Loomer card's draft, to change it before adding. */
+  const editDraft = (draftId: string, draft: AddDraft) =>
+    setAddSheet({ editId: null, fields: null, draft: { title: draft.title, courseKey: draft.courseKey, dueAt: draft.dueAt, workType: draft.workType }, draftId });
+
+  // Topic help opens the assignment's chat from the worker (askThreadItem with reason 'topic'):
+  // switch to it and say so. A stale 'topic' from before this panel opened is ignored.
+  const mountedAt = useRef(Date.now());
+  const seenTopic = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastThread?.reason !== 'topic' || lastThread.at === seenTopic.current || Date.parse(lastThread.at) < mountedAt.current - 5000) return;
+    seenTopic.current = lastThread.at;
+    setOpenId(null);
+    setAskThread(lastThread.threadKey);
+    setView('ask');
+    setChatNotice({ kind: 'topic', threadKey: lastThread.threadKey });
+    // Back to 'student', so reopening the panel doesn't switch again.
+    void api.send({ type: 'chat:open', threadKey: lastThread.threadKey });
+  }, [lastThread, api]);
   const hint = active?.hint ?? null;
   // Keep a vanished hint briefly so it fades out instead of disappearing.
   const shownHint = useLingering(hint, 200);
@@ -124,7 +160,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
       // Refresh the service status so a down service is said before the student types.
       void api.send({ type: 'ai:check' });
       setOpenId(null);
-      setAskThread(threadKey);
+      // No thread named: the one the student used last, or General.
+      openThread(threadKey ?? lastThread?.threadKey ?? GENERAL_THREAD);
       setView('ask');
     },
     addAssignment: () => setAddSheet({ editId: null, fields: null }),
@@ -214,11 +251,21 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         </button>
         <ThreadMenu
           threadKey={askThread}
-          assignment={chat?.assignment ?? threads.find((t) => t.assignmentId === askThread) ?? null}
-          threads={threads}
+          threads={chat?.threads ?? []}
           now={now}
-          onThread={setAskThread}
-          onNew={chat && chat.turns.length > 0 && !chat.streaming ? () => start.run(() => api.send({ type: 'chat:clear', threadKey: askThread })) : undefined}
+          onThread={openThread}
+          onStartFresh={
+            chat && chat.turns.length > 0 && !chat.streaming
+              ? () =>
+                  start.run(async () => {
+                    const reply = await api.send({ type: 'chat:set-aside', threadKey: askThread });
+                    if (reply.ok) setChatNotice({ kind: 'set-aside', threadKey: askThread });
+                    return reply;
+                  })
+              : undefined
+          }
+          setAsideCount={chat?.setAside.length ?? 0}
+          onShowSetAside={() => setShowSetAside(true)}
         />
         {settings}
       </>
@@ -237,9 +284,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         quizOpen={Boolean(active?.assignment.quiz)}
         onEndQuiz={goWork}
         nudge={nudgeLine}
-        onEditDraft={(draftId, draft) =>
-          setAddSheet({ editId: null, fields: null, draft: { title: draft.title, courseKey: draft.courseKey, dueAt: draft.dueAt, workType: draft.workType }, draftId })
-        }
+        onEditDraft={editDraft}
+        notice={chatNotice?.threadKey === askThread && <ChatNoticeLine notice={chatNotice} chat={chat} send={api.send} onDone={() => setChatNotice(null)} />}
       />
     );
   } else if (view === 'work' && active) {
@@ -267,7 +313,6 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           detail={detail}
           onChecklist={() => setOpenId(active.assignment.assignmentId)}
           api={api}
-          onAsk={actions.openAsk}
         />
         <SessionTime key={active.plannedUntil ?? 'none'} session={active} now={now} api={api} onStop={() => setEndOpen(true)} />
         {endOpen && (
@@ -294,7 +339,14 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         ) : workTab === 'help' ? (
           <ChatView
             session={active}
+            chat={sessionChat}
             api={api}
+            now={now}
+            items={home ? askThreads(home) : []}
+            room={home && home.status !== 'not-connected' ? home.room : []}
+            onOpenItem={setOpenId}
+            onEditDraft={editDraft}
+            onOpenAsk={() => actions.openAsk(active.assignment.assignmentId)}
             draft={chatDraft}
             setDraft={setChatDraft}
             hint={
@@ -405,6 +457,19 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           </p>
         )}
         {body}
+        {showSetAside && (
+          <SetAsideSheet
+            chats={chat?.setAside ?? []}
+            onRestore={async (c) => {
+              const reply = await api.send({ type: 'chat:restore', id: c.id });
+              if (!reply.ok) return reply.error;
+              setShowSetAside(false);
+              openThread(c.threadKey);
+              return null;
+            }}
+            onClose={() => setShowSetAside(false)}
+          />
+        )}
         {addSheet && (
           <AddSheet
             editing={addSheet.fields}
@@ -418,6 +483,44 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         )}
       </main>
     </div>
+  );
+}
+
+/**
+ * One line at the top of Ask Loomer about the chat in view: it just opened for
+ * a topic, or its last conversation was set aside (Undo brings back the newest
+ * set-aside chat of this thread with chat:restore).
+ */
+function ChatNoticeLine({ notice, chat, send, onDone }: { notice: ChatNotice; chat: ChatModel | undefined; send: PanelApi['send']; onDone: () => void }) {
+  const undo = useAction();
+  const title = chat?.threads.find((t) => t.threadKey === notice.threadKey)?.title;
+  const name = notice.threadKey === GENERAL_THREAD ? 'General' : title ? `your ${shortTitle(title)}` : 'this';
+  const latest = chat?.setAside.find((c) => c.threadKey === notice.threadKey);
+  return (
+    <p className="chat-note" role="status">
+      <Icon name={notice.kind === 'topic' ? 'chat' : 'undo'} size="sm" />
+      <span className="grow">
+        {notice.kind === 'topic' ? `Opened ${name} chat for this topic.` : `Your last ${notice.threadKey === GENERAL_THREAD ? 'General chat' : 'chat about this'} is set aside, not deleted.`}
+      </span>
+      {notice.kind === 'set-aside' && latest && (
+        <button
+          type="button"
+          className="link"
+          disabled={undo.busy}
+          aria-busy={undo.busy}
+          onClick={() =>
+            undo.run(async () => {
+              const reply = await send({ type: 'chat:restore', id: latest.id });
+              if (reply.ok) onDone();
+              return reply;
+            })
+          }
+        >
+          {undo.busy ? 'Undoing…' : 'Undo'}
+        </button>
+      )}
+      {undo.error && <span className="danger-text">{undo.error}</span>}
+    </p>
   );
 }
 

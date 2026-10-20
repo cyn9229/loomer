@@ -36,8 +36,8 @@ export type HomeActions = {
   /** Assignment whose item:hide is in flight. */
   hidingId: string | null;
   send: PanelApi['send'];
-  /** Opens Ask Loomer on a thread: "general" or an assignment id. */
-  openAsk: (threadKey: string) => void;
+  /** Opens Ask Loomer on a thread ("general" or an assignment id); with none, on the chat the student used last. */
+  openAsk: (threadKey?: string) => void;
   /** Asks Chrome for site access; call first in a click handler, before any await. */
   requestOrigins: PanelApi['requestOrigins'];
   /** Pause, resume or end the running session (one tap; errors show at the top). */
@@ -177,7 +177,7 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {notices.length > 0 && <div className="notices">{notices}</div>}
       <PlanSection items={next ? [next.item, ...model.rest] : model.rest} room={model.room} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
-      <AskBar onOpen={() => actions.openAsk('general')} aiDown={aiDown} quizOpen={Boolean(active?.assignment.quiz)} send={actions.send} nudge={nudge} />
+      <AskBar onOpen={() => actions.openAsk()} aiDown={aiDown} quizOpen={Boolean(active?.assignment.quiz)} send={actions.send} nudge={nudge} />
     </>
   );
 }

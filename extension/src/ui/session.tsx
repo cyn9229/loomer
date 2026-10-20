@@ -125,8 +125,6 @@ type WorkHeaderProps = {
   /** Opens the assignment's detail (the full checklist). */
   onChecklist: () => void;
   api: PanelApi;
-  /** Opens Ask Loomer on an assignment's thread, where topic help streams in. */
-  onAsk: (assignmentId: string) => void;
 };
 
 type Topic = NonNullable<ActiveSession['topics']>['items'][number];
@@ -134,16 +132,12 @@ type HelpMode = 'explain' | 'example' | 'check';
 
 /**
  * Asks Loomer about one topic (topic:help). The reply streams into the
- * assignment's Ask Loomer thread, which opens once the request is in.
+ * assignment's chat; the worker marks that chat as opened for a topic, and the
+ * panel switches to it and says so.
  */
-function useTopicHelp(assignmentId: string, send: PanelApi['send'], onAsk: (assignmentId: string) => void) {
+function useTopicHelp(assignmentId: string, send: PanelApi['send']) {
   const help = useAction();
-  const ask = (topic: string, mode: HelpMode) =>
-    help.run(async () => {
-      const reply = await send({ type: 'topic:help', assignmentId, topic, mode });
-      if (reply.ok) onAsk(assignmentId);
-      return reply;
-    });
+  const ask = (topic: string, mode: HelpMode) => help.run(() => send({ type: 'topic:help', assignmentId, topic, mode }));
   return { ask, busy: help.busy, error: help.error };
 }
 
@@ -323,9 +317,9 @@ export function QuizNote({ onEnd }: { onEnd: () => void }) {
   );
 }
 
-export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist, api, onAsk }: WorkHeaderProps) {
+export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onChecklist, api }: WorkHeaderProps) {
   const item = session.assignment;
-  const topicHelp = useTopicHelp(item.assignmentId, api.send, onAsk);
+  const topicHelp = useTopicHelp(item.assignmentId, api.send);
   const kind = typeLabel(item);
   const writing = !item.quiz && item.workType.type === 'writing';
   return (

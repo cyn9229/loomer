@@ -1,63 +1,71 @@
-// Help, inside the Working screen: help for the session's assignment, shaped by
-// its kind of work. Writing is hint-first with draft follow-ups; practice,
-// study and reading get their own ready questions and no draft step (practice
-// and study offer "your own copy" in the Working header).
-// When a session is new, up to two numbered steps come first (which Doc is your
-// draft, and the one-time AI rule question). Then the proactive hint, the
-// conversation, quick follow-ups, and a docked composer with the research
-// suggestion above it. Loomer answers with hints and questions, never finished
-// work; replies have no copy button. The composer stays disabled until help is
-// available.
+// Help, inside the Working screen: the assignment's one conversation, the same
+// thread Ask Loomer shows for it (chat:send with the assignment as threadKey),
+// in a compact form with the latest few messages and Open in Ask Loomer. Shaped
+// by its kind of work: writing is hint-first with draft follow-ups (Check my
+// draft writes a draft check into the thread); practice, study and reading get
+// their own ready questions. When a session is new, up to two numbered steps
+// come first (which Doc is your draft, and the one-time AI rule question). Then
+// the proactive hint, the conversation, quick follow-ups, and a docked
+// composer with the research suggestion above it. The composer stays disabled
+// until help is available.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import type { ChatMessage, HelpState } from '../model/session';
+import type { AddDraft, ChatModel } from '../model/chat';
+import type { DayRoom, WorkItem } from '../model/home';
+import type { HelpState } from '../model/session';
 import { useAction, type PanelApi } from './api';
+import { ThreadTurns } from './ask';
 import { Icon } from './Icon';
-import { LogoMark } from './Logo';
-import { LinkDocStep, Reference, type ActiveSession } from './session';
+import { LinkDocStep, type ActiveSession } from './session';
 import { useElapsedSeconds } from './useNow';
 import { askHint, typeCaption, typePrompts } from './workType';
 
-const kindLabel: Record<ChatMessage['kind'], string | null> = {
-  question: null,
-  hint: 'Hint',
-  explanation: null,
-  example: 'Example on a different topic',
-  redirect: 'Let’s try this instead',
-  review: 'Feedback on your draft',
-  notice: 'One thing to check',
-};
+/** How many of the latest turns the compact view shows before "N earlier messages". */
+const RECENT = 4;
 
-export function ChatView({
-  session,
-  api,
-  draft,
-  setDraft,
-  hint,
-  suggestion,
-}: {
+type ChatViewProps = {
   session: ActiveSession;
+  /** The assignment's thread (useChat with its assignment id). */
+  chat: ChatModel | undefined;
   api: PanelApi;
+  now: Date;
   draft: string;
   setDraft: (text: string) => void;
   /** The proactive hint, rendered by the panel. */
   hint: ReactNode;
   /** The research suggestion line, rendered by the panel. */
   suggestion: ReactNode;
-}) {
-  const { help, assignment, doc } = session;
-  const ask = useAction();
-  const endRef = useRef<HTMLDivElement>(null);
-  const canAsk = help.availability === 'available' && !help.pending && !ask.busy;
-  const thinking = help.pending || ask.busy;
+  /** Home's items and day room, for plan-change cards in the thread. */
+  items: WorkItem[];
+  room: DayRoom[];
+  onOpenItem: (assignmentId: string) => void;
+  onEditDraft: (draftId: string, draft: AddDraft) => void;
+  /** Opens this thread in Ask Loomer. */
+  onOpenAsk: () => void;
+};
 
+export function ChatView({ session, chat, api, now, draft, setDraft, hint, suggestion, items, room, onOpenItem, onEditDraft, onOpenAsk }: ChatViewProps) {
+  const { help, assignment, doc } = session;
+  const threadKey = assignment.assignmentId;
+  const ask = useAction();
+  const stop = useAction();
+  const [showAll, setShowAll] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const turns = chat?.turns ?? [];
+  const last = turns.at(-1);
+  const busy = Boolean(chat?.streaming) || help.reviewPending || ask.busy;
+  const canAsk = help.availability === 'available' && !busy;
+  const shown = showAll ? turns : turns.slice(-RECENT);
+  const earlier = turns.length - shown.length;
+
+  // Braces matter: Chrome's scrollIntoView returns a Promise, and an effect must not return one.
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
-  }, [help.messages.length, thinking]);
+  }, [turns.length, busy]);
 
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    ask.run(() => api.send({ type: 'help:ask', assignmentId: assignment.assignmentId, text: trimmed }));
+    ask.run(() => api.send({ type: 'chat:send', threadKey, text: trimmed }));
     setDraft('');
   };
 
@@ -71,7 +79,6 @@ export function ChatView({
   const needsDoc = doc.status === 'not-linked' && type === 'writing';
   const needsPolicy = help.availability === 'needs-policy-answer';
   const steps = Number(needsDoc) + Number(needsPolicy);
-  const last = help.messages.at(-1);
 
   return (
     <div className="chat">
@@ -87,16 +94,34 @@ export function ChatView({
       {hint}
       <Unavailable help={help} api={api} />
 
-      {help.messages.length === 0 && help.availability === 'available' && steps === 0 && !hint && <p className="caption">{typeCaption[type]}</p>}
+      {turns.length === 0 && help.availability === 'available' && steps === 0 && !hint && <p className="caption">{typeCaption[type]}</p>}
 
-      {hint && help.messages.length > 0 && <div className="rule" />}
-      {help.messages.map((m) => (
-        <Message key={m.id} message={m} />
-      ))}
+      {turns.length > 0 && (
+        <>
+          {hint && <div className="rule" />}
+          <div className="emb-head">
+            <span className="grow">
+              <Icon name="chat" size="xs" />
+              Your chat about {session.recap.noun}
+            </span>
+            <button type="button" className="link" onClick={onOpenAsk}>
+              <Icon name="external" size="xs" />
+              Open in Ask Loomer
+            </button>
+          </div>
+          {earlier > 0 && (
+            <button type="button" className="emb-earlier" onClick={() => setShowAll(true)}>
+              <Icon name="clock" size="xs" />
+              {earlier === 1 ? '1 earlier message' : `${earlier} earlier messages`}
+            </button>
+          )}
+          {chat && <ThreadTurns model={chat} turns={shown} now={now} api={api} items={items} room={room} onOpenItem={onOpenItem} onEditDraft={onEditDraft} />}
+        </>
+      )}
 
-      {thinking && <Thinking />}
+      {ask.busy && last?.role !== 'loomer' && <Thinking />}
 
-      {canAsk && type !== 'writing' && (help.messages.length === 0 || last?.role === 'loomer') && (
+      {canAsk && type !== 'writing' && (turns.length === 0 || last?.role === 'loomer') && (
         <div className="qr">
           {typePrompts[type].map((text) => (
             <button key={text} type="button" className="btn sm" onClick={() => send(text)}>
@@ -118,33 +143,43 @@ export function ChatView({
           </button>
         </div>
       )}
-      {ask.error && <p className="status-line error pad">{ask.error}</p>}
+      {(ask.error ?? stop.error) && <p className="status-line error pad">{ask.error ?? stop.error}</p>}
       <div ref={endRef} />
 
       <div className="dock">
         {suggestion}
-        <form className="composer" onSubmit={submit}>
-          <label className="grow">
-            <span className="visually-hidden">Ask Loomer</span>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (canAsk) send(draft);
-                }
-              }}
-              placeholder={help.availability === 'available' && !help.pending ? askHint[type] : composerPlaceholder(help)}
-              disabled={help.availability !== 'available'}
-              rows={1}
-              maxLength={2000}
-            />
-          </label>
-          <button type="submit" className="send-btn" aria-label="Send" disabled={!canAsk || !draft.trim()}>
-            <Icon name="arrowUp" size="sm" />
-          </button>
-        </form>
+        {chat?.streaming ? (
+          <div className="composer writing" role="status">
+            <span className="grow">Loomer is writing…</span>
+            <button type="button" className="stop-btn" disabled={stop.busy} onClick={() => stop.run(() => api.send({ type: 'chat:stop', threadKey }))}>
+              <Icon name="stop" size="sm" />
+              Stop
+            </button>
+          </div>
+        ) : (
+          <form className="composer" onSubmit={submit}>
+            <label className="grow">
+              <span className="visually-hidden">Ask Loomer</span>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (canAsk) send(draft);
+                  }
+                }}
+                placeholder={help.availability === 'available' ? (busy ? 'Waiting for Loomer…' : askHint[type]) : composerPlaceholder(help)}
+                disabled={help.availability !== 'available'}
+                rows={1}
+                maxLength={2000}
+              />
+            </label>
+            <button type="submit" className="send-btn" aria-label="Send" disabled={!canAsk || !draft.trim()}>
+              <Icon name="arrowUp" size="sm" />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -163,7 +198,7 @@ export function Thinking({ inline }: { inline?: boolean }) {
 function composerPlaceholder(help: HelpState): string {
   switch (help.availability) {
     case 'available':
-      return help.pending ? 'Waiting for Loomer…' : 'Ask for a hint';
+      return 'Ask for a hint';
     case 'needs-policy-answer':
       return 'Answer the question above first';
     case 'ai-off':
@@ -259,21 +294,4 @@ function Unavailable({ help, api }: { help: HelpState; api: PanelApi }) {
         </section>
       );
   }
-}
-
-function Message({ message }: { message: ChatMessage }) {
-  if (message.role === 'student') return <p className="bubble">{message.text}</p>;
-  const label = kindLabel[message.kind];
-  return (
-    <div className="msg">
-      <LogoMark size={17} />
-      <div className="grow">
-        {label && <span className="msg-k">{label}</span>}
-        <p className="msg-text">{message.text}</p>
-        {message.references.map((r, i) => (
-          <Reference key={i} quote={r.quote} from={r.from} />
-        ))}
-      </div>
-    </div>
-  );
 }

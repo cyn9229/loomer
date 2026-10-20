@@ -4,7 +4,7 @@
 // hint, paused, Google rate limit, no access, policy question, blocked policy,
 // AI turned off, and the other kinds of work: practice (two teacher sheets with
 // grouped topics, one sheet, and sheets Loomer couldn't read), reading, and a quiz.
-import type { ChatMessage, SessionModel } from '../model/session';
+import type { SessionModel } from '../model/session';
 import { buildFixtures, essaySources } from './fixtures';
 
 const MIN = 60_000;
@@ -28,28 +28,6 @@ export function buildSessionFixtures(now: Date) {
     { at: ago(38), text: 'Started this session' },
   ];
 
-  const messages: ChatMessage[] = [
-    {
-      id: 1,
-      role: 'student',
-      text: 'how do i start the comparison part',
-      kind: 'question',
-      references: [],
-      createdAt: ago(12),
-    },
-    {
-      id: 2,
-      role: 'loomer',
-      text: 'Look at the two causes your sources name. Which one does the tree cover report measure directly?',
-      kind: 'hint',
-      references: [
-        { quote: 'Blocks with the least tree cover were up to 9°F warmer.', from: 'your draft' },
-        { quote: 'Compare the sources’ findings and explain what each one adds.', from: 'the instructions' },
-      ],
-      createdAt: ago(12),
-    },
-  ];
-
   const linkedDoc = {
     status: 'linked' as const,
     docId: '1aBcDraft',
@@ -71,7 +49,7 @@ export function buildSessionFixtures(now: Date) {
     doc: linkedDoc,
     sources,
     activity,
-    help: { availability: 'available' as const, messages, pending: false },
+    help: { availability: 'available' as const, reviewPending: false },
     hint: null,
     focus: { text: 'Build the comparison between your two sources', why: 'Your draft summarizes each source but does not compare them yet.', requirement: 'Compare the two sources' },
     handledHints: [{ id: 30, text: 'What does the EPA number show about your city?', at: ago(9) }],
@@ -100,7 +78,7 @@ export function buildSessionFixtures(now: Date) {
       },
       sources: [],
       activity: [{ at: ago(1), text: 'Started this session' }],
-      help: { availability: 'available', messages: [], pending: false },
+      help: { availability: 'available', reviewPending: false },
     },
 
     reading: base,
@@ -118,14 +96,8 @@ export function buildSessionFixtures(now: Date) {
 
     'help-pending': {
       ...base,
-      help: {
-        availability: 'available',
-        messages: [
-          ...messages,
-          { id: 3, role: 'student', text: 'Can you explain more?', kind: 'question', references: [], createdAt: ago(0) },
-        ],
-        pending: true,
-      },
+      // A draft check is running; its reply streams into the essay's chat.
+      help: { availability: 'available', reviewPending: true },
     },
 
     suggestion: {
@@ -160,7 +132,7 @@ export function buildSessionFixtures(now: Date) {
       },
       sources: [],
       activity: [],
-      help: { availability: 'available' as const, messages: [], pending: false },
+      help: { availability: 'available' as const, reviewPending: false },
       teacherSheets: [
         { docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 },
         { docId: '3dForm', url: 'https://docs.google.com/document/d/3dForm/edit', title: 'Formula sheet', state: 'ok', topics: 2 },
@@ -189,7 +161,7 @@ export function buildSessionFixtures(now: Date) {
       doc: { status: 'not-linked', candidates: [] },
       sources: [],
       activity: [],
-      help: { availability: 'available' as const, messages: [], pending: false },
+      help: { availability: 'available' as const, reviewPending: false },
       teacherSheets: [{ docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 }],
       sourceNeed: null,
       topics: {
@@ -211,7 +183,7 @@ export function buildSessionFixtures(now: Date) {
       doc: { status: 'not-linked', candidates: [] },
       sources: [],
       activity: [],
-      help: { availability: 'available' as const, messages: [], pending: false },
+      help: { availability: 'available' as const, reviewPending: false },
       teacherSheets: [
         { docId: '3cSheet', url: 'https://docs.google.com/document/d/3cSheet/edit', title: 'Unit 6 Review: Quadratics', state: 'ok', topics: 4 },
         { docId: '3fSetB', url: 'https://docs.google.com/document/d/3fSetB/edit', title: 'Practice set B', state: 'needs-permission', topics: null },
@@ -227,7 +199,7 @@ export function buildSessionFixtures(now: Date) {
       doc: { status: 'not-linked', candidates: [] },
       sources: [],
       activity: [],
-      help: { availability: 'available' as const, messages: [], pending: false },
+      help: { availability: 'available' as const, reviewPending: false },
     },
     // A Canvas quiz: no help, and Ask Loomer is paused while it's open.
     quiz: {
@@ -237,12 +209,12 @@ export function buildSessionFixtures(now: Date) {
       doc: { status: 'not-linked', candidates: [] },
       sources: [],
       activity: [],
-      help: { availability: 'quiz', messages: [], pending: false },
+      help: { availability: 'quiz', reviewPending: false },
     },
 
     'needs-policy': {
       ...base,
-      help: { availability: 'needs-policy-answer', messages: [], pending: false },
+      help: { availability: 'needs-policy-answer', reviewPending: false },
     },
 
     blocked: {
@@ -254,14 +226,13 @@ export function buildSessionFixtures(now: Date) {
         availability: 'blocked',
         policyQuote: reflection.policy.quote,
         policySource: reflection.policy.sourceLabel,
-        messages: [],
-        pending: false,
+        reviewPending: false,
       },
     },
 
     'ai-off': {
       ...base,
-      help: { availability: 'ai-off', messages: [], pending: false },
+      help: { availability: 'ai-off', reviewPending: false },
     },
   } satisfies Record<string, SessionModel>;
 }
