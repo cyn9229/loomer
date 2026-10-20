@@ -56,8 +56,23 @@ export type ChatBlock =
    * the new assignment once added. The AI never adds anything itself.
    */
   | { kind: 'add-assignment'; draftId: string; draft: AddDraft }
+  /** A file or screenshot the student attached to their message. The full file stays in chatFiles; this is what the chat shows. */
+  | { kind: 'attachment'; fileId: number; file: AttachmentView }
   /** "Review my draft" (help:review): findings, each quoting the student's own text. */
   | { kind: 'draft-check'; summary: string; findings: DraftFinding[]; scope: 'full' | 'partial' };
+
+/**
+ * A file read on this computer, ready to send (chat:send attachments, max 5).
+ * Images are shrunk JPEGs with a thumbnail; PDFs go to the model as they are;
+ * text is read up to 100,000 characters (`truncated` when cut).
+ */
+export type Attachment =
+  | { kind: 'image'; name: string; dataUrl: string; width: number; height: number; thumb: string }
+  | { kind: 'pdf'; name: string; dataUrl: string; bytes: number }
+  | { kind: 'text'; name: string; text: string; truncated: boolean };
+
+/** How a sent attachment shows: `detail` is e.g. "1200 × 800", "2.4 MB", or "Read the first 100,000 characters". */
+export type AttachmentView = { kind: Attachment['kind']; name: string; thumb: string | null; detail: string };
 
 /** One review finding. `quote` is from the student's draft; `question` helps them fix it themselves. */
 export type DraftFinding = { issue: string; criterion: string; question: string; quote: string };

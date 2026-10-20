@@ -19,6 +19,12 @@ const addedFieldsSchema = {
   docUrl: z.string().max(2_000).nullable(),
 };
 
+const attachmentSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('image'), name: z.string().max(300), dataUrl: z.string().startsWith('data:image/').max(8_000_000), width: z.number().int().positive(), height: z.number().int().positive(), thumb: z.string().startsWith('data:image/').max(500_000) }),
+  z.object({ kind: z.literal('pdf'), name: z.string().max(300), dataUrl: z.string().startsWith('data:application/pdf;base64,').max(14_000_000), bytes: z.number().int().positive() }),
+  z.object({ kind: z.literal('text'), name: z.string().max(300), text: z.string().max(100_000), truncated: z.boolean() }),
+]);
+
 export const messageSchema = z.discriminatedUnion('type', [
   /** Add work that isn't on Canvas. draftId: the Ask Loomer card it came from, if any. */
   z.object({ type: z.literal('assignment:add'), ...addedFieldsSchema, draftId: z.string().max(100).optional() }),
@@ -110,7 +116,12 @@ export const messageSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('screenshot:cancel') }),
   /** Ask Loomer: send a message in a thread ("general" or an assignment id). The reply streams into the store. */
-  z.object({ type: z.literal('chat:send'), threadKey: z.string().min(1), text: z.string().min(1).max(4_000) }),
+  /** A message, with up to 5 attachments from readAttachment / captureScreen. Text may be empty when something is attached. */
+  z
+    .object({ type: z.literal('chat:send'), threadKey: z.string().min(1), text: z.string().max(4_000), attachments: z.array(attachmentSchema).max(5).optional() })
+    .refine((m) => m.text.trim().length > 0 || (m.attachments?.length ?? 0) > 0),
+  /** The composer took the screenshots waiting in chatInboxItem (or the student removed them). */
+  z.object({ type: z.literal('chat:inbox-clear') }),
   /** Stop the reply being written in this thread. */
   z.object({ type: z.literal('chat:stop'), threadKey: z.string().min(1) }),
   /** Delete this thread's messages from this computer. */

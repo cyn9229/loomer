@@ -2,10 +2,10 @@
 // panel's live query shows it as it grows), runs read-only tools between
 // rounds, and enforces consent and the assignment's AI policy before every send.
 import { brokerEnvelopeSchema } from '../../../shared/ai-contract';
-import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent } from '../../../shared/chat-contract';
+import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent, type UserPart } from '../../../shared/chat-contract';
 import { instructionText, type ChatTurnRecord, type LoomerDb } from '../core/db';
 import type { AiSettings } from '../core/settings';
-import { GENERAL_THREAD, type ChatBlock, type ThreadKey } from '../model/chat';
+import { GENERAL_THREAD, type Attachment, type AttachmentView, type ChatBlock, type ThreadKey } from '../model/chat';
 import { isQuiz, storedWorkType } from '../analysis/workType';
 import { serviceSentence, workHelpDecision } from '../session/help';
 import { runTool, type ToolSettings } from './tools';
@@ -74,6 +74,8 @@ function historyFrom(turns: ChatTurnRecord[]): ChatMessage[] {
               ? `[Gave a quiz on ${b.quiz.concept}]`
               : b.kind === 'plan-change'
                 ? '[Proposed a plan change card]'
+                : b.kind === 'attachment'
+                  ? `[Attached ${b.file.kind === 'image' ? 'an image' : b.file.kind === 'pdf' ? 'a PDF' : 'a file'}: ${b.file.name}]`
                 : b.kind === 'add-assignment'
                   ? `[Offered to add "${b.draft.title}"]`
                   : b.kind === 'draft-check'
@@ -100,14 +102,27 @@ async function contextFor(db: LoomerDb, threadKey: ThreadKey): Promise<ChatReque
   };
 }
 
-/** Sends one student message and streams Loomer's reply into the store. */
-/** `topic`: the sheet topic the student tapped for help; a quick check in this reply is tagged with it. */
-export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: string, { topic = null }: { topic?: string | null } = {}): Promise<void> {
+/**
+ * Sends one student message and streams Loomer's reply into the store.
+ * `topic`: the sheet topic the student tapped for help; a quick check in this reply is tagged with it.
+ * `attachments`: files and screenshots, saved whole in chatFiles and sent with this message only.
+ */
+export async function sendChat(
+  deps: ChatDeps,
+  threadKey: ThreadKey,
+  text: string,
+  { topic = null, attachments = [] }: { topic?: string | null; attachments?: Attachment[] } = {},
+): Promise<void> {
   const { db } = deps;
   const now = deps.now ?? (() => new Date());
   if (running.has(threadKey)) return;
   const prior = (await db.chatTurns.where('threadKey').equals(threadKey).sortBy('id')).filter((t) => !t.setAsideId);
-  await db.chatTurns.add({ threadKey, role: 'student', blocks: [{ kind: 'markdown', text }], status: 'done', createdAt: now().toISOString() });
+  const fileIds = await db.chatFiles.bulkAdd(attachments.map((attachment) => ({ threadKey, attachment })), { allKeys: true });
+  const studentBlocks: ChatBlock[] = [
+    ...(text.trim() ? [{ kind: 'markdown' as const, text }] : []),
+    ...attachments.map((a, i) => ({ kind: 'attachment' as const, fileId: fileIds[i]!, file: attachmentView(a) })),
+  ];
+  await db.chatTurns.add({ threadKey, role: 'student', blocks: studentBlocks, status: 'done', createdAt: now().toISOString() });
 
   const settings = await deps.ai();
   const allowed = await chatAllowed(db, settings, threadKey);
@@ -132,7 +147,7 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
     else blocks.push({ kind: 'markdown', text: delta });
   };
 
-  const messages: ChatMessage[] = [...historyFrom(prior), { role: 'user', content: text }];
+  const messages: ChatMessage[] = [...historyFrom(prior), { role: 'user', content: attachments.length ? userParts(text, attachments) : text }];
   const context = await contextFor(db, threadKey);
   const today = now().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const session = await db.sessions.where('state').equals('active').last();
@@ -251,5 +266,34 @@ function parseEvent(line: string): ChatStreamEvent | null {
     }
   } catch {
     return null;
+  }
+}
+
+/** The student's message with its attachments: text files wrapped as data, images and PDFs as they are. */
+function userParts(text: string, attachments: Attachment[]): UserPart[] {
+  return [
+    { type: 'text', text: text.trim() || 'Look at what I attached.' },
+    ...attachments.map((a): UserPart => {
+      switch (a.kind) {
+        case 'image':
+          return { type: 'image_url', image_url: { url: a.dataUrl } };
+        case 'pdf':
+          return { type: 'file', file: { filename: a.name, file_data: a.dataUrl } };
+        case 'text':
+          return { type: 'text', text: `<attached_file name="${a.name.replace(/"/g, "'")}"${a.truncated ? ' partial="true"' : ''}>\n${a.text}\n</attached_file>` };
+      }
+    }),
+  ];
+}
+
+/** What the chat shows for an attachment, without the file itself. */
+export function attachmentView(a: Attachment): AttachmentView {
+  switch (a.kind) {
+    case 'image':
+      return { kind: 'image', name: a.name, thumb: a.thumb, detail: `${a.width} × ${a.height}` };
+    case 'pdf':
+      return { kind: 'pdf', name: a.name, thumb: null, detail: a.bytes >= 1_048_576 ? `${(a.bytes / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(a.bytes / 1024))} KB` };
+    case 'text':
+      return { kind: 'text', name: a.name, thumb: null, detail: a.truncated ? 'Read the first 100,000 characters' : `${a.text.length.toLocaleString('en-US')} characters` };
   }
 }

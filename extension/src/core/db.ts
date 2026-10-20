@@ -3,7 +3,7 @@
 // refresh can never overwrite it.
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
-import type { ChatBlock } from '../model/chat';
+import type { Attachment, ChatBlock } from '../model/chat';
 import type { EffortLabel, RoomLevel, WorkType } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import type { PolicyAnswer } from './gate';
@@ -415,6 +415,9 @@ export type ChatTurnRecord = {
   setAsideId?: string;
 };
 
+/** A file attached to a chat message, kept whole on this computer. The chat shows its AttachmentView. */
+export type ChatFileRecord = { id: number; threadKey: string; attachment: Attachment };
+
 export class LoomerDb extends Dexie {
   assignments!: EntityTable<Assignment, 'id'>;
   runs!: EntityTable<CollectionRun, 'id'>;
@@ -431,6 +434,7 @@ export class LoomerDb extends Dexie {
   hints!: EntityTable<HintRecord, 'id'>;
   requirementChecks!: EntityTable<RequirementCheck, 'assignmentId'>;
   chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
+  chatFiles!: EntityTable<ChatFileRecord, 'id'>;
   dayRoom!: EntityTable<DayRoomRecord, 'key'>;
   planChanges!: EntityTable<PlanChangeRecord, 'id'>;
   sheetTopics!: EntityTable<SheetTopicsRecord, 'assignmentId'>;
@@ -479,6 +483,7 @@ export class LoomerDb extends Dexie {
       await tx.table('chatTurns').bulkAdd(turns);
       await tx.table('chat').clear();
     });
+    this.version(11).stores({ chatFiles: '++id, threadKey' });
   }
 }
 

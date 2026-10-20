@@ -11,8 +11,19 @@ const toolCall = z.object({
   function: z.object({ name: z.string().max(64), arguments: z.string().max(80_000) }),
 });
 
+/**
+ * Parts of a student message with attachments: their text, attached text files
+ * (wrapped as data), images, and PDFs (read natively by the model).
+ */
+const userPartSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('text'), text: z.string().max(110_000) }),
+  z.strictObject({ type: z.literal('image_url'), image_url: z.strictObject({ url: z.string().startsWith('data:image/').max(8_000_000) }) }),
+  z.strictObject({ type: z.literal('file'), file: z.strictObject({ filename: z.string().max(300), file_data: z.string().startsWith('data:application/pdf;base64,').max(14_000_000) }) }),
+]);
+export type UserPart = z.infer<typeof userPartSchema>;
+
 export const chatMessageSchema = z.discriminatedUnion('role', [
-  z.object({ role: z.literal('user'), content: z.string().max(4_000) }),
+  z.object({ role: z.literal('user'), content: z.union([z.string().max(4_000), z.array(userPartSchema).min(1).max(12)]) }),
   z.object({ role: z.literal('assistant'), content: z.string().max(12_000).nullable(), tool_calls: z.array(toolCall).max(8).optional() }),
   z.object({ role: z.literal('tool'), tool_call_id: z.string().max(200), content: z.string().max(20_000) }),
 ]);

@@ -5,14 +5,14 @@ import { collectCanvas } from '../src/adapters/canvas/collect';
 import { parseDocId } from '../src/adapters/docs/reader';
 import { analyzeRequirements } from '../src/analysis/analyze';
 import { capturePage, type CaptureOutcome } from '../src/capture/capture';
-import { draftScreenshot, saveScreenshot, screenshotDraftItem, type Crop, type ScreenshotRefusal } from '../src/capture/screenshot';
+import { draftScreenshot, saveScreenshot, screenshotAllowed, screenshotDraftItem, type Crop, type ScreenshotRefusal } from '../src/capture/screenshot';
 import { notifyDeadlineChanges } from '../src/notify/notify';
 import { checkRequirements } from '../src/session/requirements';
 import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiServiceItem, aiSettingsItem, askThreadItem, briefDismissedItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiServiceItem, aiSettingsItem, askThreadItem, briefDismissedItem, chatInboxItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, type PlanSettings } from '../src/analysis/changes';
 import { isOpen } from '../src/analysis/facts';
 import { localDay } from '../src/analysis/plan';
@@ -29,6 +29,8 @@ import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
 import { closeStaleSessions, currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { closeSession, nextStepStep } from '../src/session/close';
+import { imageAttachment, MAX_ATTACHMENTS } from '../src/chat/attachments';
+import type { Attachment } from '../src/model/chat';
 import { addAssignment, deleteAddedAssignment, editAssignment } from '../src/session/added';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
@@ -39,6 +41,7 @@ const SESSION_ALARM = 'session-tick';
 const SESSION_LOOP_MS = 5_000;
 const CAPTURE_MENU = 'loomer-add-page';
 const SCREENSHOT_MENU = 'loomer-screenshot';
+const CHAT_SHOT_MENU = 'loomer-chat-screenshot';
 /** Session that already got its one research reminder notification. */
 const remindedItem = storage.defineItem<number | null>('session:reminded', { fallback: null });
 
@@ -219,6 +222,21 @@ async function cropImage(dataUrl: string, crop: Crop): Promise<string> {
  * afterwards, empty every table and Loomer's settings, remove the typing script,
  * and give back the site and tab access Loomer was granted. Returns to setup.
  */
+/**
+ * "Send screenshot to Ask Loomer": the right-click grants this tab once, so the
+ * visible part is captured, shrunk, and left in chatInboxItem for the composer.
+ * Sign-in pages and sites the student blocked are refused.
+ */
+async function chatShotFromTab(tab: Browser.tabs.Tab) {
+  const inbox = (await chatInboxItem.getValue()) ?? { attachments: [], error: null, at: '' };
+  const put = (attachments: Attachment[], error: string | null) => chatInboxItem.setValue({ attachments, error, at: new Date().toISOString() });
+  if (!screenshotAllowed(await loadGateState(), tab.url)) return put(inbox.attachments, "Loomer doesn't take screenshots of this page, because it's a sign-in page or a site you blocked.");
+  if (inbox.attachments.length >= MAX_ATTACHMENTS) return put(inbox.attachments, 'One message can carry up to 5 things, so send these first.');
+  const shot = await browser.tabs.captureVisibleTab(tab.windowId!, { format: 'png' });
+  const host = tab.url ? new URL(tab.url).hostname.replace(/^www\./, '') : 'this page';
+  await put([...inbox.attachments, await imageAttachment(await (await fetch(shot)).blob(), `Screenshot of ${host}.jpg`)], null);
+}
+
 /** Links a Google Doc to an assignment. The page asked Chrome for Docs access first. */
 async function linkDoc(assignmentId: string, docUrl: string): Promise<Reply> {
   const docId = parseDocId(docUrl);
@@ -279,7 +297,7 @@ function topicRequest(topic: { text: string; quote: string }, mode: 'explain' | 
 }
 
 /** Starts a chat reply in the background; keeps the worker awake while it streams. `topic`: a sheet topic the student tapped. */
-function startChat(threadKey: string, text: string, topic: string | null = null) {
+function startChat(threadKey: string, text: string, topic: string | null = null, attachments: Attachment[] = []) {
   const keepAlive = setInterval(() => void browser.runtime.getPlatformInfo(), 15_000);
   void sendChat(
     {
@@ -289,7 +307,7 @@ function startChat(threadKey: string, text: string, topic: string | null = null)
     },
     threadKey,
     text,
-    { topic },
+    { topic, attachments },
   )
     .catch((error: unknown) => console.error('loomer: chat failed', error))
     .finally(() => {
@@ -742,9 +760,12 @@ async function handle(message: Message): Promise<Reply> {
       // Asking for help in the session's chat counts as working on it.
       const s = await currentSession(db);
       if (s?.assignmentId === message.threadKey) await touch(db, s, new Date());
-      startChat(message.threadKey, message.text);
+      startChat(message.threadKey, message.text, null, message.attachments ?? []);
       return { ok: true };
     }
+    case 'chat:inbox-clear':
+      await chatInboxItem.setValue(null);
+      return { ok: true };
     case 'chat:stop':
       stopChat(message.threadKey);
       return { ok: true };
@@ -765,6 +786,7 @@ async function handle(message: Message): Promise<Reply> {
     case 'chat:clear':
       if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
       await db.chatTurns.where('threadKey').equals(message.threadKey).delete();
+      await db.chatFiles.where('threadKey').equals(message.threadKey).delete();
       return { ok: true };
     case 'ai:check':
       await checkAiService();
@@ -851,6 +873,7 @@ export default defineBackground(() => {
     void refresh();
     browser.contextMenus.create({ id: CAPTURE_MENU, title: 'Add page to Loomer', contexts: ['page'] });
     browser.contextMenus.create({ id: SCREENSHOT_MENU, title: 'Capture screenshot for Loomer', contexts: ['page', 'image'] });
+    browser.contextMenus.create({ id: CHAT_SHOT_MENU, title: 'Send screenshot to Ask Loomer', contexts: ['page', 'image'] });
     void registerTypingSignal().catch(() => {});
   });
   // Catch up after the browser was closed. A session never resumes on its own:
@@ -882,6 +905,10 @@ export default defineBackground(() => {
       // Open the panel first, inside the click's user gesture, so the preview is ready to show.
       void browser.sidePanel.open({ tabId: tab.id }).catch(() => {});
       void screenshotFromTab(tab);
+    }
+    if (info.menuItemId === CHAT_SHOT_MENU && tab?.id) {
+      void browser.sidePanel.open({ tabId: tab.id }).catch(() => {});
+      void chatShotFromTab(tab).catch((error: unknown) => console.error('loomer: chat screenshot failed', error));
     }
   });
   // A notification click brings Chrome forward; opening the panel needs a user gesture Chrome may not grant here.

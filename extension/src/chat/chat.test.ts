@@ -115,6 +115,29 @@ const deps = (fetch: typeof globalThis.fetch, enabled = true): ChatDeps => ({
 });
 
 describe('sendChat', () => {
+  it('sends attachments with their message only, keeps the files whole, and shows a short view', async () => {
+    const f = broker([[{ type: 'text', delta: 'I see it.' }, { type: 'done' }], [{ type: 'text', delta: 'Sure.' }, { type: 'done' }]]);
+    const image = { kind: 'image' as const, name: 'ch10.jpg', dataUrl: 'data:image/jpeg;base64,AAAA', width: 1200, height: 800, thumb: 'data:image/jpeg;base64,BB' };
+    const pdf = { kind: 'pdf' as const, name: 'rubric.pdf', dataUrl: 'data:application/pdf;base64,CCCC', bytes: 2_500_000 };
+    const notes = { kind: 'text' as const, name: 'notes.md', text: 'Victor flees.', truncated: false };
+    await sendChat(deps(f), 'general', '', { attachments: [image, pdf, notes] });
+    expect(await db.chatFiles.count()).toBe(3);
+    const [student] = await db.chatTurns.toArray();
+    expect(student!.blocks).toEqual([
+      { kind: 'attachment', fileId: expect.any(Number), file: { kind: 'image', name: 'ch10.jpg', thumb: image.thumb, detail: '1200 × 800' } },
+      { kind: 'attachment', fileId: expect.any(Number), file: { kind: 'pdf', name: 'rubric.pdf', thumb: null, detail: '2.4 MB' } },
+      { kind: 'attachment', fileId: expect.any(Number), file: { kind: 'text', name: 'notes.md', thumb: null, detail: '13 characters' } },
+    ]);
+    type Sent = { messages: { role: string; content: unknown }[] };
+    const first = (f.calls[0] as Sent).messages.at(-1)!.content as { type: string }[];
+    expect(first.map((p) => p.type)).toEqual(['text', 'image_url', 'file', 'text']);
+    // The next message carries only a short note about earlier attachments.
+    await sendChat(deps(f), 'general', 'And the rubric?');
+    const history = JSON.stringify((f.calls[1] as Sent).messages);
+    expect(history).toContain('[Attached a PDF: rubric.pdf]');
+    expect(history).not.toContain('CCCC');
+  });
+
   it('streams text, runs a tool between rounds, and stores the visual in order', async () => {
     const svg = '<svg viewBox="0 0 10 10"><circle r="4"/></svg>';
     const f = broker([

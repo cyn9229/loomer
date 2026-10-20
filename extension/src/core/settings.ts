@@ -5,6 +5,7 @@ import { db } from './db';
 import { DEFAULT_LEVEL_MINUTES, type LevelMinutes } from '../analysis/plan';
 import type { PlanSnapshot } from '../analysis/recommend';
 import type { Exclusion, GateState, Grant } from './gate';
+import type { Attachment } from '../model/chat';
 
 export type Settings = {
   /** Approved Canvas origin, e.g. https://school.instructure.com, or the loopback replay. */
@@ -86,5 +87,12 @@ export const aiServiceItem = storage.defineItem<{ up: boolean; checkedAt: string
  * one Loomer switched to for topic help (reason 'topic', so the panel can say so).
  */
 export const askThreadItem = storage.defineItem<{ threadKey: string; at: string; reason: 'student' | 'topic' } | null>('local:askThread', { fallback: null });
+
+/**
+ * Screenshots taken with the right-click "Send screenshot to Ask Loomer",
+ * waiting for the composer to pick them up (then chat:inbox-clear). `error`:
+ * one sentence when Loomer refused. Session storage: gone when Chrome closes.
+ */
+export const chatInboxItem = storage.defineItem<{ attachments: Attachment[]; error: string | null; at: string } | null>('session:chatInbox', { fallback: null });
 
 export const levelMinutesItem = storage.defineItem<LevelMinutes>('local:levelMinutes', { fallback: DEFAULT_LEVEL_MINUTES });
