@@ -22,12 +22,14 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
   }));
   const streaming = turns.some((t) => t.status === 'streaming');
   const planChanges = Object.fromEntries((await db.planChanges.toArray()).filter((c) => c.threadKey === threadKey).map((c) => [c.id, planChangeView(c)]));
+  const draftIds = turns.flatMap((t) => t.blocks.flatMap((b) => (b.kind === 'add-assignment' ? [b.draftId] : [])));
+  const added = Object.fromEntries(draftIds.length ? (await db.assignments.filter((a) => a.draftId !== undefined && draftIds.includes(a.draftId)).toArray()).map((a) => [a.draftId!, a.id]) : []);
 
   if (threadKey === GENERAL_THREAD) {
-    return { threadKey, assignment: null, availability: ai.enabled ? 'available' : 'ai-off', turns, streaming, planChanges };
+    return { threadKey, assignment: null, availability: ai.enabled ? 'available' : 'ai-off', turns, streaming, planChanges, added };
   }
   const a = await db.assignments.get(threadKey);
-  if (!a) return { threadKey, assignment: null, availability: 'unresolved', turns, streaming, planChanges };
+  if (!a) return { threadKey, assignment: null, availability: 'unresolved', turns, streaming, planChanges, added };
   const [course, analysis, context, decision] = await Promise.all([
     db.courses.get(courseKey(a)),
     db.analyses.get(a.id),
@@ -42,5 +44,6 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
     turns,
     streaming,
     planChanges,
+    added,
   };
 }

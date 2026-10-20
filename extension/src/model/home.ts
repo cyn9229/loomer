@@ -84,6 +84,10 @@ export type StudentCorrection = 'done-offline' | 'kept-active' | 'turned-in' | n
 export type WorkItem = {
   assignmentId: string;
   title: string;
+  /** 'student': added by hand. Show "Added by you"; it can be edited and deleted, and Canvas never confirms it. */
+  source: 'canvas' | 'student';
+  /** For hand-added work: an open Canvas item that looks like the same assignment, so the student can remove their copy. */
+  sameAsCanvas: { assignmentId: string; title: string } | null;
   /** Stable course key for grouping and filtering by class. */
   courseKey: string;
   courseName: string | null;
@@ -157,6 +161,9 @@ export type InsightKind = 'change' | 'continue' | 'hidden-deadline' | 'busy-day'
 /** One sentence that names the assignment and gives the concrete fact. `aiFound` is true only when the AI read the fact from the instructions. */
 export type Insight = { kind: InsightKind; text: string; aiFound: boolean };
 
+/** A class for the class picker. `key` is WorkItem.courseKey. */
+export type CourseOption = { key: string; name: string };
+
 /** Two or more bigger assignments need a start within two days of each other. */
 export type CrowdedWeek = { text: string; assignmentIds: string[] } | null;
 
@@ -219,6 +226,8 @@ export type HomeModel =
       brief: DailyBrief;
       /** Room for today and the next 13 days, for the Week view's day headers. */
       room: DayRoom[];
+      /** The student's Canvas classes, for the class picker when adding work by hand. */
+      courses: CourseOption[];
       /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
       yourChanges: PlanChangeView[];
     }
@@ -234,6 +243,8 @@ export type HomeModel =
       brief: DailyBrief;
       /** Room for today and the next 13 days, for the Week view's day headers. */
       room: DayRoom[];
+      /** The student's Canvas classes, for the class picker when adding work by hand. */
+      courses: CourseOption[];
       /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
       yourChanges: PlanChangeView[];
     }
@@ -248,6 +259,8 @@ export type HomeModel =
       brief: DailyBrief;
       /** Room for today and the next 13 days, for the Week view's day headers. */
       room: DayRoom[];
+      /** The student's Canvas classes, for the class picker when adding work by hand. */
+      courses: CourseOption[];
       /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
       yourChanges: PlanChangeView[];
     }
@@ -262,6 +275,8 @@ export type HomeModel =
       brief: DailyBrief;
       /** Room for today and the next 13 days, for the Week view's day headers. */
       room: DayRoom[];
+      /** The student's Canvas classes, for the class picker when adding work by hand. */
+      courses: CourseOption[];
       /** Plan changes the student applied, newest first, each with Undo. Empty hides the line. */
       yourChanges: PlanChangeView[];
     };

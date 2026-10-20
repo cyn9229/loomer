@@ -12,6 +12,7 @@ import { roomDays, roomLookup } from './room';
 import { nextTopic, topicItems } from './topicStanding';
 import { assignmentNoun, insightFor, weakTopicInsight } from './insight';
 import { isQuiz, workTypeFor } from './workType';
+import { sameAsCanvas } from '../session/added';
 import type { PolicyResult } from './policy';
 
 const DAY_MS = 86_400_000;
@@ -76,7 +77,7 @@ type Candidate = {
 };
 
 type CoreModel =
-  | DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview' | 'crowded' | 'brief' | 'room' | 'yourChanges'>
+  | DistributiveOmit<Exclude<HomeModel, { status: 'not-connected' }>, 'resume' | 'olderReview' | 'crowded' | 'brief' | 'room' | 'yourChanges' | 'courses'>
   | { status: 'not-connected' };
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
@@ -96,6 +97,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
     crowded: crowdedWeek(plannedOpen, input.now),
     brief: input.briefDismissedOn !== today && plannedOpen.length > 0 ? { date: today, text: dailyBrief(plannedOpen, input.now) } : null,
     room: roomDays(roomFor, today),
+    courses: input.courses.filter((c) => c.sourceKey === input.lastRun?.sourceKey).map((c) => ({ key: c.id, name: c.name })).sort((x, y) => x.name.localeCompare(y.name)),
     yourChanges: input.planChanges
       .filter((c) => c.status === 'applied')
       .sort((x, y) => (y.appliedAt ?? '').localeCompare(x.appliedAt ?? ''))
@@ -188,6 +190,12 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
   const base = input.assignments
     .filter((a) => a.sourceKey === lastRun?.sourceKey && isOpen(a))
     .map((a) => candidateFor(a, { course: courseById.get(courseKey(a)), analysis: analysisById.get(a.id), context: contextByKey }, now));
+
+  const canvasOpen = base.filter((c) => !c.a.addedBy).map((c) => c.a);
+  for (const c of base) {
+    const twin = c.a.addedBy ? sameAsCanvas(c.a, canvasOpen) : null;
+    if (twin) c.item = { ...c.item, sameAsCanvas: { assignmentId: twin.id, title: twin.title } };
+  }
 
   // Start-by dates and checkpoints for every visible item; only the decision set is ranked.
   const entry = (c: Candidate): PlanEntry => ({
@@ -381,7 +389,8 @@ function olderReview(input: RecommendInput): OlderReview {
       if (c.item.bucket !== 'past') return [];
       // Turned in, but Canvas still shows no submission a day after the due date.
       if (ctx?.correction === 'turned-in') {
-        const late = !ctx.olderReview && Date.parse(c.due.at!) + DAY_MS < input.now.getTime();
+        // Hand-added work has no Canvas submission to wait for.
+        const late = !a.addedBy && !ctx.olderReview && Date.parse(c.due.at!) + DAY_MS < input.now.getTime();
         return late ? [{ item: c.item, reason: `You said you turned in ${assignmentNoun(a)}, but Canvas doesn't show it yet, so check that it went through.` }] : [];
       }
       const missingNow = a.submission?.missing === true;
@@ -463,6 +472,8 @@ function toWorkItem(
   return {
     assignmentId: a.id,
     title: a.title,
+    source: a.addedBy ? 'student' : 'canvas',
+    sameAsCanvas: null,
     courseKey: courseKey(a),
     courseName: a.courseName,
     url: a.url,
@@ -481,7 +492,8 @@ function toWorkItem(
       quote: policy.finding?.quote,
       sourceLabel: policy.finding?.sourceLabel,
     },
-    requirements: a.detail ? 'checked' : a.detailError ? 'unreadable' : 'not-checked',
+    // Hand-added work has what the student gave it; nothing more is waiting to be read.
+    requirements: a.detail || a.addedBy ? 'checked' : a.detailError ? 'unreadable' : 'not-checked',
     replay: a.replay,
     bucket: bucketFor(due, now),
     hidden: ctx?.hidden === true,

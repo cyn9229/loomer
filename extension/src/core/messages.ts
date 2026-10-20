@@ -8,7 +8,24 @@ const exclusionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('page'), origin: z.string().url(), path: z.string().startsWith('/') }),
 ]);
 
+/** What the student can set on work they add by hand. dueAt is an ISO time; a day with no time is 11:59 PM local. */
+const addedFieldsSchema = {
+  title: z.string().trim().min(1).max(200),
+  courseKey: z.string().max(400).nullable(),
+  dueAt: z.string().datetime({ offset: true }).nullable(),
+  workType: z.enum(['writing', 'practice', 'study', 'reading']).nullable(),
+  instructions: z.string().max(20_000).nullable(),
+  /** Send only after the page's permissions.request for DOCS_ORIGINS succeeded, as for doc:link. */
+  docUrl: z.string().max(2_000).nullable(),
+};
+
 export const messageSchema = z.discriminatedUnion('type', [
+  /** Add work that isn't on Canvas. draftId: the Ask Loomer card it came from, if any. */
+  z.object({ type: z.literal('assignment:add'), ...addedFieldsSchema, draftId: z.string().max(100).optional() }),
+  /** Change hand-added work. Canvas items can't be edited. */
+  z.object({ type: z.literal('assignment:edit'), assignmentId: z.string(), ...addedFieldsSchema }),
+  /** Remove hand-added work and everything Loomer kept about it. */
+  z.object({ type: z.literal('assignment:delete'), assignmentId: z.string() }),
   /** Sent after the page's own permissions.request succeeded for this origin. */
   z.object({ type: z.literal('canvas:connect'), origin: z.string() }),
   z.object({ type: z.literal('canvas:refresh') }),
@@ -65,11 +82,11 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('data:clear-all') }),
   /** Check the linked draft against the requirements (AI on the student's work; needs work-help permission). */
   z.object({ type: z.literal('requirements:check'), assignmentId: z.string() }),
-  /** Student corrections. done-offline leaves the queue; kept-active keeps it ranked; null clears. */
+  /** Student corrections. done-offline and turned-in leave the queue (turned-in is "Mark as done" for hand-added work); kept-active keeps it ranked; null clears. */
   z.object({
     type: z.literal('context:set'),
     assignmentId: z.string(),
-    correction: z.enum(['done-offline', 'kept-active']).nullable(),
+    correction: z.enum(['done-offline', 'kept-active', 'turned-in']).nullable(),
     note: z.string().max(500).optional(),
   }),
   /** The student chose what to work on; kept until relevant evidence changes. */

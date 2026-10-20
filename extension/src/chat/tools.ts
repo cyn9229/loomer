@@ -30,6 +30,7 @@ const LABELS: Record<ChatToolName, string> = {
   show_visual: 'Made a visual',
   quiz_me: 'Made a quick check',
   propose_plan_change: 'Suggested a plan change',
+  propose_add_assignment: 'Suggested adding an assignment',
 };
 
 const isTool = (name: string): name is ChatToolName => Object.hasOwn(chatTools, name);
@@ -53,6 +54,7 @@ function itemSummary(i: WorkItem) {
     work_type: i.workType.type,
     ai_help: i.quiz ? 'off (quiz or test)' : i.policy.state === 'blocked' ? 'off (teacher rule)' : 'allowed',
     plan_note: i.rankReason,
+    added_by_student: i.source === 'student',
   };
 }
 
@@ -191,6 +193,32 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
           start_days_that_move: preview.moves.map((m) => `${m.title}: ${day(m.from)} → ${day(m.to)}`),
         }),
         block: { kind: 'plan-change', changeId: proposed.change.id },
+        label,
+      };
+    }
+    case 'propose_add_assignment': {
+      const args = chatTools.propose_add_assignment.schema.safeParse(json);
+      if (!args.success) return { forModel: 'The assignment did not match the schema.', label };
+      const { title, class_name, due_date, due_time, work_type } = args.data;
+      let dueAt: string | null = null;
+      if (due_date) {
+        const [y, m, d] = due_date.split('-').map(Number);
+        const [hh, mm] = (due_time ?? '23:59').split(':').map(Number);
+        const due = new Date(y!, m! - 1, d!, hh, mm);
+        if (Number.isNaN(due.getTime()) || due.getMonth() !== m! - 1) return { forModel: 'Not proposed: that date does not exist.', label };
+        if (due.getTime() < now.getTime()) return { forModel: 'Not proposed: that due date has already passed. Ask the student when it is due.', label };
+        dueAt = due.toISOString();
+      }
+      const run = await db.runs.orderBy('startedAt').last();
+      const name = class_name?.trim().toLowerCase();
+      const course = name ? (await db.courses.toArray()).find((c) => c.sourceKey === run?.sourceKey && (c.name.toLowerCase().includes(name) || name.includes(c.name.toLowerCase()))) : undefined;
+      const draft = { title: title.trim(), courseKey: course?.id ?? null, courseName: course?.name ?? null, dueAt, workType: work_type };
+      return {
+        forModel: JSON.stringify({
+          shown: 'A card with Add and Not now is on the student’s screen. Nothing is added until they tap Add, and they can change any field first. Say in one short sentence what it adds.',
+          draft: { ...draft, due: day(dueAt), class: course?.name ?? (class_name ? `no class named ${class_name}; the card says Other` : null) },
+        }),
+        block: { kind: 'add-assignment', draftId: crypto.randomUUID(), draft },
         label,
       };
     }

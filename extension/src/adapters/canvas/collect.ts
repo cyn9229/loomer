@@ -179,7 +179,8 @@ async function upsertOverview(
 ): Promise<DeadlineChange[]> {
   const changes: DeadlineChange[] = [];
   await db.transaction('rw', db.assignments, async () => {
-    const existing = new Map((await db.assignments.where('sourceKey').equals(sourceKey).toArray()).map((a) => [a.id, a]));
+    // Work the student added by hand is never Canvas's to update or mark missing.
+    const existing = new Map((await db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter((a) => !a.addedBy).map((a) => [a.id, a]));
     for (const record of seen.values()) {
       const prior = existing.get(record.id);
       const moved = Boolean(prior?.dueAt && record.dueAt && prior.dueAt !== record.dueAt);
@@ -209,6 +210,7 @@ async function collectDetails(db: LoomerDb, ctx: CanvasContext, sourceKey: strin
   const horizon = now.getTime() + DETAIL_HORIZON_DAYS * DAY_MS;
   const candidates = (await db.assignments.where('sourceKey').equals(sourceKey).toArray()).filter(
     (a) =>
+      !a.addedBy &&
       a.presence === 'seen-in-last-check' &&
       !doneInCanvas(a.submission) &&
       (!a.dueAt || Date.parse(a.dueAt) <= horizon) &&

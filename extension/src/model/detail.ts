@@ -1,6 +1,6 @@
 // Data contract for the assignment detail screen inside the panel. Logic owns
 // this file; the UI renders useAssignmentDetail(assignmentId).
-import type { StudentCorrection, WorkItem } from './home';
+import type { StudentCorrection, WorkItem, WorkType } from './home';
 import type { HelpAvailability, SourceItem, SourceNeed, TeacherSheet } from './session';
 
 /**
@@ -58,4 +58,9 @@ export type AssignmentDetailModel =
       sourceNeed: SourceNeed;
       /** The student's own explanation, shown in context only. */
       note: string | null;
+      /** For hand-added work: its current fields, for the edit form (assignment:edit). Null for Canvas items. */
+      editable: EditableFields | null;
     };
+
+/** The fields a student can set on hand-added work. */
+export type EditableFields = { title: string; courseKey: string | null; dueAt: string | null; workType: WorkType | null; instructions: string | null; docUrl: string | null };

@@ -3,7 +3,7 @@
 // while the reply is being written. Visuals and quizzes come from tool calls
 // the logic has validated; the UI renders them, never executes model HTML in
 // the panel (interactive widgets go only to the sandboxed widget page).
-import type { WorkItem } from './home';
+import type { WorkItem, WorkType } from './home';
 import type { PlanChangeView } from './plan';
 import type { HelpAvailability } from './session';
 
@@ -49,7 +49,16 @@ export type ChatBlock =
   /** A link to open an assignment in the panel (the AI suggests; the student clicks). */
   | { kind: 'open-assignment'; assignmentId: string; title: string }
   /** A proposed plan change. Render ChatModel.planChanges[changeId]: Apply (plan:apply) / Not now (plan:dismiss), Undo once applied. */
-  | { kind: 'plan-change'; changeId: string };
+  | { kind: 'plan-change'; changeId: string }
+  /**
+   * Work the student mentioned that isn't on their list. Add sends
+   * assignment:add with these fields and draftId; ChatModel.added[draftId] is
+   * the new assignment once added. The AI never adds anything itself.
+   */
+  | { kind: 'add-assignment'; draftId: string; draft: AddDraft };
+
+/** A proposed hand-added assignment. `courseName` is for display; null fields were not said. */
+export type AddDraft = { title: string; courseKey: string | null; courseName: string | null; dueAt: string | null; workType: WorkType | null };
 
 export type ChatTurn = {
   id: number;
@@ -74,4 +83,6 @@ export type ChatModel = {
   streaming: boolean;
   /** Plan changes proposed in this thread, by id, with their current status and preview. */
   planChanges: Record<string, PlanChangeView>;
+  /** Add cards already applied: draftId to the new assignment's id. */
+  added: Record<string, string>;
 };

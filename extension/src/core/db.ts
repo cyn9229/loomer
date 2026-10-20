@@ -99,6 +99,10 @@ export type Assignment = {
   presence: 'seen-in-last-check' | 'missing-from-last-check';
   detail: AssignmentDetail | null;
   detailError: CanvasFailureKind | null;
+  /** Added by the student, not read from Canvas. Canvas checks never touch it; the student edits and deletes it. */
+  addedBy?: 'student';
+  /** The Ask Loomer card it was added from, so the card shows it as added. */
+  draftId?: string;
 };
 
 export type RunOutcome = 'ok' | 'partial' | 'auth-expired' | 'paused' | 'no-permission' | 'not-connected' | 'failed';

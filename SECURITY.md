@@ -4,7 +4,7 @@ Loomer is a hackathon prototype. This file states what it does to protect studen
 
 ## What stays on the device
 
-- Assignment metadata, requirement text, analyses, saved research excerpts and screenshots, draft snapshots of the linked Doc, help chat and Ask Loomer conversations, hints, the next step the student kept at the end of a session, the plan snapshot, sheet topics and quick-check results (right or wrong per question, never the text), and session history live in the browser profile (IndexedDB and `chrome.storage`).
+- Assignment metadata (including work the student added by hand, which Canvas checks never change), requirement text, analyses, saved research excerpts and screenshots, draft snapshots of the linked Doc, help chat and Ask Loomer conversations, hints, the next step the student kept at the end of a session, the plan snapshot, sheet topics and quick-check results (right or wrong per question, never the text), and session history live in the browser profile (IndexedDB and `chrome.storage`).
 - There is no Loomer account, no Loomer database, and no sync.
 - **Browser profile storage is not encrypted by Loomer.** Anyone who can use the same Chrome profile, or read its files on disk, can read this data. On a shared computer, use Settings > Clear all Loomer data before you leave.
 
@@ -14,7 +14,7 @@ Only when the student turns AI help on, and only through the local AI service (`
 
 | Purpose | What is sent | When |
 | --- | --- | --- |
-| Requirement analysis | Assignment title, course name, due date, instruction text (including the text of a Google Doc the teacher embedded in the instructions), rubric | For open work due within 14 days, unless the assignment's AI policy is blocked or unresolved |
+| Requirement analysis | Assignment title, course name, due date, instruction text (including the text of a Google Doc the teacher embedded in the instructions, or instructions the student pasted into work they added by hand), rubric | For open work due within 14 days, unless the assignment's AI policy is blocked or unresolved |
 | Help and review | The above plus the student's own text from the linked Doc (instruction lines removed) and recent chat | Only when the student asks, and only if the policy allows help |
 | Proactive hint | The above plus newly added lines, the session focus, and the last few hints (their text and whether each was handled) | Only after the pause rules allow it, only for writing work, and only if the policy allows help |
 | Session focus | Instructions, the requirement list, the student's own text from the linked draft, and last session's focus | Once near the start of a writing session, and again when the student taps "Done for today" on the end card (for the next step), only if the policy allows help |

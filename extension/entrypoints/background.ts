@@ -28,6 +28,7 @@ import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
 import { closeStaleSessions, currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { closeSession, nextStepStep } from '../src/session/close';
+import { addAssignment, deleteAddedAssignment, editAssignment } from '../src/session/added';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
 const REFRESH_ALARM = 'canvas-refresh';
@@ -217,6 +218,20 @@ async function cropImage(dataUrl: string, crop: Crop): Promise<string> {
  * afterwards, empty every table and Loomer's settings, remove the typing script,
  * and give back the site and tab access Loomer was granted. Returns to setup.
  */
+/** Links a Google Doc to an assignment. The page asked Chrome for Docs access first. */
+async function linkDoc(assignmentId: string, docUrl: string): Promise<Reply> {
+  const docId = parseDocId(docUrl);
+  if (!docId) return { ok: false, error: "That isn't a Google Doc link." };
+  if (!(await browser.permissions.contains({ origins: DOCS_ORIGINS }))) {
+    return { ok: false, error: "Chrome didn't allow Google Docs." };
+  }
+  await db.docLinks.put({ assignmentId, docId, url: `https://docs.google.com/document/d/${docId}/edit`, linkedAt: new Date().toISOString() });
+  await registerTypingSignal().catch((error: unknown) => console.error('loomer: typing signal unavailable', error));
+  const s = await currentSession(db);
+  if (s?.assignmentId === assignmentId && s.state === 'active') runSessionLoop();
+  return { ok: true };
+}
+
 /** Recomputes the plan snapshot so Home's top stays steady and can say what moved. */
 async function updatePlan() {
   const { snapshot: prev, ...settings } = await planSettings();
@@ -739,16 +754,36 @@ async function handle(message: Message): Promise<Reply> {
       await browser.action.setBadgeText({ text: '' });
       return { ok: true };
     }
-    case 'doc:link': {
-      const docId = parseDocId(message.docUrl);
-      if (!docId) return { ok: false, error: "That isn't a Google Doc link." };
-      if (!(await browser.permissions.contains({ origins: DOCS_ORIGINS }))) {
-        return { ok: false, error: "Chrome didn't allow Google Docs." };
-      }
-      await db.docLinks.put({ assignmentId: message.assignmentId, docId, url: `https://docs.google.com/document/d/${docId}/edit`, linkedAt: new Date().toISOString() });
-      await registerTypingSignal().catch((error: unknown) => console.error('loomer: typing signal unavailable', error));
+    case 'doc:link':
+      return linkDoc(message.assignmentId, message.docUrl);
+    case 'assignment:add': {
+      const run = await db.runs.orderBy('startedAt').last();
+      if (!run?.sourceKey || !run.origin) return { ok: false, error: 'Connect Canvas first, so Loomer knows which school this belongs to.' };
+      if (message.docUrl && !parseDocId(message.docUrl)) return { ok: false, error: "That isn't a Google Doc link." };
+      const id = await addAssignment(db, { sourceKey: run.sourceKey, origin: run.origin }, message, message.draftId ?? null, new Date());
+      const linked = message.docUrl ? await linkDoc(id, message.docUrl) : { ok: true as const };
+      await updatePlan();
+      void analyze();
+      return linked.ok ? linked : { ok: false, error: "Loomer added this assignment but couldn't link the Doc, so try linking it again." };
+    }
+    case 'assignment:edit': {
+      if (message.docUrl && !parseDocId(message.docUrl)) return { ok: false, error: "That isn't a Google Doc link." };
+      if (!(await editAssignment(db, message.assignmentId, message, new Date()))) return { ok: false, error: 'Loomer can only change work you added yourself.' };
+      const linked = await db.docLinks.get(message.assignmentId);
+      if (!message.docUrl && linked) await db.docLinks.delete(message.assignmentId);
+      if (message.docUrl && parseDocId(message.docUrl) !== linked?.docId) await linkDoc(message.assignmentId, message.docUrl);
+      await updatePlan();
+      void analyze();
+      return { ok: true };
+    }
+    case 'assignment:delete': {
       const s = await currentSession(db);
-      if (s?.assignmentId === message.assignmentId && s.state === 'active') runSessionLoop();
+      if (s?.assignmentId === message.assignmentId) {
+        await endSession(db, new Date());
+        stopSessionLoop();
+      }
+      if (!(await deleteAddedAssignment(db, message.assignmentId))) return { ok: false, error: 'Loomer can only delete work you added yourself.' };
+      await updatePlan();
       return { ok: true };
     }
     case 'source:remove':
