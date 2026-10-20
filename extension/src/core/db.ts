@@ -426,6 +426,8 @@ export type PrepRecord = {
   startDay: string;
   status: 'setup' | 'ready' | 'failed';
   error?: string;
+  /** When setup last failed, for the hourly retry. */
+  failedAt?: string;
   topics: { id: string; text: string; source: 'guide' | 'notes' | 'student'; new: boolean; removed: boolean }[];
   terms: { term: string; definition: string }[];
   formats: { selected: PrepFormat[]; found: Partial<Record<PrepFormat, 'canvas' | 'guide' | 'notes'>>; asked: boolean };
@@ -455,7 +457,8 @@ export type PracticeQuestionRecord = {
 export type PracticeRecord = {
   id: string;
   assignmentId: string;
-  dayKind: PrepDayKind | 'comeback';
+  /** mistake: practice on one earlier wrong answer (prep:start with mistakeId). */
+  dayKind: PrepDayKind | 'comeback' | 'mistake';
   day: string;
   createdAt: string;
   startedAt: string | null;

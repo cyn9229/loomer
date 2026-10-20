@@ -101,6 +101,7 @@ describe('test prep', () => {
     await answerPractice(deps, p.id, p.question!.id, { text: 'I think both were about money and land.' });
     expect((await loadPracticeModel(db, now))!.answer).toEqual({
       kind: 'frq',
+      text: 'I think both were about money and land.',
       status: 'ready',
       needs: [
         { need: 'A clear claim', met: true, note: 'both were about money' },
@@ -110,6 +111,22 @@ describe('test prep', () => {
     await practiceLike(deps, p.id, p.question!.id);
     const next = (await loadPracticeModel(db, now))!;
     expect([next.index, next.total, next.question?.prompt, next.question?.like]).toEqual([1, 3, 'Compare Hawaii and the Philippines.', true]);
+  });
+
+  it('practices one mistake with a question like it on the same topic', async () => {
+    const f = service({ '/ai/prep-topics': [topicsReply], '/ai/practice': [{ questions: [mcq('Annexation of Hawaii', 1)] }, { questions: [mcq('Annexation of Hawaii', 5), mcq('Annexation of Hawaii', 6)] }] });
+    const deps = { db, ai, fetch: f, now: () => now };
+    await setupPrep(deps, test);
+    await startPractice(deps, 't');
+    const p = (await loadPracticeModel(db, now))!;
+    const wrong = p.question!.options.findIndex((o) => o !== 'B');
+    await answerPractice(deps, p.id, p.question!.id, { choice: wrong });
+    await endPractice(db, p.id, now);
+    const [mistake] = (await loadPrep(db, test, now))!.mistakes;
+    expect(mistake).toMatchObject({ topic: 'Annexation of Hawaii', label: 'Q1', sub: 'Missed Tue' });
+    expect(await startPractice(deps, 't', mistake!.id)).toBeNull();
+    expect(f.calls.at(-1)!.body).toMatchObject({ topics: ['Annexation of Hawaii'], like: { kind: 'mcq', prompt: 'Question 1?' } });
+    expect((await loadPracticeModel(db, now))!.question?.prompt).toBe('Question 5?');
   });
 
   it('reads the readiness line honestly before any practice', () => {

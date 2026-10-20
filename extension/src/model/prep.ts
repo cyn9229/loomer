@@ -82,12 +82,13 @@ export type PracticeQuestion = {
   like: boolean;
 };
 
+/** `text`: what the student wrote, kept so "Your answer" survives a reload. Math's `answer` is the expected one. */
 export type PracticeAnswer =
   | { kind: 'mcq'; picked: number; correct: number; right: boolean; why: string }
   | { kind: 'vocab'; knew: boolean }
-  | { kind: 'math'; right: boolean; answer: string; why: string; worked: { problem: string; steps: string[] } | null }
-  | { kind: 'short' | 'explain'; status: 'pending' | 'ready'; met: { need: string; quote: string }[]; missing: { need: string; hint: string }[] }
-  | { kind: 'frq'; status: 'pending' | 'ready'; needs: { need: string; met: boolean; note: string }[] };
+  | { kind: 'math'; text: string; right: boolean; answer: string; why: string; worked: { problem: string; steps: string[] } | null }
+  | { kind: 'short' | 'explain'; text: string; status: 'pending' | 'ready'; met: { need: string; quote: string }[]; missing: { need: string; hint: string }[] }
+  | { kind: 'frq'; text: string; status: 'pending' | 'ready'; needs: { need: string; met: boolean; note: string }[] };
 
 export type PracticeSummary = {
   /** "You did 10 minutes on the Congo and Latin America." */

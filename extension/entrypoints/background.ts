@@ -753,8 +753,15 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     }
     case 'prep:start': {
-      const error = await startPractice(prepDeps(), message.assignmentId);
+      const error = await startPractice(prepDeps(), message.assignmentId, message.mistakeId);
       return error ? { ok: false, error } : { ok: true };
+    }
+    case 'prep:setup': {
+      const a = await db.assignments.get(message.assignmentId);
+      if (!a || !(await prepEligible(db, a, new Date()))) return { ok: false, error: 'Loomer sets up prep for tests and quizzes due in the next two weeks.' };
+      await setupPrep(prepDeps(), a, true);
+      const prep = await db.preps.get(a.id);
+      return prep ? { ok: true } : { ok: false, error: "AI help is off for this test, so Loomer can't build a plan." };
     }
     case 'prep:answer':
       await answerPractice(prepDeps(), message.practiceId, message.questionId, message);

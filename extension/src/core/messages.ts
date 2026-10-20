@@ -95,8 +95,10 @@ export const messageSchema = z.discriminatedUnion('type', [
     correction: z.enum(['done-offline', 'kept-active', 'turned-in']).nullable(),
     note: z.string().max(500).optional(),
   }),
-  /** Test prep: start today's practice for this test (written ahead when possible). The practice view reads usePracticeModel. */
-  z.object({ type: z.literal('prep:start'), assignmentId: z.string() }),
+  /** Test prep: start today's practice for this test (written ahead when possible), or `mistakeId`: practice on one earlier wrong answer. The practice view reads usePracticeModel. */
+  z.object({ type: z.literal('prep:start'), assignmentId: z.string(), mistakeId: z.string().optional() }),
+  /** "Build my plan": set up prep now (or retry a failed setup). */
+  z.object({ type: z.literal('prep:setup'), assignmentId: z.string() }),
   /** An answer: choice for multiple choice, text for math and written answers, knew for a flashcard. */
   z.object({ type: z.literal('prep:answer'), practiceId: z.string(), questionId: z.string(), choice: z.number().int().min(0).max(9).optional(), text: z.string().max(8_000).optional(), knew: z.boolean().optional() }),
   /** "Try one like it": a new question on the same idea, shown next. */

@@ -68,10 +68,15 @@ async function post<T>(settings: AiSettings, route: string, body: unknown, parse
 const sourceOf = (a: Assignment) => instructionText(a.detail).slice(0, SOURCE_CHARS);
 const newId = () => crypto.randomUUID().slice(0, 8);
 
-/** Finds a test's topics, key terms, and formats from its instructions and study guide. Runs once per test, with a retry after an hour on failure. */
-export async function setupPrep({ db, ai, fetch: fetchImpl = fetch, now = () => new Date() }: PrepDeps, a: Assignment): Promise<void> {
+/**
+ * Finds a test's topics, key terms, and formats from its instructions and study
+ * guide. Runs once per test, with a retry after an hour on failure; `force`
+ * ("Build my plan") retries a failed setup now.
+ */
+export async function setupPrep({ db, ai, fetch: fetchImpl = fetch, now = () => new Date() }: PrepDeps, a: Assignment, force = false): Promise<void> {
   const existing = await db.preps.get(a.id);
-  if (existing && (existing.status !== 'failed' || now().getTime() - Date.parse(existing.startDay) < SETUP_RETRY_MS)) return;
+  if (existing && existing.status !== 'failed') return;
+  if (existing && !force && now().getTime() - Date.parse(existing.failedAt ?? existing.startDay) < SETUP_RETRY_MS) return;
   const settings = await ai();
   if (!(await prepAllowed(db, settings, a))) return;
   const record: PrepRecord = existing ?? { assignmentId: a.id, startDay: localDay(now()), status: 'setup', topics: [], terms: [], formats: { selected: [], found: {}, asked: false }, notes: { photos: 0, found: null } };
@@ -80,7 +85,7 @@ export async function setupPrep({ db, ai, fetch: fetchImpl = fetch, now = () => 
   const reply = await post(settings, PREP_TOPICS_ROUTE, request, (v) => prepTopicsResponseSchema.safeParse(v), fetchImpl);
   if (typeof reply === 'string') {
     console.warn('loomer: prep setup failed:', reply);
-    await db.preps.put({ ...record, status: 'failed', error: "Loomer couldn't read this test's topics yet, so add your notes or a topic to start." });
+    await db.preps.put({ ...record, status: 'failed', failedAt: now().toISOString(), error: "Loomer couldn't read this test's topics yet, so add your notes or a topic to start." });
     return;
   }
   // A topic from the text must quote it, so Loomer never invents what the test covers.
@@ -155,8 +160,12 @@ export async function todayKind(db: LoomerDb, prep: PrepRecord, testAt: string, 
   return day.kind;
 }
 
-/** Writes a practice's questions. Called ahead of time for today, and on prep:start when none is ready. */
-export async function writePractice(deps: PrepDeps, assignmentId: string, kind: PrepDayKind | 'comeback'): Promise<string | null> {
+/**
+ * Writes a practice's questions. Called ahead of time for today, and on
+ * prep:start when none is ready. `mistake`: practice on one earlier wrong
+ * answer, with a question like it and two more on its topic.
+ */
+export async function writePractice(deps: PrepDeps, assignmentId: string, kind: PrepDayKind | 'comeback' | 'mistake', mistake?: PracticeQuestionRecord): Promise<string | null> {
   const { db, ai, fetch: fetchImpl = fetch, now = () => new Date() } = deps;
   const [a, prep] = await Promise.all([db.assignments.get(assignmentId), db.preps.get(assignmentId)]);
   if (!a || prep?.status !== 'ready' || activeTopics(prep).length === 0) return null;
@@ -164,7 +173,10 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, kind: 
   if (!(await prepAllowed(db, settings, a))) return null;
   const checks = await db.topicChecks.where('assignmentId').equals(assignmentId).toArray();
   const topics = topicStandings(prep, checks);
-  const plan = practiceFor(kind, prep, topics, checks, now());
+  const plan =
+    kind === 'mistake' && mistake
+      ? { topics: topics.filter((t) => t.id === mistake.topicId), kinds: mistake.kind === 'mcq' ? [{ kind: 'mcq' as const, count: 3 }] : [{ kind: mistake.kind, count: 1 }, { kind: 'mcq' as const, count: 2 }] }
+      : practiceFor(kind === 'mistake' ? 'comeback' : kind, prep, topics, checks, now());
   const id = crypto.randomUUID();
   const record: PracticeRecord = { id, assignmentId, dayKind: kind, day: localDay(now()), createdAt: now().toISOString(), startedAt: null, endedAt: null, closed: false, writing: true, error: null, index: 0, questions: [], answers: {} };
   await db.practices.put(record);
@@ -175,7 +187,7 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, kind: 
     topics: plan.topics.map((t) => t.text.slice(0, 160)),
     terms: prep.terms.slice(0, 40).map((t) => ({ term: t.term.slice(0, 160), definition: t.definition.slice(0, 400) })),
     kinds: plan.kinds,
-    like: null,
+    like: mistake ? { topic: mistake.topic.slice(0, 160), kind: mistake.kind, prompt: (mistake.prompt || mistake.term).slice(0, 2_000) } : null,
     avoid: asked.slice(-60),
   };
   const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
@@ -202,9 +214,18 @@ function questionFrom(q: (typeof practiceResponseSchema)['_zod']['output']['ques
   return [{ id: newId(), topicId: topic.id, topic: topic.text, kind: q.kind, label: q.label.slice(0, 80), prompt: q.prompt, options, answerIndex, why: q.why, term: q.term, definition: q.definition, answer: q.answer, worked: q.worked, needs: q.needs.slice(0, 8), like }];
 }
 
-/** Starts today's practice: the one written ahead if it is still today's, or a new one. */
-export async function startPractice(deps: PrepDeps, assignmentId: string): Promise<string | null> {
+/** Starts today's practice (the one written ahead if it is still today's, or a new one), or practice on one mistake. */
+export async function startPractice(deps: PrepDeps, assignmentId: string, mistakeId?: string): Promise<string | null> {
   const { db, now = () => new Date() } = deps;
+  if (mistakeId) {
+    const mistake = (await db.practices.where('assignmentId').equals(assignmentId).toArray()).flatMap((p) => p.questions).find((q) => q.id === mistakeId);
+    if (!mistake) return "Loomer couldn't find that mistake anymore.";
+    const id = await writePractice(deps, assignmentId, 'mistake', mistake);
+    if (!id) return "AI help is off for this test, so Loomer can't write practice.";
+    await db.practices.filter((p) => !!p.startedAt && !p.closed && p.id !== id).modify({ closed: true });
+    await db.practices.update(id, { startedAt: now().toISOString() });
+    return null;
+  }
   const prep = await db.preps.get(assignmentId);
   const a = await db.assignments.get(assignmentId);
   const testAt = a && effectiveDue(a, now()).at;
@@ -254,13 +275,13 @@ export async function answerPractice(deps: PrepDeps, practiceId: string, questio
       return save({ kind: 'vocab', knew: input.knew === true });
     case 'math': {
       const right = mathRight(input.text ?? '', q.answer);
-      return save({ kind: 'math', right, answer: q.answer, why: q.why, worked: right ? null : q.worked });
+      return save({ kind: 'math', text: (input.text ?? '').slice(0, 500), right, answer: q.answer, why: q.why, worked: right ? null : q.worked });
     }
     case 'short':
     case 'explain':
     case 'frq': {
       const text = (input.text ?? '').trim().slice(0, 8_000);
-      const pending: PracticeAnswer = q.kind === 'frq' ? { kind: 'frq', status: 'pending', needs: [] } : { kind: q.kind, status: 'pending', met: [], missing: [] };
+      const pending: PracticeAnswer = q.kind === 'frq' ? { kind: 'frq', text, status: 'pending', needs: [] } : { kind: q.kind, text, status: 'pending', met: [], missing: [] };
       await db.practices.update(practiceId, { answers: { ...p.answers, [questionId]: pending } });
       const request: PracticeGradeRequest = { kind: q.kind, topic: q.topic.slice(0, 160), prompt: q.prompt.slice(0, 2_000), needs: q.needs.map((n) => n.slice(0, 300)), answer: text };
       const reply = text ? await post(await ai(), PRACTICE_GRADE_ROUTE, request, (v) => practiceGradeResponseSchema.safeParse(v), fetchImpl) : { needs: q.needs.map((need) => ({ need, met: false, quote: '', hint: 'Write a few words first.' })) };
@@ -274,8 +295,8 @@ export async function answerPractice(deps: PrepDeps, practiceId: string, questio
       await db.practices.update(practiceId, { answers: rest });
       return save(
         q.kind === 'frq'
-          ? { kind: 'frq', status: 'ready', needs: checked.map((n) => ({ need: n.need, met: n.met, note: n.met ? n.quote : n.hint })) }
-          : { kind: q.kind, status: 'ready', met: checked.filter((n) => n.met).map((n) => ({ need: n.need, quote: n.quote })), missing: checked.filter((n) => !n.met).map((n) => ({ need: n.need, hint: n.hint })) },
+          ? { kind: 'frq', text, status: 'ready', needs: checked.map((n) => ({ need: n.need, met: n.met, note: n.met ? n.quote : n.hint })) }
+          : { kind: q.kind, text, status: 'ready', met: checked.filter((n) => n.met).map((n) => ({ need: n.need, quote: n.quote })), missing: checked.filter((n) => !n.met).map((n) => ({ need: n.need, hint: n.hint })) },
       );
     }
   }
@@ -345,6 +366,7 @@ async function summaryOf(db: LoomerDb, p: PracticeRecord, now: Date): Promise<Pr
     : p.dayKind === 'check-all' ? `You checked ${topicCount(topics.length)} on ${noun}.`
     : p.dayKind === 'practice-test' ? `You finished a practice test with ${answered.length} questions.`
     : p.dayKind === 'warm-up' ? `You warmed up on ${names(topics)}.`
+    : p.dayKind === 'mistake' ? `You practiced ${names(topics)} again.`
     : `You did ${DAY_MINUTES[p.dayKind]} minutes on ${names(topics)}.`;
   const solid = topics.filter((t) => t.standing === 'solid');
   const weak = topics.filter((t) => t.standing !== 'solid');
