@@ -7,6 +7,7 @@
 // Views render only what the model says; they never invent progress, time
 // estimates, or checks.
 import { useState, type ReactNode } from 'react';
+import type { EditableFields } from '../model/detail';
 import type { DailyBrief, HomeModel, Insight, InsightKind, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, minutesText, observedAt } from './format';
@@ -42,6 +43,10 @@ export type HomeActions = {
   /** Pause, resume or end the running session (one tap; errors show at the top). */
   sessionVerb: (verb: SessionVerb) => void;
   sessionBusy: boolean;
+  /** Opens the sheet to add work that isn't on Canvas. */
+  addAssignment: () => void;
+  /** Opens the same sheet to edit work the student added. */
+  editAssignment: (assignmentId: string, fields: EditableFields) => void;
 };
 
 /** Start or Keep going for one assignment, depending on the current session. */
@@ -73,8 +78,8 @@ type HomeProps = {
   /** The student ended a session "Done for today" on an item with a guess: ask roughly how much is left. */
   askLeft: WorkItem | null;
   onAskLeftDone: () => void;
-  /** The student just said "I turned it in": say so once, with Undo. */
-  turnedIn: { assignmentId: string; noun: string } | null;
+  /** The student just said "I turned it in": say so once, with Undo. `mine`: hand-added, so Canvas never confirms it. */
+  turnedIn: { assignmentId: string; noun: string; mine: boolean } | null;
   onTurnedInDone: () => void;
   /** The "working on this?" line, shown above the Ask bar. */
   nudge: ReactNode;
@@ -489,16 +494,19 @@ function NextStep({
 /** "Keep going" on another assignment, from the last session's briefing. */
 /**
  * After "I turned it in" at the end of a session: the assignment is off the
- * plan, and Loomer confirms once Canvas shows the submission. Undo clears the
- * correction (context:set null), which puts it back.
+ * plan, and Loomer confirms once Canvas shows the submission (hand-added work
+ * has no Canvas submission to wait for). Undo clears the correction
+ * (context:set null), which puts it back.
  */
-function TurnedInNotice({ turnedIn, send, onDone }: { turnedIn: { assignmentId: string; noun: string }; send: HomeActions['send']; onDone: () => void }) {
+function TurnedInNotice({ turnedIn, send, onDone }: { turnedIn: { assignmentId: string; noun: string; mine: boolean }; send: HomeActions['send']; onDone: () => void }) {
   const undo = useAction();
   return (
     <div className="notice">
       <Icon name="checkCircle" />
       <span className="grow">
-        You turned in {turnedIn.noun}, so Loomer took it off your plan and will check Canvas for your submission.
+        {turnedIn.mine
+          ? `You marked ${turnedIn.noun} done, so it’s off your plan.`
+          : `You turned in ${turnedIn.noun}, so Loomer took it off your plan and will check Canvas for your submission.`}
         {undo.error && <span className="notice-sub danger-text">{undo.error}</span>}
       </span>
       <button

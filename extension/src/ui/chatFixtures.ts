@@ -93,7 +93,7 @@ function turns(now: Date, pairs: [string, ChatBlock[], Partial<ChatTurn>?][]): C
 }
 
 export function buildChatFixtures(now: Date, items: WorkItem[]) {
-  const general = (over: Partial<ChatModel>): ChatModel => ({ threadKey: GENERAL_THREAD, assignment: null, availability: 'available', turns: [], streaming: false, planChanges: {}, ...over });
+  const general = (over: Partial<ChatModel>): ChatModel => ({ threadKey: GENERAL_THREAD, assignment: null, availability: 'available', turns: [], streaming: false, planChanges: {}, added: {}, ...over });
   const essay = items.find((i) => i.assignmentId === 'a-essay') ?? null;
   const blocked = items.find((i) => i.policy.state === 'blocked') ?? null;
   return {
@@ -106,6 +106,7 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       availability: 'available',
       streaming: false,
       planChanges: {},
+      added: {},
       turns: turns(now, [
         [
           'Quick check: Vertex form',
@@ -130,6 +131,9 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
     } satisfies ChatModel,
     'plan-applied': planChat(now, items, 'applied'),
     answer: general({ turns: turns(now, [['why do cities get hotter than the countryside?', ANSWER]]) }),
+    // Ask Loomer proposes adding work the student mentioned; the student adds it (or it's already added).
+    'add-card': general({ turns: turns(now, [['i have a bio lab due friday, the enzymes one', [{ kind: 'tool' as const, label: 'Suggested adding an assignment', status: 'done' as const }, { kind: 'markdown' as const, text: 'Here’s the bio lab report, ready to add to your plan.' }, { kind: 'add-assignment' as const, draftId: 'draft-lab', draft: { title: 'Bio lab report: enzymes', courseKey: 'course:Biology', courseName: 'Biology', dueAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4, 23, 59).toISOString(), workType: 'practice' as const } }]]]) }),
+    'add-card-added': general({ turns: turns(now, [['i have a bio lab due friday, the enzymes one', [{ kind: 'markdown' as const, text: 'Here’s the bio lab report, ready to add to your plan.' }, { kind: 'add-assignment' as const, draftId: 'draft-lab', draft: { title: 'Bio lab report: enzymes', courseKey: 'course:Biology', courseName: 'Biology', dueAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4, 23, 59).toISOString(), workType: 'practice' as const } }]]]), added: { 'draft-lab': 's-lab' } }),
     quiz: general({ turns: turns(now, [['quiz me on this', [{ kind: 'markdown', text: 'Three quick questions on **urban heat islands**.' }, QUIZ]]]) }),
     widget: general({
       turns: turns(now, [
@@ -151,9 +155,10 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       turns: [],
       streaming: false,
       planChanges: {},
+      added: {},
     } satisfies ChatModel,
-    blocked: { threadKey: blocked?.assignmentId ?? 'a-reflection', assignment: blocked, availability: 'blocked', turns: [], streaming: false, planChanges: {} } satisfies ChatModel,
-    'policy-question': { threadKey: essay?.assignmentId ?? 'a-essay', assignment: essay, availability: 'needs-policy-answer', turns: [], streaming: false, planChanges: {} } satisfies ChatModel,
+    blocked: { threadKey: blocked?.assignmentId ?? 'a-reflection', assignment: blocked, availability: 'blocked', turns: [], streaming: false, planChanges: {}, added: {} } satisfies ChatModel,
+    'policy-question': { threadKey: essay?.assignmentId ?? 'a-essay', assignment: essay, availability: 'needs-policy-answer', turns: [], streaming: false, planChanges: {}, added: {} } satisfies ChatModel,
     'ai-off': general({ availability: 'ai-off' }),
     'service-down': general({
       turns: turns(now, [
@@ -226,6 +231,7 @@ function planChat(now: Date, items: WorkItem[], status: PlanChangeView['status']
     availability: 'available',
     streaming: false,
     planChanges: { [change.id]: change },
+    added: {},
     turns: turns(now, [
       [
         "thursday i have a game so i'm busy. and tuesdays i only get like 30 min",

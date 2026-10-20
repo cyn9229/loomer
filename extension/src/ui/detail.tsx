@@ -25,14 +25,33 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
   const start = startControl(item, actions);
   const ok = detail?.status === 'ok' ? detail : null;
   const effortReason = ok?.effort.reason ?? item.effort.reason;
+  // Work the student added by hand: marked, editable, and done only when they say so.
+  const mine = item.source === 'student';
+  const editable = ok?.editable ?? null;
   return (
     <>
       <div className="d-head">
         <SubjectTile courseName={item.courseName} size="lg" />
         <span className="d-class">{item.courseName ?? 'No class'} ·</span>
         <TypeMenu item={item} send={actions.send} />
+        {editable && (
+          <button type="button" className="link d-edit" onClick={() => actions.editAssignment(item.assignmentId, editable)}>
+            <Icon name="edit" size="xs" />
+            Edit
+          </button>
+        )}
       </div>
       <h1 className="d-title">{item.title}</h1>
+      {mine && (
+        <p className="d-note mine-note">
+          <span className="mine">
+            <Icon name="user" size="xs" />
+            Added by you
+          </span>
+          <span>Loomer can’t see a Canvas submission for it, so you mark it done yourself.</span>
+        </p>
+      )}
+      {item.sameAsCanvas && <SameAsCanvas item={item} same={item.sameAsCanvas} actions={actions} />}
       {ok?.plainWords && (
         <AiBlock className="plain" label="In plain words" flashKey={`plain:${item.assignmentId}:${ok.plainWords}`}>
           <p className="ai-text">{ok.plainWords}</p>
@@ -78,12 +97,17 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
           {start.busy ? 'Starting…' : start.label}
           <Icon name="arrowRight" />
         </button>
-        <Corrections item={item} correction={ok?.correction ?? item.correction} actions={actions} />
+        {mine ? (
+          <MarkDone item={item} correction={ok?.correction ?? item.correction} actions={actions} />
+        ) : (
+          <Corrections item={item} correction={ok?.correction ?? item.correction} actions={actions} />
+        )}
         <div className="row-actions center" style={{ marginTop: 14 }}>
           <button type="button" className="link subtle" onClick={() => actions.setHidden(item.assignmentId, !item.hidden)}>
             {item.hidden ? 'Show it in my lists again' : 'Hide from my lists'}
           </button>
-          <DeleteAssignmentData assignmentId={item.assignmentId} send={actions.send} />
+          {/* Hand-added work is deleted whole from Edit; this keeps the assignment and clears what Loomer saved. */}
+          {!mine && <DeleteAssignmentData assignmentId={item.assignmentId} send={actions.send} />}
         </div>
       </div>
     </>
@@ -319,6 +343,62 @@ const correctionText: Record<Exclude<StudentCorrection, null>, string> = {
   'kept-active': 'You asked to keep this on your list.',
   'turned-in': 'You turned this in, so it’s off your plan until Canvas shows your submission.',
 };
+
+/** Hand-added work never finishes by itself: the student marks it done (the same turned-in correction the end card sets). */
+function MarkDone({ item, correction, actions }: { item: WorkItem; correction: StudentCorrection; actions: HomeActions }) {
+  const act = useAction();
+  const set = (value: 'turned-in' | null) => act.run(() => actions.send({ type: 'context:set', assignmentId: item.assignmentId, correction: value }));
+  return (
+    <div className="correct">
+      {correction === 'turned-in' ? (
+        <>
+          You marked this done, so it’s off your plan.{' '}
+          <button type="button" className="link" disabled={act.busy} aria-busy={act.busy} onClick={() => set(null)}>
+            {act.busy ? 'Undoing…' : 'Undo'}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="link muted" disabled={act.busy} aria-busy={act.busy} onClick={() => set('turned-in')}>
+          <Icon name="check" size="xs" />
+          {act.busy ? 'Marking…' : 'Mark as done'}
+        </button>
+      )}
+      {act.error && <p className="status-line error">{act.error}</p>}
+    </div>
+  );
+}
+
+/** A hand-added item that looks like open Canvas work: open that one, or remove this copy (assignment:delete). */
+function SameAsCanvas({ item, same, actions }: { item: WorkItem; same: NonNullable<WorkItem['sameAsCanvas']>; actions: HomeActions }) {
+  const act = useAction();
+  return (
+    <div className="d-same">
+      <Icon name="info" size="sm" />
+      <span className="grow">
+        This looks like <b>{same.title}</b> from Canvas.
+      </span>
+      <button type="button" className="link" onClick={() => actions.openItem(same.assignmentId)}>
+        Open it
+      </button>
+      <button
+        type="button"
+        className="link muted"
+        disabled={act.busy}
+        aria-busy={act.busy}
+        onClick={() =>
+          act.run(async () => {
+            const reply = await actions.send({ type: 'assignment:delete', assignmentId: item.assignmentId });
+            if (reply.ok) actions.openItem(same.assignmentId);
+            return reply;
+          })
+        }
+      >
+        {act.busy ? 'Removing…' : 'Remove mine'}
+      </button>
+      {act.error && <p className="status-line error">{act.error}</p>}
+    </div>
+  );
+}
 
 /** "Did it already?" Loomer only knows what Canvas shows, so the student can say. */
 function Corrections({ item, correction, actions }: { item: WorkItem; correction: StudentCorrection; actions: HomeActions }) {

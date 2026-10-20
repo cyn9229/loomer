@@ -16,7 +16,9 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 // Spread into each connected fixture: no resume briefing, older-work review, busy-days note, or brief.
-const noResume = { resume: null, olderReview: null, crowded: null, brief: null, room: [], yourChanges: [] };
+// The student's Canvas classes for the add form's class picker; keys match item() (course:<name>).
+const COURSES = ['Algebra 2', 'Biology', 'English 10', 'Environmental Science (replay)', 'Health', 'Spanish III'].map((name) => ({ key: `course:${name}`, name }));
+const noResume = { resume: null, olderReview: null, crowded: null, brief: null, room: [], yourChanges: [], courses: COURSES };
 
 /** A local date `days` from now at hh:mm, as ISO. */
 function at(now: Date, days: number, hh: number, mm: number): string {
@@ -65,6 +67,8 @@ function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId'
   const due = over.due ?? null;
   const checkpoints = over.checkpoints ?? [];
   return {
+    source: 'canvas',
+    sameAsCanvas: null,
     courseKey: `course:${over.courseName ?? 'none'}`,
     bucket: bucketFor(due, now),
     hidden: false,
@@ -132,6 +136,26 @@ export function buildFixtures(now: Date) {
       quote: 'Complete this reflection on your own. Do not use AI tools.',
       sourceLabel: 'Assignment instructions',
     },
+  });
+  // Work the student added by hand: a paper lab report, and a copy of the vocab check Canvas already has.
+  const labReport = item(now, {
+    assignmentId: 's-lab',
+    title: 'Bio lab report: enzymes',
+    source: 'student',
+    courseName: 'Biology',
+    url: null,
+    due: { at: at(now, 4, 23, 59), source: 'canvas' },
+    workType: { type: 'practice', source: 'student' },
+    rankReason: `This lab report is due ${new Date(at(now, 4, 23, 59)).toLocaleDateString(undefined, { weekday: 'long' })}, so tomorrow is a good day to start.`,
+  });
+  const vocabCopy = item(now, {
+    assignmentId: 's-vocab',
+    title: 'Vocab check',
+    source: 'student',
+    courseName: 'Biology',
+    url: null,
+    due: { at: at(now, 2, 8, 0), source: 'canvas' },
+    sameAsCanvas: { assignmentId: 'a-vocab', title: 'Ch. 6 vocabulary check' },
   });
   const lab = item(now, {
     assignmentId: 'a-lab',
@@ -338,7 +362,7 @@ export function buildFixtures(now: Date) {
       room: roomFixture(now),
       yourChanges: appliedChanges(now),
       next: readyNext,
-      rest: [photo, vocab, sheet, replayItem, readingCh, reflection, quizItem, proposal, lab, reading, pastQuiz, hiddenItem],
+      rest: [photo, vocab, sheet, replayItem, readingCh, reflection, quizItem, proposal, lab, reading, pastQuiz, hiddenItem, labReport, vocabCopy],
       lastCheck,
     },
 
@@ -440,6 +464,7 @@ export function buildFixtures(now: Date) {
       brief: null,
       room: [],
       yourChanges: [],
+      courses: COURSES,
     },
 
     'weak-topic': {
@@ -482,6 +507,7 @@ export function buildFixtures(now: Date) {
       brief: null,
       room: [],
       yourChanges: [],
+      courses: COURSES,
     },
 
     'resume-changed': {
@@ -514,6 +540,7 @@ export function buildFixtures(now: Date) {
       brief: null,
       room: [],
       yourChanges: [],
+      courses: COURSES,
     },
 
     'your-pick': {
@@ -539,6 +566,7 @@ export function buildFixtures(now: Date) {
       status: 'ready',
       room: [],
       yourChanges: [],
+      courses: COURSES,
       resume: null,
       crowded: null,
       brief: null,
@@ -567,6 +595,7 @@ export function buildFixtures(now: Date) {
       status: 'ready',
       room: [],
       yourChanges: [],
+      courses: COURSES,
       resume: essayResume(false),
       crowded,
       brief,
@@ -696,6 +725,11 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     correction: item.correction,
     note: null,
     // The practice sheet's instructions embed a Doc Loomer may not read yet; the reading's embedded Doc was read.
+    // Only hand-added work can be edited; workType is the student's own choice (null: Loomer guesses).
+    editable:
+      item.source === 'student'
+        ? { title: item.title, courseKey: item.courseName ? item.courseKey : null, dueAt: item.due?.at ?? null, workType: item.workType.source === 'student' ? item.workType.type : null, instructions: null, docUrl: null }
+        : null,
     // The essay asks for three sources and has two saved.
     sourceNeed: checked ? { required: 3, saved: 2, quote: 'Use at least three sources' } : null,
     sheets:

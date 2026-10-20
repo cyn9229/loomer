@@ -5,10 +5,10 @@
 // line), or Keep going. The X, Escape, and a tap outside are Keep going, so the
 // sheet never traps the student.
 import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { AiBlock } from './aiBlock';
 import { Icon } from './Icon';
 import type { ActiveSession } from './session';
+import { Sheet } from './sheet';
 
 export type EndOutcome = 'turned-in' | 'for-today';
 /** One step for next time. Once the student edits it, it is theirs, not the AI's. */
@@ -50,16 +50,6 @@ export function EndSheet({ session, noun, requestNextStep, close, onKeepGoing }:
     firstButton.current?.focus();
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onKeepGoing();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [busy, onKeepGoing]);
-
   const finish = (outcome: EndOutcome, nextStep?: KeptStep) => {
     setBusy(true);
     setError(null);
@@ -87,77 +77,71 @@ export function EndSheet({ session, noun, requestNextStep, close, onKeepGoing }:
     finish('for-today', kept?.text ? kept : undefined);
   };
 
-  // A portal to <body>: the screen animates with a transform, which would pin a fixed layer to it instead of the panel.
-  return createPortal(
-    <div className="end-layer">
-      <button type="button" className="end-dim" aria-label="Keep going" tabIndex={-1} onClick={() => !busy && onKeepGoing()} />
-      <section className="end-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <span className="end-grab" aria-hidden="true" />
-        <div className="end-top">
-          <span className="end-title">{session.assignment.title}</span>
-          <button type="button" className="icon-btn" aria-label="Keep going" title="Keep going" disabled={busy} onClick={onKeepGoing}>
-            <Icon name="x" size="sm" />
-          </button>
-        </div>
-        <p id={titleId} className="end-recap">
-          {session.recap.text}
-        </p>
+  return (
+    <Sheet labelledBy={titleId} onClose={onKeepGoing} busy={busy} closeLabel="Keep going">
+      <div className="end-top">
+        <span className="end-title">{session.assignment.title}</span>
+        <button type="button" className="icon-btn" aria-label="Keep going" title="Keep going" disabled={busy} onClick={onKeepGoing}>
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <p id={titleId} className="end-recap">
+        {session.recap.text}
+      </p>
 
-        {stage === 'ask' ? (
-          <>
-            <p className="end-q">Where does {noun} stand?</p>
-            <div className="end-btns">
-              <button type="button" ref={firstButton} className="btn" disabled={busy} onClick={() => finish('turned-in')}>
-                <Icon name="check" size="sm" />I turned it in
-              </button>
-              <button type="button" className="btn" disabled={busy} onClick={doneForToday}>
-                <Icon name="sandglass" size="sm" />
-                {quiz ? 'Not done yet' : 'Done for today'}
-              </button>
-            </div>
-            <button type="button" className="end-keep" disabled={busy} onClick={onKeepGoing}>
-              Keep going
+      {stage === 'ask' ? (
+        <>
+          <p className="end-q">Where does {noun} stand?</p>
+          <div className="end-btns">
+            <button type="button" ref={firstButton} className="btn" disabled={busy} onClick={() => finish('turned-in')}>
+              <Icon name="check" size="sm" />I turned it in
             </button>
-          </>
-        ) : (
-          <>
-            <p className="end-q">Here’s where to start next time.</p>
-            {draft !== null || none ? (
-              <textarea
-                className="end-edit"
-                autoFocus
-                rows={2}
-                value={draft ?? ''}
-                placeholder="What will you do first next time?"
-                aria-label="Next time"
-                onChange={(e) => setDraft(e.target.value)}
-              />
-            ) : waiting || !suggested ? (
-              <p className="end-loading">Loomer is picking a next step…</p>
-            ) : suggested.aiGenerated ? (
-              <AiBlock className="end-next" label="Next time" flashKey={`next:${session.sessionId}:${suggested.text}`} right={<EditButton onClick={() => setDraft(suggested.text)} />}>
-                <p className="end-next-t">{suggested.text}</p>
-              </AiBlock>
-            ) : (
-              <section className="end-next plain" aria-label="Next time">
-                <div className="ai-k plain">
-                  <Icon name="listChecks" size="xs" />
-                  Next time
-                  <span className="grow" />
-                  <EditButton onClick={() => setDraft(suggested.text)} />
-                </div>
-                <p className="end-next-t">{suggested.text}</p>
-              </section>
-            )}
-            <button type="button" className="btn-primary" disabled={busy || (waiting && draft === null)} aria-busy={busy} onClick={save}>
-              {busy ? 'Saving…' : 'Save and close'}
+            <button type="button" className="btn" disabled={busy} onClick={doneForToday}>
+              <Icon name="sandglass" size="sm" />
+              {quiz ? 'Not done yet' : 'Done for today'}
             </button>
-          </>
-        )}
-        {error && <p className="status-line error">{error}</p>}
-      </section>
-    </div>,
-    document.body,
+          </div>
+          <button type="button" className="end-keep" disabled={busy} onClick={onKeepGoing}>
+            Keep going
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="end-q">Here’s where to start next time.</p>
+          {draft !== null || none ? (
+            <textarea
+              className="end-edit"
+              autoFocus
+              rows={2}
+              value={draft ?? ''}
+              placeholder="What will you do first next time?"
+              aria-label="Next time"
+              onChange={(e) => setDraft(e.target.value)}
+            />
+          ) : waiting || !suggested ? (
+            <p className="end-loading">Loomer is picking a next step…</p>
+          ) : suggested.aiGenerated ? (
+            <AiBlock className="end-next" label="Next time" flashKey={`next:${session.sessionId}:${suggested.text}`} right={<EditButton onClick={() => setDraft(suggested.text)} />}>
+              <p className="end-next-t">{suggested.text}</p>
+            </AiBlock>
+          ) : (
+            <section className="end-next plain" aria-label="Next time">
+              <div className="ai-k plain">
+                <Icon name="listChecks" size="xs" />
+                Next time
+                <span className="grow" />
+                <EditButton onClick={() => setDraft(suggested.text)} />
+              </div>
+              <p className="end-next-t">{suggested.text}</p>
+            </section>
+          )}
+          <button type="button" className="btn-primary" disabled={busy || (waiting && draft === null)} aria-busy={busy} onClick={save}>
+            {busy ? 'Saving…' : 'Save and close'}
+          </button>
+        </>
+      )}
+      {error && <p className="status-line error">{error}</p>}
+    </Sheet>
   );
 }
 

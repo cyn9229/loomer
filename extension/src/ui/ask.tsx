@@ -4,12 +4,13 @@
 // assignment thread follows that assignment's AI rule: blocked shows the rule
 // and offers General instead; an unknown rule asks the one-time question first.
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { GENERAL_THREAD, type ChatModel, type ChatTurn } from '../model/chat';
+import { GENERAL_THREAD, type AddDraft, type ChatModel, type ChatTurn } from '../model/chat';
 import type { HelpAvailability } from '../model/session';
 import type { DayRoom, WorkItem } from '../model/home';
+import { AddDraftCard } from './addAssignment';
 import { useAction, type PanelApi } from './api';
 import { PolicyStep, Thinking } from './chat';
-import { Block } from './chatBlocks';
+import { Block, type BlockProps } from './chatBlocks';
 import { dueWhen } from './format';
 import { Icon } from './Icon';
 import { LogoMark } from './Logo';
@@ -35,9 +36,11 @@ type AskProps = {
   onEndQuiz: () => void;
   /** The "working on this?" line, shown above the help box. */
   nudge?: ReactNode;
+  /** Opens the add sheet with an Ask Loomer card's draft, to change it before adding. */
+  onEditDraft: (draftId: string, draft: AddDraft) => void;
 };
 
-export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz, nudge }: AskProps) {
+export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz, nudge, onEditDraft }: AskProps) {
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
@@ -115,6 +118,17 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
               return change ? <PlanChangeCard change={change} items={threads} room={room} now={now} send={api.send} /> : null;
             }}
             onQuizAnswer={(quizId, questionIndex, correct) => void api.send({ type: 'quiz:answer', quizId, questionIndex, correct })}
+            renderAddDraft={(b) => (
+              <AddDraftCard
+                draftId={b.draftId}
+                draft={b.draft}
+                addedId={model?.added[b.draftId]}
+                now={now}
+                send={api.send}
+                onEdit={() => onEditDraft(b.draftId, b.draft)}
+                onOpen={onOpenItem}
+              />
+            )}
           />
         ))}
       {ask.busy && last?.role !== 'loomer' && <Thinking />}
@@ -321,12 +335,14 @@ function Turn({
   onOpenItem,
   renderPlanChange,
   onQuizAnswer,
+  renderAddDraft,
 }: {
   turn: ChatTurn;
   widgetUrl: string;
   onOpenItem: (id: string) => void;
   renderPlanChange: (id: string) => ReactNode;
   onQuizAnswer: (quizId: string, questionIndex: number, correct: boolean) => void;
+  renderAddDraft: BlockProps['renderAddDraft'];
 }) {
   if (turn.role === 'student') {
     const text = turn.blocks.map((b) => (b.kind === 'markdown' ? b.text : '')).join('\n');
@@ -338,7 +354,7 @@ function Turn({
       <LogoMark size={17} />
       <div className="grow aib">
         {turn.blocks.map((block, i) => (
-          <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} renderPlanChange={renderPlanChange} onQuizAnswer={onQuizAnswer} />
+          <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} renderPlanChange={renderPlanChange} onQuizAnswer={onQuizAnswer} renderAddDraft={renderAddDraft} />
         ))}
         {streaming && turn.blocks.length === 0 && <Thinking inline />}
         {turn.status === 'stopped' && <p className="turn-note">Stopped</p>}

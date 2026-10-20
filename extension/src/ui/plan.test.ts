@@ -9,6 +9,8 @@ function item(id: string, startDay: number | null, dueDay: number | null, over: 
   return {
     assignmentId: id,
     title: id,
+    source: 'canvas',
+    sameAsCanvas: null,
     courseKey: 'c',
     courseName: null,
     url: null,

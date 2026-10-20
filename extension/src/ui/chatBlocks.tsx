@@ -14,7 +14,7 @@ import { sendWidgetHtml, WIDGET_MAX_HEIGHT, WIDGET_MIN_HEIGHT } from '../chat/wi
 import type { ChartSpec, ChatBlock, Quiz, Visual } from '../model/chat';
 import { Icon } from './Icon';
 
-type BlockProps = {
+export type BlockProps = {
   block: ChatBlock;
   /** The reply is still being written: new words fade in as they arrive. */
   streaming: boolean;
@@ -25,9 +25,11 @@ type BlockProps = {
   renderPlanChange: (changeId: string) => ReactNode;
   /** A checked answer on a topic's Quick check (quiz:answer), so the topic's standing updates. */
   onQuizAnswer: (quizId: string, questionIndex: number, correct: boolean) => void;
+  /** Renders a proposed hand-added assignment (the card needs the thread's added map, which the panel has). */
+  renderAddDraft: (block: Extract<ChatBlock, { kind: 'add-assignment' }>) => ReactNode;
 };
 
-export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChange, onQuizAnswer }: BlockProps) {
+export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChange, onQuizAnswer, renderAddDraft }: BlockProps) {
   switch (block.kind) {
     case 'markdown':
       return <MarkdownText text={block.text} streaming={streaming} />;
@@ -39,6 +41,8 @@ export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChang
       return <QuizCard quiz={block.quiz} onAnswer={block.quiz.topic ? (i, correct) => onQuizAnswer(block.quiz.id, i, correct) : undefined} />;
     case 'plan-change':
       return renderPlanChange(block.changeId);
+    case 'add-assignment':
+      return renderAddDraft(block);
     case 'open-assignment':
       return (
         <button type="button" className="openas enter" onClick={() => onOpenItem(block.assignmentId)}>

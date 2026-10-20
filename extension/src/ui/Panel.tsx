@@ -6,10 +6,12 @@
 import { useState, type ReactNode } from 'react';
 import type { ScreenshotDraft } from '../capture/screenshot';
 import { GENERAL_THREAD, type ChatModel } from '../model/chat';
-import type { AssignmentDetailModel } from '../model/detail';
+import { DOCS_ORIGINS } from '../core/messages';
+import type { AssignmentDetailModel, EditableFields } from '../model/detail';
 import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel, WorkNudge } from '../model/session';
 import { useAction, type PanelApi } from './api';
+import { AddSheet } from './addAssignment';
 import { AskView } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
@@ -57,7 +59,9 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
   // End opens the end sheet over the Working screen; the session runs until the student picks.
   const [endOpen, setEndOpen] = useState(false);
   // After "I turned it in", Home says so once, with Undo.
-  const [turnedIn, setTurnedIn] = useState<{ assignmentId: string; noun: string } | null>(null);
+  const [turnedIn, setTurnedIn] = useState<{ assignmentId: string; noun: string; mine: boolean } | null>(null);
+  // The add/edit sheet for work that isn't on Canvas: a new one (with an optional prefill and Ask Loomer draft), or one to edit.
+  const [addSheet, setAddSheet] = useState<{ editId: string | null; fields: EditableFields | null; draft?: Partial<EditableFields>; draftId?: string } | null>(null);
   const [workTab, setWorkTab] = useState<WorkTab>('help');
   const [openId, setOpenId] = useState<string | null>(null);
   const [hiddenHintId, setHiddenHintId] = useState<number | null>(null);
@@ -123,6 +127,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
       setAskThread(threadKey);
       setView('ask');
     },
+    addAssignment: () => setAddSheet({ editId: null, fields: null }),
+    editAssignment: (assignmentId, fields) => setAddSheet({ editId: assignmentId, fields }),
     sessionAssignmentId: active?.assignment.assignmentId ?? null,
     startingId,
     hidingId,
@@ -222,6 +228,9 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         quizOpen={Boolean(active?.assignment.quiz)}
         onEndQuiz={goWork}
         nudge={nudgeLine}
+        onEditDraft={(draftId, draft) =>
+          setAddSheet({ editId: null, fields: null, draft: { title: draft.title, courseKey: draft.courseKey, dueAt: draft.dueAt, workType: draft.workType }, draftId })
+        }
       />
     );
   } else if (view === 'work' && active) {
@@ -264,7 +273,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
               if (!reply.ok) return reply.error;
               setEndOpen(false);
               setView('home');
-              if (outcome === 'turned-in') setTurnedIn({ assignmentId: item.assignmentId, noun });
+              if (outcome === 'turned-in') setTurnedIn({ assignmentId: item.assignmentId, noun, mine: item.source === 'student' });
               else if (item.guessMinutes !== null) setAskLeft(item);
               return null;
             }}
@@ -341,6 +350,36 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     );
   }
 
+  /**
+   * Saves the add/edit sheet. Chrome's Google Docs permission is asked first,
+   * inside the click, before any await. A failed Doc link still adds the
+   * assignment, so the sheet closes and the message shows at the top instead of
+   * inviting a second add.
+   */
+  const saveAssignment = (fields: EditableFields): Promise<string | null> => {
+    const target = addSheet;
+    const allowDocs = fields.docUrl ? api.requestOrigins(DOCS_ORIGINS) : Promise.resolve(true);
+    return allowDocs.then(async (granted) => {
+      const sent = { ...fields, docUrl: granted ? fields.docUrl : null };
+      const reply = target?.editId
+        ? await api.send({ type: 'assignment:edit', assignmentId: target.editId, ...sent })
+        : await api.send({ type: 'assignment:add', ...sent, draftId: target?.draftId });
+      if (!reply.ok && !reply.error.startsWith('Loomer added this assignment')) return reply.error;
+      setAddSheet(null);
+      if (!reply.ok) start.setError(reply.error);
+      else if (!granted) start.setError('Loomer saved this assignment, but Chrome didn’t allow Google Docs, so link the Doc from its page.');
+      return null;
+    });
+  };
+
+  const deleteAssignment = (assignmentId: string) => async (): Promise<string | null> => {
+    const reply = await api.send({ type: 'assignment:delete', assignmentId });
+    if (!reply.ok) return reply.error;
+    setAddSheet(null);
+    setOpenId(null);
+    return null;
+  };
+
   return (
     <div className="panel">
       {previewLabel && (
@@ -357,6 +396,17 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
           </p>
         )}
         {body}
+        {addSheet && (
+          <AddSheet
+            editing={addSheet.fields}
+            draft={addSheet.draft}
+            courses={home && home.status !== 'not-connected' ? home.courses : []}
+            now={now}
+            save={saveAssignment}
+            remove={addSheet.editId ? deleteAssignment(addSheet.editId) : undefined}
+            onClose={() => setAddSheet(null)}
+          />
+        )}
       </main>
     </div>
   );

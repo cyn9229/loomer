@@ -2035,6 +2035,12 @@ details > summary .icon {
 .sec .vseg {
   margin-left: auto;
 }
+.sec .plan-add {
+  margin-left: auto;
+}
+.sec .plan-add + .vseg {
+  margin-left: 0;
+}
 .vseg {
   display: inline-flex;
   gap: 2px;
@@ -4133,15 +4139,15 @@ details > summary .icon {
   color: var(--ink);
 }
 
-/* ------------------------------------------------------------ End of a session
-   A sheet over the Working screen: the recap, where the assignment stands, and
-   for "Done for today" one step for next time. It slides up once when it opens. */
-.end-layer {
+/* ------------------------------------------------------------ Bottom sheet (sheet.tsx)
+   A dimmed backdrop and a panel that slides up once when it opens. The end card
+   and the add/edit assignment form use it; the end card's own pieces follow. */
+.bsheet-layer {
   position: fixed;
   inset: 0;
   z-index: 40;
 }
-.end-dim {
+.bsheet-dim {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -4152,7 +4158,7 @@ details > summary .icon {
     opacity: 0;
   }
 }
-.end-sheet {
+.bsheet {
   position: absolute;
   left: 0;
   right: 0;
@@ -4168,7 +4174,7 @@ details > summary .icon {
     transform: translateY(100%);
   }
 }
-.end-grab {
+.bsheet-grab {
   display: block;
   width: 36px;
   height: 4px;
@@ -4272,15 +4278,329 @@ details > summary .icon {
   font-size: 14px;
   color: var(--muted);
 }
-.end-sheet .btn-primary {
+.bsheet .btn-primary {
   margin-top: 14px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .end-sheet {
+  .bsheet {
     transition: opacity 150ms ease;
     @starting-style {
       opacity: 0;
       transform: none;
     }
   }
+}
+
+/* ------------------------------------------------------------ Add or edit an assignment (addAssignment.tsx) */
+.af {
+  display: flex;
+  flex-direction: column;
+}
+.af-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.af-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--ink);
+}
+.af-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.af-f {
+  margin-top: 14px;
+}
+.af-l {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.af-l .icon {
+  color: var(--muted);
+}
+.af-in {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 6px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--page);
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+}
+.af-in:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.af-in.bad {
+  box-shadow: inset 0 0 0 1.5px var(--urgent);
+}
+.af-in::placeholder {
+  color: var(--faint);
+}
+.af-area {
+  padding: 10px 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+.af-err {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--urgent);
+}
+.af-hint {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.af-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.af-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.af-chip.on {
+  background: var(--acc-tint);
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+  font-weight: 600;
+}
+.af-date {
+  width: auto;
+}
+.af-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.af-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.af-time .af-in {
+  width: auto;
+  margin-top: 0;
+}
+.af-time .af-link {
+  margin-top: 0;
+}
+.af-time > .icon {
+  color: var(--muted);
+}
+.af-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.af-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.af-kind {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 0 7px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.af-kind .icon {
+  color: var(--muted);
+}
+.af-kind.on {
+  background: var(--acc-tint);
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+  color: var(--ink);
+}
+.af-kind.on .icon {
+  color: var(--acc);
+}
+.af .btn-primary {
+  margin-top: 18px;
+}
+.af-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--urgent);
+}
+.af-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+.af-row2 .btn {
+  height: 44px;
+}
+.af-row2 .danger-btn {
+  background: var(--urgent);
+  box-shadow: none;
+  color: #fff;
+}
+/* An item the student added: a small mark on its row and its page. */
+.mine {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+  color: var(--text);
+}
+.mine .icon {
+  width: 12px;
+  height: 12px;
+}
+.plan-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.plan-add-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 36px);
+  margin: 6px 18px 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--acc-text);
+}
+.d-edit {
+  margin-left: auto;
+  font-size: 13px;
+}
+.mine-note {
+  flex-direction: column;
+  gap: 2px;
+}
+.mine-note .mine {
+  white-space: nowrap;
+}
+.d-same {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 12px 18px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.d-same > .icon {
+  color: var(--muted);
+}
+.d-same b {
+  font-weight: 600;
+}
+/* Ask Loomer's card for work the student mentioned (AddDraftCard). */
+.adc {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--page);
+}
+.adc-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.adc-k .icon {
+  color: var(--muted);
+}
+.adc-t {
+  margin-top: 6px;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.adc-s {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.adc-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.adc-btns .btn,
+.adc-btns .btn-primary {
+  height: 38px;
+  margin: 0;
+}
+.adc-not {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.adc-open {
+  margin-top: 8px;
+}
+.adc-skip {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
 }

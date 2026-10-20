@@ -14,13 +14,27 @@ export type PlanMode = 'list' | 'week';
 
 type PlanProps = { items: WorkItem[]; room: DayRoom[]; now: Date; actions: HomeActions; mode: PlanMode; onMode: (mode: PlanMode) => void };
 
+/**
+ * Your plan: List or Week, then the folds. Add (in the heading, and a line at
+ * the end) adds work that isn't on Canvas; it shows even when the plan is empty.
+ */
 export function PlanSection({ items, room, now, actions, mode, onMode }: PlanProps) {
-  if (items.length === 0) return null;
   const plan = planByStart(items, now);
+  const addLine = (
+    <button type="button" className="plan-add-line" onClick={actions.addAssignment}>
+      <Icon name="plus" size="sm" />
+      Add something that isn’t on Canvas
+    </button>
+  );
+  if (items.length === 0) return addLine;
   return (
     <>
       <div className="sec">
         <h2>Your plan</h2>
+        <button type="button" className="plan-add" onClick={actions.addAssignment}>
+          <Icon name="plus" size="xs" />
+          Add
+        </button>
         <span className="vseg" role="group" aria-label="Plan view">
           {(
             [
@@ -37,6 +51,7 @@ export function PlanSection({ items, room, now, actions, mode, onMode }: PlanPro
       </div>
       {mode === 'list' ? <PlanList days={plan.days} now={now} onOpen={actions.openItem} /> : <PlanWeek items={items} room={room} now={now} onOpen={actions.openItem} />}
       <Folds items={items} later={plan.later} now={now} actions={actions} />
+      {addLine}
     </>
   );
 }

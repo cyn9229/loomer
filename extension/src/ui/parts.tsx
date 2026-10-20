@@ -63,6 +63,15 @@ export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date
       <span className="item-body">
         <span className="item-title">{item.title}</span>
         <span className="item-sub">
+          {item.source === 'student' && (
+            <>
+              <span className="mine">
+                <Icon name="user" size="xs" />
+                Added by you
+              </span>
+              {' · '}
+            </>
+          )}
           <span className="wtype">
             <Icon name={typeLabel(item).icon} size="xs" />
             {typeLabel(item).word}
