@@ -5186,3 +5186,257 @@ details > summary .icon {
     display: none;
   }
 }
+
+/* ------------------------------------------------------------ Attachments in Ask Loomer (attach.tsx)
+   The paperclip sits inside the composer and opens File or Screenshot. Files
+   wait above the text as small cards with an x. Problems and the one-time
+   privacy line sit above the composer. Sent files stack above the message. */
+.composer.stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px;
+}
+.composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.composer-row > .grow:first-child {
+  padding-left: 8px;
+}
+.attach {
+  position: relative;
+  flex: none;
+}
+.attach-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--muted);
+}
+.attach-btn:hover,
+.attach-btn.on {
+  background: var(--fill);
+  color: var(--ink);
+}
+.attach-menu {
+  position: absolute;
+  z-index: 6;
+  bottom: calc(100% + 10px);
+  left: -6px;
+  width: min(270px, calc(100vw - 40px));
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--page);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 18px 40px -16px rgba(17, 16, 24, 0.35);
+  transform-origin: bottom left;
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.attach-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 10px;
+  text-align: left;
+}
+.attach-menu button:hover {
+  background: var(--fill);
+}
+.attach-menu .grow {
+  display: flex;
+  flex-direction: column;
+}
+.attach-menu b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.attach-menu .grow span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.attach-menu-n {
+  margin-top: 4px;
+  padding: 7px 8px 3px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.attach-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 4px 8px;
+}
+.attach-img {
+  position: relative;
+  display: block;
+  width: 56px;
+  height: 56px;
+}
+.attach-img img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.attach-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--page);
+  color: var(--text);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 2px 4px rgba(17, 16, 24, 0.08);
+}
+.attach-x:hover {
+  color: var(--ink);
+}
+.attach-file,
+.sent-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 210px;
+  height: 56px;
+  padding: 0 12px 0 8px;
+  border-radius: 10px;
+  background: var(--page);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.attach-file .subject,
+.sent-file .subject {
+  width: 34px;
+  height: 34px;
+}
+.attach-file.reading {
+  color: var(--muted);
+}
+.attach-file.reading .subject {
+  background: var(--fill);
+  color: var(--muted);
+}
+.attach-fb {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.attach-fb b {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.attach-fb span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.attach-err,
+.attach-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.attach-err {
+  align-items: center;
+  background: var(--red-tint);
+  color: var(--red);
+}
+.attach-err .icon-btn {
+  width: 24px;
+  height: 24px;
+  color: var(--red);
+}
+.attach-note {
+  background: var(--fill);
+  color: var(--text);
+}
+.attach-note > .icon {
+  margin-top: 1px;
+  color: var(--muted);
+  flex: none;
+}
+.attach-note .link {
+  flex: none;
+  font-size: 12.5px;
+}
+.attach-drop {
+  position: fixed;
+  z-index: 30;
+  inset: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 30px;
+  border: 1.5px dashed var(--acc);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  text-align: center;
+  pointer-events: none;
+}
+.attach-drop .subject {
+  margin-bottom: 6px;
+}
+.attach-drop-t {
+  font-size: 16px;
+  font-weight: 600;
+}
+.attach-drop-s {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.me-turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin: 16px 18px 0;
+}
+.me-turn .bubble {
+  margin: 6px 0 0;
+}
+.sent-files {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.sent-img {
+  display: block;
+  max-width: min(220px, 70%);
+  max-height: 170px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.sent-file {
+  height: 52px;
+}

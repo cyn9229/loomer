@@ -4,10 +4,11 @@
 // assignment thread follows that assignment's AI rule: blocked shows the rule
 // and offers General instead; an unknown rule asks the one-time question first.
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
-import { GENERAL_THREAD, type AddDraft, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
+import { GENERAL_THREAD, type AddDraft, type Attachment, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
 import type { HelpAvailability } from '../model/session';
 import type { DayRoom, WorkItem } from '../model/home';
 import { AddDraftCard } from './addAssignment';
+import { AttachButton, AttachChips, AttachNote, DropOverlay, SentFiles, markAttachNoteSeen, useAttachments, useFileDrop } from './attach';
 import { useAction, type PanelApi } from './api';
 import { PolicyStep, Thinking } from './chat';
 import { Block, type BlockProps } from './chatBlocks';
@@ -42,9 +43,14 @@ type AskProps = {
   onEditDraft: (draftId: string, draft: AddDraft) => void;
   /** One line at the top: which chat just opened, or that the last one was set aside. */
   notice?: ReactNode;
+  /** Screenshots from the right-click "Send screenshot to Ask Loomer", waiting for the composer (chatInboxItem). */
+  inbox?: ChatInbox | null;
 };
 
-export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz, nudge, onEditDraft, notice }: AskProps) {
+/** What chatInboxItem holds. */
+export type ChatInbox = { attachments: Attachment[]; error: string | null; at: string };
+
+export function AskView({ model, threadKey, onThread, threads, now, api, onOpenItem, aiDown, room, quizOpen, onEndQuiz, nudge, onEditDraft, notice, inbox }: AskProps) {
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
@@ -53,12 +59,32 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const available = model?.availability === 'available' && !quizOpen;
   const canSend = available && !model.streaming && !ask.busy;
   const scroll = useChatScroll(threadKey, turns);
+  const attach = useAttachments();
+  const drop = useFileDrop(attach.addFiles, available);
+
+  // Right-click screenshots wait in the inbox: take them into the composer once, then clear it.
+  const takenInbox = useRef<string | null>(null);
+  useEffect(() => {
+    if (!inbox || inbox.at === takenInbox.current) return;
+    takenInbox.current = inbox.at;
+    if (inbox.attachments.length > 0) attach.addRead(inbox.attachments);
+    if (inbox.error) attach.setError(inbox.error);
+    void api.send({ type: 'chat:inbox-clear' });
+  }, [inbox, api]);
 
   const send = (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || !canSend) return;
+    const files = attach.files;
+    if ((!trimmed && files.length === 0) || !canSend || attach.reading > 0) return;
     scroll.sent();
-    ask.run(() => api.send({ type: 'chat:send', threadKey, text: trimmed }));
+    ask.run(async () => {
+      const reply = await api.send({ type: 'chat:send', threadKey, text: trimmed, ...(files.length > 0 ? { attachments: files } : {}) });
+      if (reply.ok && files.length > 0) {
+        attach.clear();
+        markAttachNoteSeen();
+      }
+      return reply;
+    });
     setDraft('');
   };
   const submit = (e: FormEvent) => {
@@ -70,7 +96,8 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const error = ask.error ?? stop.error;
 
   return (
-    <div className="chat ask" ref={scroll.root}>
+    <div className="chat ask" ref={scroll.root} {...drop.handlers}>
+      {drop.over && <DropOverlay />}
       {notice}
       {quizOpen ? (
         <section className="state">
@@ -97,6 +124,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
       <div className="dock">
         {nudge}
         {aiDown && available && !model.streaming && <AiServiceDown send={api.send} />}
+        {available && <AttachNote attach={attach} />}
         {model?.streaming ? (
           <div className="composer writing" role="status">
             <span className="grow">Loomer is writing…</span>
@@ -106,27 +134,40 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
             </button>
           </div>
         ) : (
-          <form className="composer" onSubmit={submit}>
-            <label className="grow">
-              <span className="visually-hidden">Ask Loomer</span>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+          <form className="composer stack" onSubmit={submit}>
+            {available && <AttachChips attach={attach} />}
+            <div className="composer-row">
+              {available && <AttachButton attach={attach} disabled={!canSend} />}
+              <label className="grow">
+                <span className="visually-hidden">Ask Loomer</span>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      send(draft);
+                    }
+                  }}
+                  onPaste={(e) => {
+                    // Pasted files and images attach; pasted text stays text.
+                    const files = [...e.clipboardData.files];
+                    if (files.length === 0 || !available) return;
                     e.preventDefault();
-                    send(draft);
+                    attach.addFiles(files);
+                  }}
+                  placeholder={
+                    quizOpen ? 'Paused during your quiz' : attach.files.length > 0 && !draft ? 'Ask about your files' : placeholder(model?.availability, turns.length > 0, assignment)
                   }
-                }}
-                placeholder={quizOpen ? 'Paused during your quiz' : placeholder(model?.availability, turns.length > 0, assignment)}
-                disabled={!available}
-                rows={1}
-                maxLength={4000}
-              />
-            </label>
-            <button type="submit" className="send-btn" aria-label="Send" disabled={!canSend || !draft.trim()}>
-              <Icon name="arrowUp" size="sm" />
-            </button>
+                  disabled={!available}
+                  rows={1}
+                  maxLength={4000}
+                />
+              </label>
+              <button type="submit" className="send-btn" aria-label="Send" disabled={!canSend || attach.reading > 0 || (!draft.trim() && attach.files.length === 0)}>
+                <Icon name="arrowUp" size="sm" />
+              </button>
+            </div>
           </form>
         )}
       </div>
@@ -676,11 +717,19 @@ function Turn({
   renderAddDraft: BlockProps['renderAddDraft'];
 }) {
   if (turn.role === 'student') {
-    const text = turn.blocks.map((b) => (b.kind === 'markdown' ? b.text : '')).join('\n');
+    const text = turn.blocks.flatMap((b) => (b.kind === 'markdown' ? [b.text] : [])).join('\n');
+    const files = turn.blocks.flatMap((b) => (b.kind === 'attachment' ? [b.file] : []));
+    if (files.length === 0)
+      return (
+        <p className="bubble" data-turn={turn.id}>
+          {text}
+        </p>
+      );
     return (
-      <p className="bubble" data-turn={turn.id}>
-        {text}
-      </p>
+      <div className="me-turn" data-turn={turn.id}>
+        <SentFiles files={files} />
+        {text.trim() && <p className="bubble">{text}</p>}
+      </div>
     );
   }
   const streaming = turn.status === 'streaming';

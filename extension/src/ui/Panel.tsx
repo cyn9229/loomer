@@ -12,7 +12,7 @@ import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel, WorkNudge } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { AddSheet } from './addAssignment';
-import { AskView, SetAsideSheet, shortTitle, ThreadMenu } from './ask';
+import { AskView, SetAsideSheet, shortTitle, ThreadMenu, type ChatInbox } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
 import { EndSheet } from './endSheet';
@@ -50,13 +50,15 @@ export type PanelProps = {
   nudgesEnabled: boolean;
   /** The chat Ask Loomer last showed (askThreadItem); reason 'topic' when topic help opened it. Absent in previews. */
   lastThread?: LastThread | null;
+  /** Right-click screenshots waiting for Ask Loomer's composer (chatInboxItem). Absent in previews. */
+  chatInbox?: ChatInbox | null;
 };
 
 type LastThread = { threadKey: string; at: string; reason: 'student' | 'topic' };
 /** A line at the top of Ask Loomer about the chat in view. */
 type ChatNotice = { kind: 'topic' | 'set-aside'; threadKey: string };
 
-export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled, lastThread }: PanelProps) {
+export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled, lastThread, chatInbox }: PanelProps) {
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
   const [chatNotice, setChatNotice] = useState<ChatNotice | null>(null);
@@ -111,6 +113,15 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     // Back to 'student', so reopening the panel doesn't switch again.
     void api.send({ type: 'chat:open', threadKey: lastThread.threadKey });
   }, [lastThread, api]);
+
+  // A right-click screenshot for Ask Loomer opens Ask Loomer, where the composer takes it.
+  const seenInbox = useRef<string | null>(null);
+  useEffect(() => {
+    if (!chatInbox || chatInbox.at === seenInbox.current || Date.parse(chatInbox.at) < mountedAt.current - 5000) return;
+    seenInbox.current = chatInbox.at;
+    setOpenId(null);
+    setView('ask');
+  }, [chatInbox]);
   const hint = active?.hint ?? null;
   // Keep a vanished hint briefly so it fades out instead of disappearing.
   const shownHint = useLingering(hint, 200);
@@ -288,6 +299,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         nudge={nudgeLine}
         onEditDraft={editDraft}
         notice={chatNotice?.threadKey === askThread && <ChatNoticeLine notice={chatNotice} chat={chat} send={api.send} onDone={() => setChatNotice(null)} />}
+        inbox={chatInbox}
       />
     );
   } else if (view === 'work' && active) {

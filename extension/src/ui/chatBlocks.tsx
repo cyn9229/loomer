@@ -12,6 +12,7 @@ import rehypeKatex from 'rehype-katex';
 import remarkMath from 'remark-math';
 import { sendWidgetHtml, WIDGET_MAX_HEIGHT, WIDGET_MIN_HEIGHT } from '../chat/widgetFrame';
 import type { ChartSpec, ChatBlock, Quiz, Visual } from '../model/chat';
+import { SentFiles } from './attach';
 import { Icon } from './Icon';
 
 export type BlockProps = {
@@ -45,6 +46,8 @@ export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChang
       return renderAddDraft(block);
     case 'draft-check':
       return <DraftCheck block={block} />;
+    case 'attachment':
+      return <SentFiles files={[block.file]} />;
     case 'open-assignment':
       return (
         <button type="button" className="openas enter" onClick={() => onOpenItem(block.assignmentId)}>

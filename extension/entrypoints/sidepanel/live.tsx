@@ -2,7 +2,7 @@
 // store and sends actions to the service worker.
 import { widgetPageUrl } from '../../src/chat/widgetFrame';
 import { sendMessage } from '../../src/core/messages';
-import { askThreadItem, settingsItem } from '../../src/core/settings';
+import { askThreadItem, chatInboxItem, settingsItem } from '../../src/core/settings';
 import { nudgesItem } from '../../src/session/nudge';
 import { useStorageItem } from '../../src/model/useStorageItem';
 import { useEffect } from 'react';
@@ -45,6 +45,7 @@ export function LivePanel() {
       nudge={nudge}
       nudgesEnabled={useStorageItem(nudgesItem)?.enabled ?? true}
       lastThread={useStorageItem(askThreadItem)}
+      chatInbox={useStorageItem(chatInboxItem)}
       onRefresh={async () => {
         await sendMessage({ type: 'canvas:refresh' });
       }}
