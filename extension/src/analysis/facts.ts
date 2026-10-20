@@ -47,6 +47,9 @@ export function inDecisionSet(a: Assignment, due: EffectiveDue, now: Date): bool
   return t >= now.getTime() && t <= now.getTime() + HORIZON_DAYS * DAY_MS;
 }
 
+/** The student took it off the plan: did it on paper, or turned it in. */
+export const offPlan = (correction: StudentContext['correction'] | null) => correction === 'done-offline' || correction === 'turned-in';
+
 export function courseKey(a: Assignment): string {
   return `${a.sourceKey}#course:${a.courseId}`;
 }

@@ -5,6 +5,7 @@ import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
 import type { ActivityItem, DocState, HelpAvailability, SessionModel, SourceItem } from '../model/session';
+import { recapFor } from './close';
 import { currentSession } from './session';
 import { sourceView } from './sources';
 import { loadSheetTopics, loadTeacherSheets } from './topics';
@@ -20,7 +21,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
   const a = await db.assignments.get(session.assignmentId);
   if (!a) return { status: 'none' };
 
-  const [course, analysis, context, link, events, sources, chat, decision] = await Promise.all([
+  const [course, analysis, context, link, events, sources, chat, decision, checks] = await Promise.all([
     db.courses.get(courseKey(a)),
     db.analyses.get(a.id),
     db.studentContext.bulkGet([a.id, courseKey(a)]),
@@ -29,6 +30,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     db.sources.where('assignmentId').equals(a.id).toArray(),
     db.chat.where('assignmentId').equals(a.id).toArray(),
     workHelpDecision(db, ai, a.id),
+    db.topicChecks.where('assignmentId').equals(a.id).toArray(),
   ]);
   const read = link ? await db.docReads.get(link.docId) : undefined;
   const sessionHints = await db.hints.where('sessionId').equals(session.id).sortBy('id');
@@ -37,10 +39,12 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
   const contextMap = new Map(context.filter((c) => c !== undefined).map((c) => [c.key, c]));
 
   const saved = await sourceView(db, a, sources);
+  const item = workItemFor(a, { course, analysis, context: contextMap }, now);
+  const step = session.nextStep;
   return {
     status: session.state === 'paused' ? 'paused' : 'active',
     sessionId: session.id,
-    assignment: workItemFor(a, { course, analysis, context: contextMap }, now),
+    assignment: item,
     startedAt: session.startedAt,
     plannedUntil: session.plannedUntil ?? null,
     topics: await loadSheetTopics(db, a.id),
@@ -62,6 +66,9 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
         : null,
     focus: session.focus ? { text: session.focus.text, why: session.focus.why, requirement: session.focus.requirement } : null,
     handledHints: handled.slice(-3).reverse().map((h) => ({ id: h.id, text: h.text, at: h.settledAt ?? h.createdAt })),
+    recap: recapFor({ ...a, quiz: item.quiz }, session, events, sources.filter((src) => src.sessionId === session.id).length, checks, now),
+    // A pending step older than this means the worker stopped; the card can ask again.
+    nextStep: !step || (step.status === 'pending' && now.getTime() - Date.parse(step.at) > PENDING_MS) ? null : step.status === 'pending' ? { status: 'pending' } : step,
   };
 }
 

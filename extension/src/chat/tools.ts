@@ -3,7 +3,7 @@
 // tools, one validated block for the panel. Arguments are untrusted model output.
 import { chatTools, type ChatToolName } from '../../../shared/chat-contract';
 import { editFromItem, proposeChange, type PlanSettings } from '../analysis/changes';
-import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
+import { assignmentPolicy, courseKey, offPlan, policyAnswer } from '../analysis/facts';
 import { localDay, minutesWords, WORKLOAD_WORDS } from '../analysis/plan';
 import { buildHomeModel } from '../analysis/recommend';
 import { roomDays, roomKey, roomLookup } from '../analysis/room';
@@ -94,7 +94,7 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
   switch (name) {
     case 'list_work': {
       const args = chatTools.list_work.schema.safeParse(json);
-      const items = (await allItems(db, settings, now)).filter((i) => !i.hidden && i.correction !== 'done-offline');
+      const items = (await allItems(db, settings, now)).filter((i) => !i.hidden && !offPlan(i.correction));
       const inWeek = (i: WorkItem) => {
         const t = Math.min(i.due ? Date.parse(i.due.at) : Infinity, i.startBy ? Date.parse(i.startBy.at) : Infinity);
         return t <= now.getTime() + 7 * DAY_MS;

@@ -1,7 +1,7 @@
 // The data contract between Loomer's logic and its UI. The side panel renders a
 // HomeModel and never queries the database or Canvas itself. Logic owns this
 // file; UI code imports types from here and treats them as read-only.
-import type { RunOutcome } from '../core/db';
+import type { NextStep, RunOutcome } from '../core/db';
 import type { PlanChangeView } from './plan';
 import type { TopicNext } from './session';
 
@@ -78,7 +78,8 @@ export type DayRoom = {
 };
 
 /** What the student told Loomer about this item. Shown in context, never as a progress status. */
-export type StudentCorrection = 'done-offline' | 'kept-active' | null;
+/** done-offline and turned-in both take it off the plan; turned-in comes back if Canvas never shows a submission. */
+export type StudentCorrection = 'done-offline' | 'kept-active' | 'turned-in' | null;
 
 export type WorkItem = {
   assignmentId: string;
@@ -146,12 +147,13 @@ export type NextAction = {
 /**
  * What kind of find leads Home's why, picked in this order:
  * - change: the top of the plan moved since the student last looked.
+ * - continue: the student kept a next step at the end of their last session; `text` says what they did then.
  * - hidden-deadline: the instructions set a step before the due date.
  * - busy-day: the start moved earlier because the student said a day had little room.
  * - weak-topic: practice or study work with a shaky topic from quick checks.
  * - countdown: nothing new; the due date and days left.
  */
-export type InsightKind = 'change' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
+export type InsightKind = 'change' | 'continue' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
 /** One sentence that names the assignment and gives the concrete fact. `aiFound` is true only when the AI read the fact from the instructions. */
 export type Insight = { kind: InsightKind; text: string; aiFound: boolean };
 
@@ -196,6 +198,8 @@ export type ResumeBriefing = {
   /** Last session's focus, and how many hints the student handled in it. */
   focus: string | null;
   handledHints: number;
+  /** The step the student kept for next time at the end card. */
+  nextStep: NextStep | null;
 };
 
 export type HomeModel =

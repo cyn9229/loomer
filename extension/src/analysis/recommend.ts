@@ -4,8 +4,8 @@
 import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
-import type { CheckInfo, Evidence, HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
-import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, policyAnswer, type EffectiveDue } from './facts';
+import type { CheckInfo, Evidence, HomeModel, Insight, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
+import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, offPlan, policyAnswer, type EffectiveDue } from './facts';
 import type { PlanChangeView } from '../model/plan';
 import { comparePlanned, crowdedWeek, dailyBrief, dueWords, keepPreviousTop, localDay, lowerFirst, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
@@ -84,7 +84,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
   if (!input.connected) return { status: 'not-connected' };
   const roomFor = roomLookup(input.room);
   const ranking = rank(input, roomFor);
-  const core = withTopic(input, buildCore(input, ranking));
+  const core = withNextStep(input, withTopic(input, buildCore(input, ranking)));
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
   const today = localDay(input.now);
@@ -138,6 +138,32 @@ function withTopic(input: RecommendInput, core: CoreModel): CoreModel {
   };
 }
 
+/**
+ * The step the student kept at the end of their last session becomes the next
+ * action, and the insight says what they did then. Topic standings win for
+ * practice and study, because they are newer than any kept step.
+ */
+function withNextStep(input: RecommendInput, core: CoreModel): CoreModel {
+  if (core.status !== 'ready' || core.next.topic) return core;
+  const id = core.next.item.assignmentId;
+  const packet = input.packets.filter((p) => p.assignmentId === id && !p.dismissed).sort((x, y) => y.at.localeCompare(x.at))[0];
+  const a = input.assignments.find((x) => x.id === id);
+  if (!packet?.nextStep || !a || input.activeSession) return core;
+  const insight: Insight = core.next.insight.kind === 'change' ? core.next.insight : { kind: 'continue', text: lastTime(packet, assignmentNoun(a)), aiFound: false };
+  return { ...core, next: { ...core.next, action: packet.nextStep.text, aiGenerated: packet.nextStep.aiGenerated, insight } };
+}
+
+/** "Last time you added 240 words to this essay and saved 2 sources." */
+function lastTime(p: ResumePacket, noun: string): string {
+  const words = p.wordsDelta > 0 ? `added ${p.wordsDelta} ${p.wordsDelta === 1 ? 'word' : 'words'} to ${noun}` : p.edits > 0 ? `worked on ${noun}` : null;
+  const n = p.sourceIds.length;
+  const sources = n > 0 ? `saved ${n} ${n === 1 ? 'source' : 'sources'}` : null;
+  if (words && sources) return `Last time you ${words} and ${sources}.`;
+  if (words) return `Last time you ${words}.`;
+  if (sources) return `Last time you ${sources} for ${noun}.`;
+  return `Last time you planned ${noun} and left yourself this step.`;
+}
+
 export function planChangeView(c: PlanChangeRecord): PlanChangeView {
   return { id: c.id, status: c.status, preview: c.preview, createdAt: c.createdAt, appliedAt: c.appliedAt };
 }
@@ -176,9 +202,9 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
     guessMinutes: c.item.guessMinutes,
   });
   // Room is shared by every visible start, so place them together.
-  const plannedById = new Map(plan(base.filter((c) => !c.item.hidden && c.item.correction !== 'done-offline').map(entry), now, roomFor, input.levelMinutes).map((p) => [p.id, p]));
+  const plannedById = new Map(plan(base.filter((c) => !c.item.hidden && !offPlan(c.item.correction)).map(entry), now, roomFor, input.levelMinutes).map((p) => [p.id, p]));
   const inDecision = (c: Candidate) =>
-    !c.item.hidden && c.item.correction !== 'done-offline' && (inDecisionSet(c.a, c.due, now) || c.item.correction === 'kept-active');
+    !c.item.hidden && !offPlan(c.item.correction) && (inDecisionSet(c.a, c.due, now) || c.item.correction === 'kept-active');
   // Ranked items keep the start days placement gave them across all visible work.
   const decisionIds = new Set(base.filter(inDecision).map((c) => c.a.id));
   const rankedPlans = keepPreviousTop([...plannedById.values()].filter((p) => decisionIds.has(p.id)).sort(comparePlanned), input.snapshot?.topId ?? null);
@@ -221,7 +247,7 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
     (c) =>
       c.a.id === input.choice?.assignmentId &&
       !c.item.hidden &&
-      c.item.correction !== 'done-offline' &&
+      !offPlan(c.item.correction) &&
       input.choice.dueAt === c.a.dueAt &&
       input.choice.detailHash === (c.a.detail?.hash ?? null),
   );
@@ -335,6 +361,7 @@ function resumeBriefing(input: RecommendInput, nextAssignmentId: string | null):
     recommendationChanged: nextAssignmentId !== null && nextAssignmentId !== a.id,
     focus: packet.focus ?? null,
     handledHints: packet.handledHints ?? 0,
+    nextStep: packet.nextStep ?? null,
   };
 }
 
@@ -349,9 +376,14 @@ function olderReview(input: RecommendInput): OlderReview {
     .filter((a) => a.sourceKey === input.lastRun?.sourceKey && isOpen(a))
     .flatMap((a) => {
       const ctx = contextByKey.get(a.id);
-      if (ctx?.hidden || ctx?.correction) return [];
+      if (ctx?.hidden || (ctx?.correction && ctx.correction !== 'turned-in')) return [];
       const c = candidateFor(a, { course: input.courses.find((x) => x.id === courseKey(a)), analysis: undefined, context: contextByKey }, input.now);
       if (c.item.bucket !== 'past') return [];
+      // Turned in, but Canvas still shows no submission a day after the due date.
+      if (ctx?.correction === 'turned-in') {
+        const late = !ctx.olderReview && Date.parse(c.due.at!) + DAY_MS < input.now.getTime();
+        return late ? [{ item: c.item, reason: `You said you turned in ${assignmentNoun(a)}, but Canvas doesn't show it yet, so check that it went through.` }] : [];
+      }
       const missingNow = a.submission?.missing === true;
       if (!ctx?.olderReview) return [{ item: c.item, reason: missingNow ? 'Canvas marks this one missing.' : `This was due ${dueWords(c.due.at!, input.now)}.` }];
       if (missingNow && !ctx.olderReview.missing) return [{ item: c.item, reason: 'Canvas now marks this one missing.' }];

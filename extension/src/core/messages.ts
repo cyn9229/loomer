@@ -29,6 +29,14 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session:resume') }),
   /** Stops all Doc reads and capture for the session. */
   z.object({ type: z.literal('session:end') }),
+  /** End card, "Done for today": pick one step for next time (SessionModel.nextStep). */
+  z.object({ type: z.literal('session:next-step') }),
+  /** End card: end the session with where the assignment stands. The kept step feeds Home's Continue line. */
+  z.object({
+    type: z.literal('session:close'),
+    outcome: z.enum(['turned-in', 'for-today']),
+    nextStep: z.object({ text: z.string().max(300), aiGenerated: z.boolean() }).optional(),
+  }),
   /** Sent after the page's permissions.request for DOCS_ORIGINS succeeded. */
   z.object({ type: z.literal('doc:link'), assignmentId: z.string(), docUrl: z.string() }),
   z.object({ type: z.literal('source:remove'), id: z.string() }),

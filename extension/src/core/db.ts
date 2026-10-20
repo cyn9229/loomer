@@ -174,7 +174,8 @@ export type StudentContext = {
   /** Hint issue types the student dismissed for this assignment; not raised again. */
   dismissedHintIssues?: string[];
   /** "I did this offline" (leaves the queue) or "Keep this active" (stays ranked). */
-  correction?: 'done-offline' | 'kept-active';
+  /** turned-in: the student said they submitted it; it leaves the plan, and comes back a day after the due date if Canvas never shows it. */
+  correction?: 'done-offline' | 'kept-active' | 'turned-in';
   /** The student's own explanation, shown in context only. */
   note?: string;
   /** The older-work review was shown for this item; `missing` is what Canvas said then. */
@@ -282,7 +283,12 @@ export type WorkSession = {
   plannedUntil?: string;
   /** The session's focus. Absent until picked; null when none could be. */
   focus?: SessionFocus;
+  /** One step for next time, asked for from the end card. Pending while the AI writes it. */
+  nextStep?: { status: 'pending'; at: string } | ({ status: 'ready' } & NextStep);
 };
+
+/** A step for the next session. aiGenerated is false once the student edits it. */
+export type NextStep = { text: string; aiGenerated: boolean };
 
 export type SessionEvent = {
   id: number;
@@ -340,6 +346,8 @@ export type ResumePacket = {
   /** The session's focus, and how many hints the student handled in it. Absent on older packets. */
   focus?: string;
   handledHints?: number;
+  /** The step the student kept at "Done for today". Home's Continue line uses it. */
+  nextStep?: NextStep;
   dismissed: boolean;
 };
 

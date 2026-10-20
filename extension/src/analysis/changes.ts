@@ -8,7 +8,7 @@ import type { DayRoomRecord, LoomerDb, PlanChangeRecord, PlanContextField, PlanE
 import type { DayRoom, RoomLevel, WorkItem } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import { loadHomeData, type HomeData } from '../model/homeData';
-import { isOpen } from './facts';
+import { isOpen, offPlan } from './facts';
 import { dayOfDate, localDay, minutesWords, WORKLOAD_WORDS } from './plan';
 import { buildHomeModel, type RecommendInput } from './recommend';
 import { roomDays, roomKey, roomLookup, weekdayOf } from './room';
@@ -193,7 +193,7 @@ async function previewFor(db: LoomerDb, edits: PlanEdit[], writes: PlanWrite[], 
   const moves = afterItems.flatMap((i) => {
     const was = beforeItems.get(i.assignmentId);
     const from = was?.startBy?.at ?? null;
-    const to = i.hidden || i.correction === 'done-offline' ? null : (i.startBy?.at ?? null);
+    const to = i.hidden || offPlan(i.correction) ? null : (i.startBy?.at ?? null);
     return day(from) === day(to) ? [] : [{ assignmentId: i.assignmentId, title: i.title, from, to }];
   });
 

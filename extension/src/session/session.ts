@@ -1,7 +1,7 @@
 // Work-session lifecycle. One session at a time. Only an active session reads
 // the linked Doc or accepts captured pages; pause and end stop both at once.
 import { readDocPaced, studentText, wordCount } from '../adapters/docs/reader';
-import { instructionText, type LoomerDb, type SessionEvent, type WorkSession } from '../core/db';
+import { instructionText, type LoomerDb, type NextStep, type SessionEvent, type WorkSession } from '../core/db';
 import type { GateState } from '../core/gate';
 import { localDay } from '../analysis/plan';
 import { writeResumePacket } from './resume';
@@ -82,13 +82,14 @@ export async function setState(db: LoomerDb, s: WorkSession, state: 'active' | '
   if (state === 'paused') await writeResumePacket(db, s, now);
 }
 
-export async function endSession(db: LoomerDb, now: Date) {
+/** Ends the current session. `nextStep` is the step the student kept at the end card, for Home's Continue line. */
+export async function endSession(db: LoomerDb, now: Date, nextStep?: NextStep) {
   const s = await currentSession(db, now);
   if (!s) return;
   const at = now.toISOString();
   await db.sessions.update(s.id, { state: 'ended', endedAt: at });
   await log(db, s, at, 'ended');
-  await writeResumePacket(db, s, now);
+  await writeResumePacket(db, s, now, nextStep);
 }
 
 /** Sets or clears the time the student has. Clearing is "Keep going"; nothing ends the session by itself. */

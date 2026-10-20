@@ -1,5 +1,6 @@
 // Data contract for the work-session screen (pick 3B). Logic owns this file; the
 // UI renders a SessionModel from useSessionModel() and acts only via messages.
+import type { NextStep } from '../core/db';
 import type { WorkItem } from './home';
 
 export type DocReadState =
@@ -199,4 +200,26 @@ export type SessionModel =
       focus: SessionFocusView;
       handledHints: HandledHint[];
       suggestion: DiscoverySuggestion;
+      /** Facts for the end card: what this session did so far. */
+      recap: SessionRecap;
+      /**
+       * The step for next time, after session:next-step. Null before it is asked
+       * for, and for a quiz. `pending` while the AI writes it (a few seconds).
+       */
+      nextStep: { status: 'pending' } | ({ status: 'ready' } & NextStep) | null;
     };
+
+/**
+ * The end card's recap. `text` is the sentence to show, e.g. "You added 240
+ * words and saved 2 sources in 35 minutes." Minutes count active time only.
+ */
+export type SessionRecap = {
+  text: string;
+  /** How sentences name the assignment: "this essay". */
+  noun: string;
+  minutes: number;
+  wordsDelta: number;
+  edits: number;
+  sourcesSaved: number;
+  topicsChecked: number;
+};

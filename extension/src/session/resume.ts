@@ -1,10 +1,10 @@
 // Resume packets: the one small record per assignment that says where the student
 // left off. Written when a session pauses or ends; read by Home's briefing.
 import { studentText } from '../adapters/docs/reader';
-import { instructionText, type LoomerDb, type WorkSession } from '../core/db';
+import { instructionText, type LoomerDb, type NextStep, type WorkSession } from '../core/db';
 import { contentHash } from '../core/hash';
 
-export async function writeResumePacket(db: LoomerDb, s: WorkSession, now: Date) {
+export async function writeResumePacket(db: LoomerDb, s: WorkSession, now: Date, nextStep?: NextStep) {
   const [events, link, assignment] = await Promise.all([
     db.sessionEvents.where('sessionId').equals(s.id).toArray(),
     db.docLinks.get(s.assignmentId),
@@ -16,8 +16,8 @@ export async function writeResumePacket(db: LoomerDb, s: WorkSession, now: Date)
   const sources = await db.sources.where('assignmentId').equals(s.assignmentId).toArray();
   const [fresh, handledHints] = await Promise.all([db.sessions.get(s.id), db.hints.where('sessionId').equals(s.id).filter((h) => h.state === 'handled').count()]);
   const sessionSources = sources.filter((src) => src.sessionId === s.id);
-  // Nothing happened, so there is nothing to pick up; Home's next action already covers it.
-  if (edits.length === 0 && sessionSources.length === 0) return;
+  // Nothing happened and no step was kept, so there is nothing to pick up; Home's next action already covers it.
+  if (edits.length === 0 && sessionSources.length === 0 && !nextStep) return;
   await db.resumePackets.put({
     assignmentId: s.assignmentId,
     sessionId: s.id,
@@ -29,6 +29,7 @@ export async function writeResumePacket(db: LoomerDb, s: WorkSession, now: Date)
     paragraphHashes: await Promise.all(paragraphs.map((p) => contentHash(p.trim()))),
     focus: fresh?.focus?.text,
     handledHints,
+    nextStep,
     dismissed: false,
   });
 }

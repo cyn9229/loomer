@@ -27,6 +27,7 @@ import { embeddedTopicsStep, findTopic, recordTopicAnswer, setTopicSkipped, topi
 import { readEmbeddedSheets } from '../src/adapters/docs/sheets';
 import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState, type NudgeSignal, type NudgeState } from '../src/session/nudge';
 import { closeStaleSessions, currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
+import { closeSession, nextStepStep } from '../src/session/close';
 import { typingAtFor, typingItem } from '../src/session/typing';
 
 const REFRESH_ALARM = 'canvas-refresh';
@@ -602,6 +603,14 @@ async function handle(message: Message): Promise<Reply> {
     case 'session:end':
       await endSession(db, new Date());
       stopSessionLoop();
+      await runDiscovery();
+      return { ok: true };
+    case 'session:next-step':
+      return (await nextStepStep({ db, ai: () => aiSettingsItem.getValue() }, new Date())) ? { ok: true } : { ok: false, error: "You don't have a session running right now." };
+    case 'session:close':
+      if (!(await closeSession(db, message.outcome, message.nextStep, new Date()))) return { ok: false, error: "You don't have a session running right now." };
+      stopSessionLoop();
+      await updatePlan();
       await runDiscovery();
       return { ok: true };
     case 'discovery:set': {
