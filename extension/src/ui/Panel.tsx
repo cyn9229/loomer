@@ -12,7 +12,7 @@ import type { HomeModel, WorkItem } from '../model/home';
 import type { SessionModel, WorkNudge } from '../model/session';
 import { useAction, type PanelApi } from './api';
 import { AddSheet } from './addAssignment';
-import { AskView } from './ask';
+import { AskView, ThreadMenu } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
 import { EndSheet } from './endSheet';
@@ -204,13 +204,22 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
     );
     body = <DetailView item={openItem} detail={detail} now={now} actions={actions} nudge={nudgeLine} />;
   } else if (view === 'ask') {
+    const threads = home ? askThreads(home) : [];
+    // The thread switcher is the bar's title, between Home and settings.
     bar = (
       <>
         <button type="button" className="back" onClick={() => setView('home')}>
           <Icon name="chevronLeft" />
           Home
         </button>
-        <span className="grow" />
+        <ThreadMenu
+          threadKey={askThread}
+          assignment={chat?.assignment ?? threads.find((t) => t.assignmentId === askThread) ?? null}
+          threads={threads}
+          now={now}
+          onThread={setAskThread}
+          onNew={chat && chat.turns.length > 0 && !chat.streaming ? () => start.run(() => api.send({ type: 'chat:clear', threadKey: askThread })) : undefined}
+        />
         {settings}
       </>
     );
@@ -219,7 +228,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         model={chat}
         threadKey={askThread}
         onThread={setAskThread}
-        threads={home ? askThreads(home) : []}
+        threads={threads}
         now={now}
         api={api}
         onOpenItem={setOpenId}

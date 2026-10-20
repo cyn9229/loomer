@@ -2605,12 +2605,6 @@ details > summary .icon {
 }
 
 /* ---------- Ask Loomer ---------- */
-.chathead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 18px 0;
-}
 .threads {
   position: relative;
   min-width: 0;
@@ -2708,22 +2702,6 @@ details > summary .icon {
 .subject.amber {
   background: var(--amber-tint);
   color: var(--amber);
-}
-.quiet-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  flex: none;
-}
-.quiet-btn:hover {
-  background: var(--fill);
-  color: var(--ink);
 }
 
 /* Empty thread: a line and three ready questions. */
@@ -4602,5 +4580,25 @@ details > summary .icon {
 .adc-skip {
   margin-top: 8px;
   font-size: 13px;
+  color: var(--muted);
+}
+/* Ask Loomer's thread switcher sits in the top bar as its title. */
+.bar .threads {
+  flex: 1;
+  min-width: 0;
+}
+.pop-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pop-new .icon {
   color: var(--muted);
 }

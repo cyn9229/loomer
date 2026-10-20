@@ -44,7 +44,6 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   const [draft, setDraft] = useState('');
   const ask = useAction();
   const stop = useAction();
-  const clear = useAction();
   const endRef = useRef<HTMLDivElement>(null);
   const turns = model?.turns ?? [];
   const last = turns.at(-1);
@@ -73,21 +72,10 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
   };
 
   const assignment = model?.assignment ?? threads.find((t) => t.assignmentId === threadKey) ?? null;
-  const error = ask.error ?? stop.error ?? clear.error;
+  const error = ask.error ?? stop.error;
 
   return (
     <div className="chat ask">
-      <div className="chathead">
-        <ThreadMenu threadKey={threadKey} assignment={assignment} threads={threads} now={now} onThread={onThread} />
-        <span className="grow" />
-        {turns.length > 0 && !model?.streaming && (
-          <button type="button" className="quiet-btn" disabled={clear.busy} onClick={() => clear.run(() => api.send({ type: 'chat:clear', threadKey }))}>
-            <Icon name="plus" size="xs" />
-            New
-          </button>
-        )}
-      </div>
-
       {quizOpen ? (
         <section className="state">
           <span className="subject lg gray">
@@ -201,8 +189,27 @@ function shortTitle(title: string): string {
   return head.length >= 8 && head.length < title.length ? head : title;
 }
 
-/** The thread switcher: General, then each assignment. Closes on pick, Escape, or a click outside. */
-function ThreadMenu({ threadKey, assignment, threads, now, onThread }: { threadKey: string; assignment: WorkItem | null; threads: WorkItem[]; now: Date; onThread: (key: string) => void }) {
+/**
+ * The thread switcher, the title of Ask Loomer's top bar: General, then each
+ * assignment, and New chat at the bottom when this thread has messages.
+ * Closes on pick, Escape, or a click outside.
+ */
+export function ThreadMenu({
+  threadKey,
+  assignment,
+  threads,
+  now,
+  onThread,
+  onNew,
+}: {
+  threadKey: string;
+  assignment: WorkItem | null;
+  threads: WorkItem[];
+  now: Date;
+  onThread: (key: string) => void;
+  /** Starts this thread over (chat:clear). Absent when there is nothing to clear. */
+  onNew?: () => void;
+}) {
   const { open, setOpen, ref } = usePopover<HTMLDivElement>();
   const pick = (key: string) => {
     setOpen(false);
@@ -244,6 +251,19 @@ function ThreadMenu({ threadKey, assignment, threads, now, onThread }: { threadK
               </button>
             ))}
           </div>
+          {onNew && (
+            <button
+              type="button"
+              className="pop-new"
+              onClick={() => {
+                setOpen(false);
+                onNew();
+              }}
+            >
+              <Icon name="plus" size="sm" />
+              New chat
+            </button>
+          )}
         </div>
       )}
     </div>
