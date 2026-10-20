@@ -7,7 +7,7 @@
 import type { ScreenshotDraft } from '../capture/screenshot';
 import type { AssignmentDetailModel } from '../model/detail';
 import { LEAD_DAYS } from '../analysis/plan';
-import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, NextAction, ResumeBriefing, WorkItem } from '../model/home';
+import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, NextAction, ResumeBriefing, SlipReason, WorkItem } from '../model/home';
 import type { PlanChangeView } from '../model/plan';
 import type { SourceItem } from '../model/session';
 import { dateTime, ymd } from './format';
@@ -274,6 +274,9 @@ export function buildFixtures(now: Date) {
     loomerPick: null,
     change: null,
     topic: null,
+    slip: null,
+    quickStart: null,
+    plainWords: null,
     insight: {
       kind: 'hidden-deadline',
       text: `Canvas says this essay is due ${dayName(essayDue)}, but the instructions ask for a draft for peer review by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
@@ -286,6 +289,22 @@ export function buildFixtures(now: Date) {
     assignmentIds: [essay.assignmentId, reflection.assignmentId],
   };
   const brief = { date: now.toISOString().slice(0, 10), text: `1 due tomorrow; start ${essay.title} today (and 1 more).` };
+
+  // Home after a skipped start on the essay (NextAction.slip), with the student's answer if any.
+  const missedOn = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const slipped = (answer: SlipReason | null, next: Partial<NextAction>, count = 1): HomeModel => ({
+    status: 'ready',
+    next: { ...readyNext, slip: { assignmentId: essay.assignmentId, missedOn, count, answer }, ...next },
+    rest: [vocab, reflection, lab],
+    lastCheck,
+    resume: null,
+    olderReview: null,
+    crowded: null,
+    brief: null,
+    room: [],
+    yourChanges: [],
+    courses: COURSES,
+  });
 
   const essayResume = (recommendationChanged: boolean): ResumeBriefing => ({
     assignment: essay,
@@ -394,6 +413,9 @@ export function buildFixtures(now: Date) {
         loomerPick: { item: essay, reason: 'The largest open requirement due this week.' },
         change: null,
         topic: null,
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: { kind: 'busy-day', text: `This reflection is due ${dayName(reflection.due!.at)}, and since you said ${dayName(at(now, 1, 12, 0))} is busy, Loomer moved its start up to today.`, aiFound: false },
       },
       rest: [essay, vocab, lab],
@@ -421,6 +443,9 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: null,
         topic: null,
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: { kind: 'countdown', text: `This data table is due ${dayName(replayItem.due!.at)}, ${daysAway(replayItem.due!.at)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [{ ...essay, replay: true }],
@@ -440,6 +465,9 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: null,
         topic: null,
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: { kind: 'countdown', text: `This essay is due ${dayName(essayDue)}, ${daysAway(essayDue)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [vocab, reflection],
@@ -480,6 +508,9 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: null,
         topic: { topic: 'Vertex form', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' },
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: {
           kind: 'weak-topic',
           text: `You missed 2 of 3 on vertex form last time, and this review sheet is due ${dayName(sheet.due!.at)}, so start with that topic.`,
@@ -510,6 +541,40 @@ export function buildFixtures(now: Date) {
       courses: COURSES,
     },
 
+    // Loomer suggested starting the essay yesterday and no session happened: named once, with the question.
+    slipped: slipped(null, {
+      insight: { kind: 'slipped', text: `You didn’t get to this essay yesterday, and it’s due ${dayName(essayDue)}, so today’s start matters more.`, aiFound: false },
+    }),
+    // After each answer to "What got in the way?".
+    'slip-too-big': slipped('too-big', {
+      action: 'List two ways your sources disagree',
+      quickStart: { minutes: 10 },
+      insight: { kind: 'slipped', text: 'You said this essay felt too big, so today’s step takes about 10 minutes, and Loomer will time it for you.', aiFound: false },
+    }),
+    'slip-not-sure': slipped('not-sure', {
+      plainWords: 'Compare what your two sources say about why cities get hotter, then argue which one explains it better. Your outline only needs the main point from each source.',
+      insight: { kind: 'slipped', text: 'You said you weren’t sure how to start this essay, so here is what it asks in plain words.', aiFound: false },
+    }),
+    'slip-no-time': slipped('no-time', {
+      insight: { kind: 'slipped', text: `You said there wasn’t time yesterday, so if today is busy too, Loomer can move this essay’s start to another day before ${dayName(essayDue)}.`, aiFound: false },
+    }),
+    'slip-not-feeling': slipped('not-feeling-it', {
+      action: 'List two ways your sources disagree',
+      quickStart: { minutes: 10 },
+      insight: { kind: 'slipped', text: `Ten minutes is enough to get this essay moving today, and it’s due ${dayName(essayDue)}.`, aiFound: false },
+    }),
+    // A second skipped start with 1 day left: a smaller step, no second question.
+    'slip-second': slipped(
+      null,
+      {
+        item: { ...essay, due: { at: at(now, 1, 23, 59), source: 'canvas' } },
+        action: 'Write the first sentence of your intro',
+        quickStart: { minutes: 10 },
+        insight: { kind: 'slipped', text: 'This essay is due tomorrow at 11:59 PM, so 10 minutes on the intro tonight leaves tomorrow for the rest.', aiFound: false },
+      },
+      2,
+    ),
+
     'resume-changed': {
       status: 'ready',
       next: {
@@ -530,6 +595,9 @@ export function buildFixtures(now: Date) {
         loomerPick: null,
         change: 'Your vocab check is due before this essay needs to start, so it moved up.',
         topic: null,
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: { kind: 'change', text: 'Your vocab check is due before this essay needs to start, so it moved up.', aiFound: false },
       },
       rest: [essay, reflection, lab],
@@ -556,6 +624,9 @@ export function buildFixtures(now: Date) {
         loomerPick: { item: vocab, reason: `It’s due ${dateTime(vocab.due?.at ?? checkedAt)} and it’s short.` },
         change: null,
         topic: null,
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: readyNext.insight,
       },
       rest: [vocab, reflection, lab],
@@ -623,6 +694,9 @@ export function buildFixtures(now: Date) {
         loomerPick: { item: vocab, reason: 'It’s due soon and it’s short.' },
         change: null,
         topic: null,
+        slip: null,
+        quickStart: null,
+        plainWords: null,
         insight: {
           kind: 'hidden-deadline',
           text: `Canvas says this synthesis essay is due ${dayName(essayDue)}, but the instructions ask for a full draft for the peer review workshop by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,

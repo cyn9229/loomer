@@ -57,6 +57,10 @@ import SunriseRegular from '@mingcute/react/core-regular/sunrise';
 import TaskRegular from '@mingcute/react/core-regular/task';
 import TargetRegular from '@mingcute/react/core-regular/target';
 import TimeRegular from '@mingcute/react/core-regular/time';
+import Battery1Regular from '@mingcute/react/core-regular/battery-1';
+import HistoryRegular from '@mingcute/react/core-regular/history';
+import Mountain2Regular from '@mingcute/react/core-regular/mountain-2';
+import StopwatchRegular from '@mingcute/react/core-regular/stopwatch';
 import UpRegular from '@mingcute/react/core-regular/up';
 import User3Regular from '@mingcute/react/core-regular/user-3';
 import WarningRegular from '@mingcute/react/core-regular/warning';
@@ -135,6 +139,11 @@ const icons = {
   copy: Copy2Regular,
   keyboard: KeyboardRegular,
   eye: EyeRegular,
+  // A skipped start: since when, and the four answers to "What got in the way?".
+  history: HistoryRegular,
+  mountain: Mountain2Regular,
+  battery: Battery1Regular,
+  stopwatch: StopwatchRegular,
   // Work types, picked by workTypeIcon().
   writing: QuillPenRegular,
   practice: PencilRulerRegular,
