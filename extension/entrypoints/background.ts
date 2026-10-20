@@ -12,7 +12,7 @@ import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
-import { aiServiceItem, aiSettingsItem, briefDismissedItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
+import { aiServiceItem, aiSettingsItem, askThreadItem, briefDismissedItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, type PlanSettings } from '../src/analysis/changes';
 import { isOpen } from '../src/analysis/facts';
 import { localDay } from '../src/analysis/plan';
@@ -20,7 +20,7 @@ import { nextPlanSnapshot } from '../src/analysis/recommend';
 import { loadHomeData } from '../src/model/homeData';
 import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
-import { askHelp, requestReview } from '../src/session/help';
+import { requestReview } from '../src/session/help';
 import { dismissHint, proactiveStep } from '../src/session/proactive';
 import { focusStep } from '../src/session/focus';
 import { embeddedTopicsStep, findTopic, recordTopicAnswer, setTopicSkipped, topicsStep } from '../src/session/topics';
@@ -584,6 +584,8 @@ async function handle(message: Message): Promise<Reply> {
       if (!topic) return { ok: false, error: 'That topic is not on this sheet.' };
       if (isStreaming(message.assignmentId)) return { ok: false, error: 'Loomer is still answering.' };
       startChat(message.assignmentId, topicRequest(topic, message.mode), topic.text);
+      // The reply lands in this assignment's chat, so Ask Loomer opens there and says why.
+      await askThreadItem.setValue({ threadKey: message.assignmentId, at: new Date().toISOString(), reason: 'topic' });
       return { ok: true };
     }
     case 'quiz:answer':
@@ -727,12 +729,30 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     case 'screenshot:save':
       return saveScreenshot(db, await loadGateState(), message.crop, new Date(), cropImage).then((r) => (r.ok ? { ok: true } : { ok: false, error: r.error ?? 'Not saved.' }));
-    case 'chat:send':
+    case 'chat:send': {
       if (isStreaming(message.threadKey)) return { ok: false, error: 'Loomer is still answering.' };
+      // Asking for help in the session's chat counts as working on it.
+      const s = await currentSession(db);
+      if (s?.assignmentId === message.threadKey) await touch(db, s, new Date());
       startChat(message.threadKey, message.text);
       return { ok: true };
+    }
     case 'chat:stop':
       stopChat(message.threadKey);
+      return { ok: true };
+    case 'chat:open':
+      await askThreadItem.setValue({ threadKey: message.threadKey, at: new Date().toISOString(), reason: 'student' });
+      return { ok: true };
+    case 'chat:set-aside': {
+      if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
+      const id = crypto.randomUUID();
+      await db.chatTurns.where('threadKey').equals(message.threadKey).filter((t) => !t.setAsideId).modify({ setAsideId: id });
+      return { ok: true };
+    }
+    case 'chat:restore':
+      await db.chatTurns.filter((t) => t.setAsideId === message.id).modify((t) => {
+        delete t.setAsideId;
+      });
       return { ok: true };
     case 'chat:clear':
       if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
@@ -789,12 +809,11 @@ async function handle(message: Message): Promise<Reply> {
     case 'source:remove':
       await db.sources.delete(message.id);
       return { ok: true };
-    case 'help:ask':
     case 'help:review': {
       const s = await currentSession(db);
       if (s?.assignmentId === message.assignmentId) await touch(db, s, new Date());
-      const deps = { db, ai: () => aiSettingsItem.getValue() };
-      await (message.type === 'help:ask' ? askHelp(deps, message.assignmentId, message.text) : requestReview(deps, message.assignmentId));
+      if (isStreaming(message.assignmentId)) return { ok: false, error: 'Loomer is still answering.' };
+      await requestReview({ db, ai: () => aiSettingsItem.getValue() }, message.assignmentId);
       return { ok: true };
     }
     case 'hint:dismiss':

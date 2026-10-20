@@ -9,6 +9,7 @@ import { buildHomeModel } from '../analysis/recommend';
 import { roomDays, roomKey, roomLookup } from '../analysis/room';
 import { checkAiDispatch } from '../core/gate';
 import { findTopic, loadSheetTopics, reusedFromSheet, sheetTextFor } from '../session/topics';
+import { ownDraft, workHelpDecision } from '../session/help';
 import { instructionText, type LoomerDb, type PlanEdit } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
@@ -17,6 +18,7 @@ import { cleanSvg } from './sanitize';
 
 const MAX_INSTRUCTIONS = 6_000;
 const MAX_HTML = 60_000;
+const MAX_DRAFT_CHARS = 15_000;
 const DAY_MS = 86_400_000;
 
 export type ToolSettings = PlanSettings;
@@ -31,6 +33,7 @@ const LABELS: Record<ChatToolName, string> = {
   quiz_me: 'Made a quick check',
   propose_plan_change: 'Suggested a plan change',
   propose_add_assignment: 'Suggested adding an assignment',
+  read_my_draft: 'Read your draft',
 };
 
 const isTool = (name: string): name is ChatToolName => Object.hasOwn(chatTools, name);
@@ -195,6 +198,15 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
         block: { kind: 'plan-change', changeId: proposed.change.id },
         label,
       };
+    }
+    case 'read_my_draft': {
+      const args = chatTools.read_my_draft.schema.safeParse(json);
+      if (!args.success) return { forModel: 'Pass assignment_id.', label };
+      const id = args.data.assignment_id;
+      if (!(await workHelpDecision(db, settings.ai, id)).allowed) return { forModel: 'Help on this assignment is off, so the draft is not shared.', label };
+      const draft = await ownDraft(db, id);
+      if (!draft) return { forModel: 'No readable draft is linked. Tell the student they can link their Google Doc from their work session.', label };
+      return { forModel: JSON.stringify({ scope: draft.text.length > MAX_DRAFT_CHARS ? 'partial' : 'full', words: draft.words, text: draft.text.slice(0, MAX_DRAFT_CHARS) }), label };
     }
     case 'propose_add_assignment': {
       const args = chatTools.propose_add_assignment.schema.safeParse(json);

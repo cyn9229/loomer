@@ -77,29 +77,6 @@ export const WORK_TYPE_GUIDANCE: Record<WorkKind, string> = {
     'This is reading work. Explain key terms and background, and ask questions that check understanding. Never write their annotations or answers, and never replace the reading with a full summary.',
 };
 
-export const HELP_ROUTE = '/ai/help';
-
-/** Hint-first help on the student's own work. Requires the work-help AI check. */
-export const helpRequestSchema = z.strictObject({
-  title: z.string().max(300),
-  instructions: z.string().max(12_000),
-  rubric: rubricItems,
-  studentWork: z.string().max(15_000),
-  workScope,
-  history: z.array(z.strictObject({ role: z.enum(['student', 'loomer']), text: z.string().max(2_000) })).max(8),
-  question: z.string().max(2_000),
-  workType: z.enum(WORK_TYPES),
-});
-
-const reference = z.strictObject({ quote: z.string(), from: z.enum(['your draft', 'the instructions']) });
-
-export const helpResponseSchema = z.strictObject({
-  /** redirect: Loomer declined to do the work and offers a teaching alternative. */
-  kind: z.enum(['hint', 'explanation', 'question', 'example', 'redirect']),
-  reply: z.string(),
-  references: z.array(reference),
-});
-
 export const REVIEW_ROUTE = '/ai/review';
 
 export const reviewRequestSchema = z.strictObject({
@@ -127,8 +104,6 @@ export const reviewResponseSchema = z.strictObject({
     .max(3),
 });
 
-export type HelpRequest = z.infer<typeof helpRequestSchema>;
-export type HelpResponse = z.infer<typeof helpResponseSchema>;
 export type ReviewRequest = z.infer<typeof reviewRequestSchema>;
 export type ReviewResponse = z.infer<typeof reviewResponseSchema>;
 

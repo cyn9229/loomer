@@ -4,7 +4,7 @@ import { readDocPaced, studentText } from '../adapters/docs/reader';
 import { capturePage } from '../capture/capture';
 import { LoomerDb, type Assignment } from '../core/db';
 import type { GateState } from '../core/gate';
-import { askHelp } from './help';
+import { requestReview } from './help';
 import { IDLE_SUSPEND_MS, closeStaleSessions, currentSession, setState, startSession, tickSession } from './session';
 
 const DOC = 'a'.repeat(30);
@@ -156,14 +156,14 @@ describe('capturePage', () => {
   });
 });
 
-describe('askHelp', () => {
-  it('sends nothing when AI is off and leaves a notice instead', async () => {
+describe('Review my draft', () => {
+  it('sends nothing when AI is off, and leaves the request and a notice in the assignment chat', async () => {
     const f = exportFetch({ text: 'x' });
-    await askHelp({ db, ai: async () => ({ enabled: false, brokerOrigin: 'http://127.0.0.1:8787' }), fetch: f }, assignment.id, 'Help me start');
+    await requestReview({ db, ai: async () => ({ enabled: false, brokerOrigin: 'http://127.0.0.1:8787' }), fetch: f }, assignment.id);
     expect(f.calls).toBe(0);
-    expect((await db.chat.toArray()).map((m) => [m.role, m.kind])).toEqual([
-      ['student', 'question'],
-      ['loomer', 'notice'],
+    expect((await db.chatTurns.where('threadKey').equals(assignment.id).toArray()).map((t) => [t.role, t.status])).toEqual([
+      ['student', 'done'],
+      ['loomer', 'error'],
     ]);
   });
 });

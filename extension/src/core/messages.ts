@@ -57,7 +57,6 @@ export const messageSchema = z.discriminatedUnion('type', [
   /** Sent after the page's permissions.request for DOCS_ORIGINS succeeded. */
   z.object({ type: z.literal('doc:link'), assignmentId: z.string(), docUrl: z.string() }),
   z.object({ type: z.literal('source:remove'), id: z.string() }),
-  z.object({ type: z.literal('help:ask'), assignmentId: z.string(), text: z.string().min(1).max(2_000) }),
   z.object({ type: z.literal('help:review'), assignmentId: z.string() }),
   /** Dismiss a proactive hint; its issue type is not raised again for this assignment. */
   z.object({ type: z.literal('hint:dismiss'), id: z.number() }),
@@ -109,6 +108,12 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('chat:stop'), threadKey: z.string().min(1) }),
   /** Delete this thread's messages from this computer. */
   z.object({ type: z.literal('chat:clear'), threadKey: z.string().min(1) }),
+  /** The student opened this thread; Ask Loomer opens on it next time (askThreadItem). */
+  z.object({ type: z.literal('chat:open'), threadKey: z.string().min(1) }),
+  /** "Start fresh": set the thread's conversation aside (kept, out of the AI's history). Undo is chat:restore. */
+  z.object({ type: z.literal('chat:set-aside'), threadKey: z.string().min(1) }),
+  /** Bring a set-aside conversation back into its thread, in time order. */
+  z.object({ type: z.literal('chat:restore'), id: z.string().min(1) }),
   /** Re-check whether the local AI service is running (for example when the panel opens). */
   z.object({ type: z.literal('ai:check') }),
   /** Hide today's brief; it returns tomorrow. */

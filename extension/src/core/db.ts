@@ -405,6 +405,8 @@ export type ChatTurnRecord = {
   status: 'streaming' | 'done' | 'error' | 'stopped';
   error?: string;
   createdAt: string;
+  /** Set by "Start fresh": the turn is out of the conversation (and the AI's history) until restored. */
+  setAsideId?: string;
 };
 
 export class LoomerDb extends Dexie {
@@ -456,6 +458,21 @@ export class LoomerDb extends Dexie {
     this.version(7).stores({ dayRoom: 'key', planChanges: 'id, status' });
     this.version(8).stores({ sheetTopics: 'assignmentId' });
     this.version(9).stores({ topicChecks: '++id, assignmentId, quizId' });
+    // One conversation per assignment: the old session help messages move into the assignment's chat thread.
+    this.version(10).upgrade(async (tx) => {
+      const old = await tx.table<ChatRecord>('chat').toArray();
+      const turns = old
+        .sort((x, y) => x.createdAt.localeCompare(y.createdAt) || x.id - y.id)
+        .map((m) => ({
+          threadKey: m.assignmentId,
+          role: m.role,
+          blocks: [{ kind: 'markdown' as const, text: [m.text, ...m.references.map((r) => `> ${r.quote}`)].join('\n\n') }],
+          status: 'done' as const,
+          createdAt: m.createdAt,
+        }));
+      await tx.table('chatTurns').bulkAdd(turns);
+      await tx.table('chat').clear();
+    });
   }
 }
 

@@ -55,7 +55,30 @@ export type ChatBlock =
    * assignment:add with these fields and draftId; ChatModel.added[draftId] is
    * the new assignment once added. The AI never adds anything itself.
    */
-  | { kind: 'add-assignment'; draftId: string; draft: AddDraft };
+  | { kind: 'add-assignment'; draftId: string; draft: AddDraft }
+  /** "Review my draft" (help:review): findings, each quoting the student's own text. */
+  | { kind: 'draft-check'; summary: string; findings: DraftFinding[]; scope: 'full' | 'partial' };
+
+/** One review finding. `quote` is from the student's draft; `question` helps them fix it themselves. */
+export type DraftFinding = { issue: string; criterion: string; question: string; quote: string };
+
+/**
+ * One row in the chat switcher. General first; then current work (open, not
+ * hidden, not done), newest message first, then the rest by due date; then
+ * "earlier" (past due, done, turned in, or hidden) when it has messages.
+ */
+export type ThreadSummary = {
+  threadKey: ThreadKey;
+  title: string;
+  courseName: string | null;
+  /** The last message as one line; null when the thread has none yet. */
+  lastText: string | null;
+  lastAt: string | null;
+  group: 'general' | 'current' | 'earlier';
+};
+
+/** A conversation set aside by "Start fresh". chat:restore brings its messages back in time order; nothing is replaced. */
+export type SetAsideChat = { id: string; threadKey: ThreadKey; title: string; startedAt: string; endedAt: string; count: number; preview: string };
 
 /** A proposed hand-added assignment. `courseName` is for display; null fields were not said. */
 export type AddDraft = { title: string; courseKey: string | null; courseName: string | null; dueAt: string | null; workType: WorkType | null };
@@ -85,4 +108,8 @@ export type ChatModel = {
   planChanges: Record<string, PlanChangeView>;
   /** Add cards already applied: draftId to the new assignment's id. */
   added: Record<string, string>;
+  /** Every thread the switcher lists. */
+  threads: ThreadSummary[];
+  /** Conversations set aside in any thread, newest first. */
+  setAside: SetAsideChat[];
 };

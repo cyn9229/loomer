@@ -81,4 +81,10 @@ export const briefDismissedItem = storage.defineItem<string | null>('local:brief
 export const aiServiceItem = storage.defineItem<{ up: boolean; checkedAt: string } | null>('local:aiService', { fallback: null });
 
 /** Minutes a "some" or "little" day gives work the student put a time guess on. */
+/**
+ * The Ask Loomer thread to open: the last one the student used (chat:open), or
+ * one Loomer switched to for topic help (reason 'topic', so the panel can say so).
+ */
+export const askThreadItem = storage.defineItem<{ threadKey: string; at: string; reason: 'student' | 'topic' } | null>('local:askThread', { fallback: null });
+
 export const levelMinutesItem = storage.defineItem<LevelMinutes>('local:levelMinutes', { fallback: DEFAULT_LEVEL_MINUTES });

@@ -10,10 +10,6 @@ import {
   TOPICS_ROUTE,
   topicsRequestSchema,
   topicsResponseSchema,
-  WORK_TYPE_GUIDANCE,
-  HELP_ROUTE,
-  helpRequestSchema,
-  helpResponseSchema,
   HINT_ROUTE,
   hintRequestSchema,
   hintResponseSchema,
@@ -80,34 +76,6 @@ Every quote must be copied character for character from the given text. If you c
       `Due: ${req.dueAt ?? 'not given'}`,
       `<instructions>\n${req.instructions}\n</instructions>`,
       `Rubric:\n${rubricText(req.rubric)}`,
-    ]
-      .filter(Boolean)
-      .join('\n\n'),
-});
-
-const helpTask = defineTask({
-  route: HELP_ROUTE,
-  name: 'help',
-  request: helpRequestSchema,
-  response: helpResponseSchema,
-  system: `You are Loomer, a study helper for a student working on a school assignment.
-${BOUNDARY}
-How to help:
-- Start with the smallest useful hint. If the student asks for more, make it clearer: a brief concept explanation, a smaller next step, a guiding question, or a short example on a clearly different topic.
-- Point to the rubric or instructions when useful, and to specific places in the student's draft.
-- Keep the reply under 120 words, plain sentences, no headings.
-Return JSON: kind (hint, explanation, question, example, or redirect when you declined to do the work), reply, and references: short passages copied character for character from the draft or the instructions that the reply points to, each labeled "your draft" or "the instructions". Empty if none.`,
-  user: (req) =>
-    [
-      `Assignment: ${req.title}`,
-      WORK_TYPE_GUIDANCE[req.workType],
-      `<instructions>\n${req.instructions}\n</instructions>`,
-      `Rubric:\n${rubricText(req.rubric)}`,
-      req.workScope === 'none'
-        ? 'Nothing of theirs is linked.'
-        : `<${req.workType === 'writing' ? 'draft' : 'their_work'} scope="${req.workScope}">\n${req.studentWork}\n</${req.workType === 'writing' ? 'draft' : 'their_work'}>`,
-      req.history.length ? `Conversation so far:\n${req.history.map((m) => `${m.role}: ${m.text}`).join('\n')}` : null,
-      `Student: ${req.question}`,
     ]
       .filter(Boolean)
       .join('\n\n'),
@@ -241,7 +209,6 @@ export function brokerRoutes(env: { apiKey: string | undefined; model: string; e
     });
 
   register(requirementsTask);
-  register(helpTask);
   register(reviewTask);
   register(hintTask);
   register(requirementsCheckTask);

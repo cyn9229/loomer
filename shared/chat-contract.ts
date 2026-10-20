@@ -112,6 +112,11 @@ export const chatTools = {
       "Propose changes to the student's plan from what THEY said: how much room a day has (free, some about 2 h, little about 30 min, busy means no starts; for one date, or a weekday with repeat true for every week), their own workload label for an assignment, a day they want to start it, their own time guess for it, what kind of work it is (writing, practice, study, reading), their normal day's free time, the time they have in this work session, or hiding / done offline / keep active. Never invent numbers; use only the student's. Nothing changes until the student taps Apply on the card. Due dates and the teacher's AI rule can't be changed.",
     schema: z.strictObject({ changes: z.array(planChangeItemSchema).min(1).max(10) }),
   },
+  read_my_draft: {
+    description:
+      "Read the student's own draft for this assignment (their text only, from the Google Doc they linked). Use it when they ask about their writing. Quote only what it returns; never rewrite it for them.",
+    schema: assignmentId,
+  },
   propose_add_assignment: {
     description:
       "Offer to add work the student mentioned that is not on their list (call list_work first to check): a paper assignment, another class site, something the teacher said in class. Use only what they said: the name, the class, the due day and time if given. Never invent a due date; leave it null and the card lets them add one. Nothing is added until the student taps Add on the card.",

@@ -74,7 +74,11 @@ function historyFrom(turns: ChatTurnRecord[]): ChatMessage[] {
               ? `[Gave a quiz on ${b.quiz.concept}]`
               : b.kind === 'plan-change'
                 ? '[Proposed a plan change card]'
-                : '',
+                : b.kind === 'add-assignment'
+                  ? `[Offered to add "${b.draft.title}"]`
+                  : b.kind === 'draft-check'
+                    ? `[Checked the draft: ${b.summary} ${b.findings.map((f) => f.issue).join('; ')}]`
+                    : '',
       )
       .filter(Boolean)
       .join('\n')
@@ -102,7 +106,7 @@ export async function sendChat(deps: ChatDeps, threadKey: ThreadKey, text: strin
   const { db } = deps;
   const now = deps.now ?? (() => new Date());
   if (running.has(threadKey)) return;
-  const prior = await db.chatTurns.where('threadKey').equals(threadKey).sortBy('id');
+  const prior = (await db.chatTurns.where('threadKey').equals(threadKey).sortBy('id')).filter((t) => !t.setAsideId);
   await db.chatTurns.add({ threadKey, role: 'student', blocks: [{ kind: 'markdown', text }], status: 'done', createdAt: now().toISOString() });
 
   const settings = await deps.ai();

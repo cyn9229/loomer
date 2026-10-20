@@ -80,9 +80,8 @@ export type HelpState = {
   /** Passage behind a blocked or limited state, with its source label. */
   policyQuote?: string;
   policySource?: string;
-  messages: ChatMessage[];
-  /** A help or review request is in flight. */
-  pending: boolean;
+  /** "Review my draft" is running. Its result lands in the assignment's chat thread (ChatModel). */
+  reviewPending: boolean;
 };
 
 /** One proactive hint. Null until the pause rules make one eligible. `requirement`: the requirement it serves, when known. */

@@ -1,6 +1,6 @@
 // Builds the SessionModel for the work-session screen from stored state.
 import { parseDocId, studentText, wordCount } from '../adapters/docs/reader';
-import { instructionText, type AssignmentDetail, type ChatRecord, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source } from '../core/db';
+import { instructionText, type AssignmentDetail, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
@@ -21,14 +21,14 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
   const a = await db.assignments.get(session.assignmentId);
   if (!a) return { status: 'none' };
 
-  const [course, analysis, context, link, events, sources, chat, decision, checks] = await Promise.all([
+  const [course, analysis, context, link, events, sources, thread, decision, checks] = await Promise.all([
     db.courses.get(courseKey(a)),
     db.analyses.get(a.id),
     db.studentContext.bulkGet([a.id, courseKey(a)]),
     db.docLinks.get(a.id),
     db.sessionEvents.where('sessionId').equals(session.id).toArray(),
     db.sources.where('assignmentId').equals(a.id).toArray(),
-    db.chat.where('assignmentId').equals(a.id).toArray(),
+    db.chatTurns.where('threadKey').equals(a.id).filter((t) => !t.setAsideId).toArray(),
     workHelpDecision(db, ai, a.id),
     db.topicChecks.where('assignmentId').equals(a.id).toArray(),
   ]);
@@ -55,8 +55,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     activity: activity(events),
     help: {
       ...availability(decision),
-      messages: chat.map((m: ChatRecord) => ({ id: m.id, role: m.role, text: m.text, kind: m.kind, references: m.references, createdAt: m.createdAt })),
-      pending: chat.at(-1)?.role === 'student' && now.getTime() - Date.parse(chat.at(-1)!.createdAt) < PENDING_MS,
+      reviewPending: thread.some((t) => t.status === 'streaming' && t.role === 'loomer' && now.getTime() - Date.parse(t.createdAt) < PENDING_MS),
     },
     // Never show AI guidance once help is no longer allowed (AI off, new restriction).
     suggestion: null,
