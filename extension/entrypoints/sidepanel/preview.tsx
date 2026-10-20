@@ -158,7 +158,7 @@ type Sent = { text: string; attachments: Attachment[] };
 function viewOf(a: Attachment): AttachmentView {
   if (a.kind === 'image') return { kind: 'image', name: a.name, thumb: a.thumb, detail: `${a.width} × ${a.height}` };
   if (a.kind === 'pdf') return { kind: 'pdf', name: a.name, thumb: null, detail: `${(a.bytes / 1_048_576).toFixed(1)} MB` };
-  return { kind: 'text', name: a.name, thumb: null, detail: a.truncated ? 'Read the first 100,000 characters' : 'Text' };
+  return { kind: 'text', name: a.name, thumb: null, detail: a.truncated ? 'Read the first 100,000 characters' : `${a.text.length.toLocaleString()} characters` };
 }
 
 /** The thread with each preview message after it, every one answered with the sample reply. */

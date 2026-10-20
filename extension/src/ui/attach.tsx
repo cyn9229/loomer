@@ -159,10 +159,10 @@ export function AttachButton({ attach, disabled }: { attach: Attachments; disabl
 
 const fileIcon: Record<Attachment['kind'], IconName> = { image: 'image', pdf: 'pdf', text: 'doc' };
 
-/** "2.4 MB", "Read the first part", or "Text": the small line under a waiting file's name. */
+/** "2.4 MB", "4,210 characters", or "Read the first part": the small line under a waiting file's name. */
 function waitingDetail(a: Attachment): string {
   if (a.kind === 'pdf') return `${(a.bytes / 1_048_576).toFixed(1)} MB`;
-  if (a.kind === 'text') return a.truncated ? 'Read the first part' : 'Text';
+  if (a.kind === 'text') return a.truncated ? 'Read the first part' : `${a.text.length.toLocaleString()} characters`;
   return 'Image';
 }
 
@@ -222,7 +222,7 @@ export function AttachNote({ attach }: { attach: Attachments }) {
   return (
     <p className="attach-note">
       <Icon name="lock" size="sm" />
-      <span className="grow">Files and screenshots you attach go to the AI only for this chat and stay on this computer.</span>
+      <span className="grow">Files and screenshots you attach go to the AI only with that message and stay on this computer.</span>
       <button
         type="button"
         className="link"
