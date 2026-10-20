@@ -2,6 +2,7 @@
 // HomeModel and never queries the database or Canvas itself. Logic owns this
 // file; UI code imports types from here and treats them as read-only.
 import type { NextStep, RunOutcome, SlipReason } from '../core/db';
+import type { PrepStep } from './prep';
 export type { SlipReason } from '../core/db';
 import type { PlanChangeView } from './plan';
 import type { TopicNext } from './session';
@@ -152,6 +153,12 @@ export type NextAction = {
   /** The instructions in plain words, set only after the student answered "Not sure how to start". */
   plainWords: string | null;
   /**
+   * The top item is a test with prep: `action` is today's practice step, the
+   * main button reads "Start practice" (or "Start the practice test" / "Start
+   * warm-up") and sends prep:start. Show `readiness` under the card.
+   */
+  prep: PrepStep | null;
+  /**
    * For practice or study work with a sheet: the topic to do next and why. When
    * set, `action` is "Review <topic>" (explain) or "Check <topic>" (quick
    * check); the primary button can send topic:help with this mode.
@@ -161,6 +168,7 @@ export type NextAction = {
 
 /**
  * What kind of find leads Home's why, picked in this order:
+ * - prep: a test with prep; `text` says why today's practice step (the label comes from NextAction.prep.kind).
  * - slipped: Loomer suggested starting this on an earlier day and no session happened; `text` names it once, or what Loomer did after the student's answer.
  * - change: the top of the plan moved since the student last looked.
  * - continue: the student kept a next step at the end of their last session; `text` says what they did then.
@@ -169,7 +177,7 @@ export type NextAction = {
  * - weak-topic: practice or study work with a shaky topic from quick checks.
  * - countdown: nothing new; the due date and days left.
  */
-export type InsightKind = 'slipped' | 'change' | 'continue' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
+export type InsightKind = 'prep' | 'slipped' | 'change' | 'continue' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
 /** One sentence that names the assignment and gives the concrete fact. `aiFound` is true only when the AI read the fact from the instructions. */
 export type Insight = { kind: InsightKind; text: string; aiFound: boolean };
 

@@ -4,6 +4,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { CanvasFailureKind } from '../adapters/canvas/client';
 import type { Attachment, ChatBlock } from '../model/chat';
+import type { PracticeAnswer, PracticeKind, PrepDayKind, PrepFormat } from '../model/prep';
 import type { EffortLabel, RoomLevel, WorkType } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import type { PolicyAnswer } from './gate';
@@ -418,6 +419,57 @@ export type ChatTurnRecord = {
 /** A file attached to a chat message, kept whole on this computer. The chat shows its AttachmentView. */
 export type ChatFileRecord = { id: number; threadKey: string; attachment: Attachment };
 
+/** Test prep for one test: its topics, key terms, and formats. Plan days and standings are computed, not stored. */
+export type PrepRecord = {
+  assignmentId: string;
+  /** Local date the plan starts (the first day Loomer set it up). */
+  startDay: string;
+  status: 'setup' | 'ready' | 'failed';
+  error?: string;
+  topics: { id: string; text: string; source: 'guide' | 'notes' | 'student'; new: boolean; removed: boolean }[];
+  terms: { term: string; definition: string }[];
+  formats: { selected: PrepFormat[]; found: Partial<Record<PrepFormat, 'canvas' | 'guide' | 'notes'>>; asked: boolean };
+  notes: { photos: number; found: string | null };
+};
+
+/** One practice question as written, with its answer key (never shown before the student answers). */
+export type PracticeQuestionRecord = {
+  id: string;
+  topicId: string;
+  topic: string;
+  kind: PracticeKind;
+  label: string;
+  prompt: string;
+  options: string[];
+  answerIndex: number;
+  why: string;
+  term: string;
+  definition: string;
+  answer: string;
+  worked: { problem: string; steps: string[] } | null;
+  needs: string[];
+  like: boolean;
+};
+
+/** A practice run: its questions, the student's answers, and when it ended. `dayKind` ties it to the plan. */
+export type PracticeRecord = {
+  id: string;
+  assignmentId: string;
+  dayKind: PrepDayKind | 'comeback';
+  day: string;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  /** The student closed the finished practice (prep:close), or started another. */
+  closed: boolean;
+  /** Loomer is writing questions (the first batch, or "Try one like it"). */
+  writing: boolean;
+  error: string | null;
+  index: number;
+  questions: PracticeQuestionRecord[];
+  answers: Record<string, PracticeAnswer>;
+};
+
 export class LoomerDb extends Dexie {
   assignments!: EntityTable<Assignment, 'id'>;
   runs!: EntityTable<CollectionRun, 'id'>;
@@ -435,6 +487,8 @@ export class LoomerDb extends Dexie {
   requirementChecks!: EntityTable<RequirementCheck, 'assignmentId'>;
   chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
   chatFiles!: EntityTable<ChatFileRecord, 'id'>;
+  preps!: EntityTable<PrepRecord, 'assignmentId'>;
+  practices!: EntityTable<PracticeRecord, 'id'>;
   dayRoom!: EntityTable<DayRoomRecord, 'key'>;
   planChanges!: EntityTable<PlanChangeRecord, 'id'>;
   sheetTopics!: EntityTable<SheetTopicsRecord, 'assignmentId'>;
@@ -484,6 +538,7 @@ export class LoomerDb extends Dexie {
       await tx.table('chat').clear();
     });
     this.version(11).stores({ chatFiles: '++id, threadKey' });
+    this.version(12).stores({ preps: 'assignmentId', practices: 'id, assignmentId' });
   }
 }
 

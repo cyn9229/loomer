@@ -76,6 +76,8 @@ function historyFrom(turns: ChatTurnRecord[]): ChatMessage[] {
                 ? '[Proposed a plan change card]'
                 : b.kind === 'attachment'
                   ? `[Attached ${b.file.kind === 'image' ? 'an image' : b.file.kind === 'pdf' ? 'a PDF' : 'a file'}: ${b.file.name}]`
+                : b.kind === 'practice-result'
+                  ? `[Practice: ${b.line} ${b.detail}]`
                 : b.kind === 'add-assignment'
                   ? `[Offered to add "${b.draft.title}"]`
                   : b.kind === 'draft-check'

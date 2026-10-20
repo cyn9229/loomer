@@ -1,7 +1,7 @@
 // Builds the HomeModel from stored evidence. The order comes from the planner
 // (plan.ts); AI output only supplies effort labels, checkpoints read from the
 // instructions, and first-step wording.
-import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord } from '../core/db';
+import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, PracticeRecord, PrepRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, Insight, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
@@ -12,6 +12,7 @@ import { roomDays, roomLookup } from './room';
 import { nextTopic, topicItems } from './topicStanding';
 import { assignmentNoun, insightFor, weakTopicInsight } from './insight';
 import { QUICK_START_MINUTES, slipInsight, slipOf, smallerStep, wantsQuickStart } from './slip';
+import { prepStep } from '../prep/prep';
 import { isQuiz, workTypeFor } from './workType';
 import { sameAsCanvas } from '../session/added';
 import type { PolicyResult } from './policy';
@@ -65,6 +66,9 @@ export type RecommendInput = {
   topicChecks: TopicCheckRecord[];
   /** Local days (YYYY-MM-DD) with a work session, by assignment id. Missed starts are suggested days without one. */
   workedDays: Map<string, string[]>;
+  /** Test prep records and practice runs, for Home's daily practice step. */
+  preps: PrepRecord[];
+  practices: PracticeRecord[];
 };
 
 /** Applied changes shown on Home, newest first. */
@@ -88,7 +92,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
   if (!input.connected) return { status: 'not-connected' };
   const roomFor = roomLookup(input.room);
   const ranking = rank(input, roomFor);
-  const core = withSlip(input, withNextStep(input, withTopic(input, buildCore(input, ranking))));
+  const core = withPrep(input, withSlip(input, withNextStep(input, withTopic(input, buildCore(input, ranking)))));
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
   const today = localDay(input.now);
@@ -156,6 +160,18 @@ function withNextStep(input: RecommendInput, core: CoreModel): CoreModel {
   if (!packet?.nextStep || !a || input.activeSession) return core;
   const insight: Insight = core.next.insight.kind === 'change' ? core.next.insight : { kind: 'continue', text: lastTime(packet, assignmentNoun(a)), aiFound: false };
   return { ...core, next: { ...core.next, action: packet.nextStep.text, aiGenerated: packet.nextStep.aiGenerated, insight } };
+}
+
+/** A test with prep: today's practice step replaces the generic next step. */
+function withPrep(input: RecommendInput, core: CoreModel): CoreModel {
+  if (core.status !== 'ready' || input.activeSession) return core;
+  const id = core.next.item.assignmentId;
+  const prep = input.preps.find((p) => p.assignmentId === id);
+  const a = input.assignments.find((x) => x.id === id);
+  if (!prep || !a) return core;
+  const today = prepStep(prep, a, input.topicChecks.filter((c) => c.assignmentId === id), input.practices.filter((p) => p.assignmentId === id), input.now);
+  if (!today) return core;
+  return { ...core, next: { ...core.next, prep: today.step, action: today.action, aiGenerated: false, insight: { kind: 'prep', text: today.insight, aiFound: false }, slip: null, quickStart: null, plainWords: null } };
 }
 
 /**
@@ -486,8 +502,8 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
   }
 
   return analysis
-    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, ...choice }
-    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, ...choice };
+    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, ...choice }
+    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, ...choice };
 }
 
 function toWorkItem(

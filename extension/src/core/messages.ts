@@ -2,6 +2,7 @@
 // every message with this schema and ignores senders outside the extension.
 import { z } from 'zod';
 import { planChangeItemSchema } from '../../../shared/chat-contract';
+import { PREP_FORMATS } from '../../../shared/ai-contract';
 
 const exclusionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('host'), host: z.string().min(1).max(253), includeSubdomains: z.boolean() }),
@@ -94,6 +95,21 @@ export const messageSchema = z.discriminatedUnion('type', [
     correction: z.enum(['done-offline', 'kept-active', 'turned-in']).nullable(),
     note: z.string().max(500).optional(),
   }),
+  /** Test prep: start today's practice for this test (written ahead when possible). The practice view reads usePracticeModel. */
+  z.object({ type: z.literal('prep:start'), assignmentId: z.string() }),
+  /** An answer: choice for multiple choice, text for math and written answers, knew for a flashcard. */
+  z.object({ type: z.literal('prep:answer'), practiceId: z.string(), questionId: z.string(), choice: z.number().int().min(0).max(9).optional(), text: z.string().max(8_000).optional(), knew: z.boolean().optional() }),
+  /** "Try one like it": a new question on the same idea, shown next. */
+  z.object({ type: z.literal('prep:like'), practiceId: z.string(), questionId: z.string() }),
+  z.object({ type: z.literal('prep:next'), practiceId: z.string() }),
+  /** End now; the summary shows, and one line goes into the test's chat. */
+  z.object({ type: z.literal('prep:end'), practiceId: z.string() }),
+  /** Close the finished practice view. */
+  z.object({ type: z.literal('prep:close'), practiceId: z.string() }),
+  z.object({ type: z.literal('prep:topics-edit'), assignmentId: z.string(), remove: z.array(z.string()).optional(), add: z.array(z.string().max(120)).max(10).optional(), keep: z.array(z.string()).optional() }),
+  z.object({ type: z.literal('prep:format-set'), assignmentId: z.string(), formats: z.array(z.enum(PREP_FORMATS)).max(5) }),
+  /** Photos of paper notes (image attachments from readAttachment). Sent to the AI once, not kept. */
+  z.object({ type: z.literal('prep:notes'), assignmentId: z.string(), attachments: z.array(attachmentSchema).min(1).max(6) }),
   /** "What got in the way?" for the start missed on `missedOn` (NextAction.slip), or dismissed. */
   z.object({
     type: z.literal('slip:answer'),

@@ -63,6 +63,8 @@ const home = async (now: Date, over: Partial<RecommendInput> = {}) =>
     sheetTopics: [],
     topicChecks: [],
     workedDays: new Map(),
+    preps: [],
+    practices: [],
     ...over,
   });
 

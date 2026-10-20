@@ -243,3 +243,79 @@ export const focusResponseSchema = z.strictObject({
 
 export type FocusRequest = z.infer<typeof focusRequestSchema>;
 export type FocusResponse = z.infer<typeof focusResponseSchema>;
+
+// ---- Test prep ----
+
+export const PREP_FORMATS = ['mcq', 'frq', 'vocab', 'short', 'math'] as const;
+export const PRACTICE_KINDS = ['mcq', 'short', 'frq', 'vocab', 'math', 'explain'] as const;
+
+export const PREP_TOPICS_ROUTE = '/ai/prep-topics';
+
+/** Topics, key terms, and question formats for a test, from its instructions and study guide, or from photos of the student's notes. */
+export const prepTopicsRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  instructions: z.string().max(20_000),
+  /** Topics already on the list, so photos add only new ones. */
+  existing: z.array(z.string().max(160)).max(40),
+  images: z.array(z.string().startsWith('data:image/').max(8_000_000)).max(6),
+});
+
+export const prepTopicsResponseSchema = z.strictObject({
+  topics: z.array(z.strictObject({ text: z.string(), quote: z.string() })),
+  terms: z.array(z.strictObject({ term: z.string(), definition: z.string() })),
+  formats: z.strictObject({ mcq: z.boolean(), frq: z.boolean(), vocab: z.boolean(), short: z.boolean(), math: z.boolean() }),
+});
+
+export const PRACTICE_ROUTE = '/ai/practice';
+
+/** New practice questions on the given topics, in the given kinds. Never the real test's questions. */
+export const practiceRequestSchema = z.strictObject({
+  title: z.string().max(300),
+  source: z.string().max(15_000),
+  topics: z.array(z.string().max(160)).min(1).max(12),
+  terms: z.array(z.strictObject({ term: z.string().max(160), definition: z.string().max(400) })).max(40),
+  kinds: z.array(z.strictObject({ kind: z.enum(PRACTICE_KINDS), count: z.number().int().min(1).max(12) })).min(1).max(6),
+  /** "Try one like it": one new question on the same idea. */
+  like: z.strictObject({ topic: z.string().max(160), kind: z.enum(PRACTICE_KINDS), prompt: z.string().max(2_000) }).nullable(),
+  /** Prompts already asked in this test's practice, so new ones differ. */
+  avoid: z.array(z.string().max(400)).max(60),
+});
+
+export const practiceResponseSchema = z.strictObject({
+  questions: z.array(
+    z.strictObject({
+      topic: z.string(),
+      kind: z.enum(PRACTICE_KINDS),
+      label: z.string(),
+      prompt: z.string(),
+      options: z.array(z.string()),
+      answerIndex: z.number().int(),
+      why: z.string(),
+      term: z.string(),
+      definition: z.string(),
+      answer: z.string(),
+      worked: z.strictObject({ problem: z.string(), steps: z.array(z.string()) }).nullable(),
+      needs: z.array(z.string()),
+    }),
+  ),
+});
+
+export const PRACTICE_GRADE_ROUTE = '/ai/practice-grade';
+
+/** Checks a written practice answer against what a strong answer needs. Never a grade. */
+export const practiceGradeRequestSchema = z.strictObject({
+  kind: z.enum(['short', 'frq', 'explain']),
+  topic: z.string().max(160),
+  prompt: z.string().max(2_000),
+  needs: z.array(z.string().max(300)).min(1).max(8),
+  answer: z.string().max(8_000),
+});
+
+export const practiceGradeResponseSchema = z.strictObject({
+  needs: z.array(z.strictObject({ need: z.string(), met: z.boolean(), quote: z.string(), hint: z.string() })),
+});
+
+export type PrepTopicsRequest = z.infer<typeof prepTopicsRequestSchema>;
+export type PracticeRequest = z.infer<typeof practiceRequestSchema>;
+export type PracticeResponse = z.infer<typeof practiceResponseSchema>;
+export type PracticeGradeRequest = z.infer<typeof practiceGradeRequestSchema>;

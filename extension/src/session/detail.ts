@@ -9,6 +9,7 @@ import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import { workHelpDecision } from './help';
 import { availability } from './model';
 import { editableFields } from './added';
+import { loadPrep } from '../prep/prep';
 import { sourceView } from './sources';
 import { requirementList } from './requirements';
 
@@ -69,5 +70,6 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
     sheets: await loadTeacherSheets(db, a),
     note: own?.note ?? null,
     editable: editableFields(a, own?.workType ?? null, link?.url ?? null),
+    prep: await loadPrep(db, a, now),
   };
 }

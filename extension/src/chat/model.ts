@@ -40,7 +40,7 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
 /** One line for a turn: its first text, or what kind of thing it showed. */
 function lineOf(blocks: ChatBlock[]): string {
   const text = blocks
-    .map((b) => (b.kind === 'markdown' ? b.text : b.kind === 'draft-check' ? b.summary : b.kind === 'quiz' ? `Quick check: ${b.quiz.concept}` : b.kind === 'visual' ? b.visual.title : ''))
+    .map((b) => (b.kind === 'markdown' ? b.text : b.kind === 'draft-check' ? b.summary : b.kind === 'practice-result' ? b.line : b.kind === 'quiz' ? `Quick check: ${b.quiz.concept}` : b.kind === 'visual' ? b.visual.title : ''))
     .find((t) => t.trim());
   const line = (text ?? '').replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim();
   return line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS - 1)}…` : line;

@@ -43,6 +43,8 @@ describe('Home after a missed start', () => {
       connected: true, assignments: [essay], courses: [], analyses: [analysis], context: [ctx], ai: { enabled: true, brokerOrigin: 'x' }, lastRun: run, now,
       packets: [], sources: [], docUrls: new Map(), activeSession: false, choice: null, snapshot: null, briefDismissedOn: null, room: [], planChanges: [],
       levelMinutes: DEFAULT_LEVEL_MINUTES, sheetTopics: [], topicChecks: [], workedDays: new Map(),
+    preps: [],
+    practices: [],
     });
 
   it('names the miss once, then makes the step smaller after a second miss', () => {

@@ -2,6 +2,7 @@
 // this file; the UI renders useAssignmentDetail(assignmentId).
 import type { StudentCorrection, WorkItem, WorkType } from './home';
 import type { HelpAvailability, SourceItem, SourceNeed, TeacherSheet } from './session';
+import type { TestPrep } from './prep';
 
 /**
  * Requirement-level evidence. Observed: relevant content was found (not proof of
@@ -60,6 +61,8 @@ export type AssignmentDetailModel =
       note: string | null;
       /** For hand-added work: its current fields, for the edit form (assignment:edit). Null for Canvas items. */
       editable: EditableFields | null;
+      /** Test prep, for a test or quiz due in the next two weeks once Loomer starts setting it up. */
+      prep: TestPrep | null;
     };
 
 /** The fields a student can set on hand-added work. */

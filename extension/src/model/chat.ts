@@ -58,6 +58,8 @@ export type ChatBlock =
   | { kind: 'add-assignment'; draftId: string; draft: AddDraft }
   /** A file or screenshot the student attached to their message. The full file stays in chatFiles; this is what the chat shows. */
   | { kind: 'attachment'; fileId: number; file: AttachmentView }
+  /** A finished test-prep practice, as one line in the test's chat. */
+  | { kind: 'practice-result'; practiceId: string; line: string; detail: string; mistakes: number }
   /** "Review my draft" (help:review): findings, each quoting the student's own text. */
   | { kind: 'draft-check'; summary: string; findings: DraftFinding[]; scope: 'full' | 'partial' };
 

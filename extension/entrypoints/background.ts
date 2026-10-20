@@ -14,10 +14,11 @@ import { discoveryStateItem, evaluateForeground } from '../src/discovery/discove
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
 import { aiServiceItem, aiSettingsItem, askThreadItem, briefDismissedItem, chatInboxItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, type PlanSettings } from '../src/analysis/changes';
-import { isOpen } from '../src/analysis/facts';
+import { effectiveDue, isOpen } from '../src/analysis/facts';
 import { localDay } from '../src/analysis/plan';
 import { nextPlanSnapshot } from '../src/analysis/recommend';
 import { answerSlip, recordSuggestedStart } from '../src/analysis/slip';
+import { addNotes, answerPractice, editTopics, endPractice, nextQuestion, practiceLike, prepEligible, setFormats, setupPrep, startPractice, todayKind, writePractice } from '../src/prep/prep';
 import { loadHomeData } from '../src/model/homeData';
 import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
@@ -464,6 +465,7 @@ function refresh(): Promise<void> {
       await analyze().catch((error: unknown) => console.error('loomer: analysis failed', error));
       await sheetTopics().catch((error: unknown) => console.error('loomer: sheet topics failed', error));
       await updatePlan().catch((error: unknown) => console.error('loomer: plan update failed', error));
+      await runPrep().catch((error: unknown) => console.error('loomer: test prep failed', error));
     } while (rerun);
   })().finally(() => {
     running = null;
@@ -492,6 +494,27 @@ async function sheetTopics() {
 
 function analyze() {
   return analyzeRequirements({ db, ai: () => aiSettingsItem.getValue() });
+}
+
+const prepDeps = () => ({ db, ai: () => aiSettingsItem.getValue() });
+
+/**
+ * Test prep for tests due in the next two weeks: find each one's topics once,
+ * and write today's practice ahead of time for tests in the next week, so
+ * "Start practice" opens at once.
+ */
+async function runPrep() {
+  const now = new Date();
+  for (const a of await db.assignments.toArray()) {
+    if (!(await prepEligible(db, a, now))) continue;
+    await setupPrep(prepDeps(), a);
+    const prep = await db.preps.get(a.id);
+    const testAt = effectiveDue(a, now).at;
+    if (prep?.status !== 'ready' || !testAt || Date.parse(testAt) - now.getTime() > 7 * 86_400_000) continue;
+    const kind = await todayKind(db, prep, testAt, now);
+    const written = (await db.practices.where('assignmentId').equals(a.id).toArray()).some((p) => p.day === localDay(now) && p.dayKind === kind);
+    if (kind && !written) await writePractice(prepDeps(), a.id, kind);
+  }
 }
 
 async function runRefresh() {
@@ -728,6 +751,39 @@ async function handle(message: Message): Promise<Reply> {
       });
       await updatePlan();
       return { ok: true };
+    }
+    case 'prep:start': {
+      const error = await startPractice(prepDeps(), message.assignmentId);
+      return error ? { ok: false, error } : { ok: true };
+    }
+    case 'prep:answer':
+      await answerPractice(prepDeps(), message.practiceId, message.questionId, message);
+      return { ok: true };
+    case 'prep:like':
+      await practiceLike(prepDeps(), message.practiceId, message.questionId);
+      return { ok: true };
+    case 'prep:next':
+      await nextQuestion(db, message.practiceId, new Date());
+      await updatePlan();
+      return { ok: true };
+    case 'prep:end':
+      await endPractice(db, message.practiceId, new Date());
+      await updatePlan();
+      return { ok: true };
+    case 'prep:close':
+      await db.practices.update(message.practiceId, { closed: true });
+      return { ok: true };
+    case 'prep:topics-edit':
+      await editTopics(db, message.assignmentId, message);
+      return { ok: true };
+    case 'prep:format-set':
+      await setFormats(db, message.assignmentId, message.formats);
+      return { ok: true };
+    case 'prep:notes': {
+      const images = message.attachments.flatMap((a) => (a.kind === 'image' ? [a.dataUrl] : []));
+      if (images.length === 0) return { ok: false, error: 'Add photos of your notes, so Loomer can read them.' };
+      const error = await addNotes(prepDeps(), message.assignmentId, images);
+      return error ? { ok: false, error } : { ok: true };
     }
     case 'slip:answer':
       await answerSlip(db, message.assignmentId, message.missedOn, message.reason, new Date());
