@@ -11,6 +11,7 @@ import { comparePlanned, crowdedWeek, dailyBrief, dueWords, keepPreviousTop, loc
 import { roomDays, roomLookup } from './room';
 import { nextTopic, topicItems } from './topicStanding';
 import { assignmentNoun, insightFor, weakTopicInsight } from './insight';
+import { QUICK_START_MINUTES, slipInsight, slipOf, smallerStep, wantsQuickStart } from './slip';
 import { isQuiz, workTypeFor } from './workType';
 import { sameAsCanvas } from '../session/added';
 import type { PolicyResult } from './policy';
@@ -62,6 +63,8 @@ export type RecommendInput = {
   /** Topics read from sheets, and the student's quick-check answers on them. */
   sheetTopics: SheetTopicsRecord[];
   topicChecks: TopicCheckRecord[];
+  /** Local days (YYYY-MM-DD) with a work session, by assignment id. Missed starts are suggested days without one. */
+  workedDays: Map<string, string[]>;
 };
 
 /** Applied changes shown on Home, newest first. */
@@ -85,7 +88,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
   if (!input.connected) return { status: 'not-connected' };
   const roomFor = roomLookup(input.room);
   const ranking = rank(input, roomFor);
-  const core = withNextStep(input, withTopic(input, buildCore(input, ranking)));
+  const core = withSlip(input, withNextStep(input, withTopic(input, buildCore(input, ranking))));
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
   const today = localDay(input.now);
@@ -153,6 +156,33 @@ function withNextStep(input: RecommendInput, core: CoreModel): CoreModel {
   if (!packet?.nextStep || !a || input.activeSession) return core;
   const insight: Insight = core.next.insight.kind === 'change' ? core.next.insight : { kind: 'continue', text: lastTime(packet, assignmentNoun(a)), aiFound: false };
   return { ...core, next: { ...core.next, action: packet.nextStep.text, aiGenerated: packet.nextStep.aiGenerated, insight } };
+}
+
+/**
+ * A start Home suggested on an earlier day that didn't happen. Named once,
+ * then made smaller: a 10-minute step and session after "too big" or "didn't
+ * feel like it", or when it was missed more than once.
+ */
+function withSlip(input: RecommendInput, core: CoreModel): CoreModel {
+  if (core.status !== 'ready' || input.activeSession) return core;
+  const id = core.next.item.assignmentId;
+  const slip = slipOf(id, input.context.find((c) => c.key === id), input.workedDays.get(id) ?? [], localDay(input.now));
+  const a = input.assignments.find((x) => x.id === id);
+  if (!slip || !a) return core;
+  const analysis = input.analyses.find((x) => x.assignmentId === id);
+  const plainWords = slip.answer === 'not-sure' && analysis?.status === 'ok' && analysis.detailHash === a.detail?.hash ? (analysis.plainWords ?? null) : null;
+  const quick = wantsQuickStart(slip);
+  return {
+    ...core,
+    next: {
+      ...core.next,
+      slip,
+      quickStart: quick ? { minutes: QUICK_START_MINUTES } : null,
+      plainWords,
+      action: quick ? smallerStep(core.next.action) : core.next.action,
+      insight: slipInsight(slip, assignmentNoun(a), core.next.item.due?.at ?? null, plainWords, input.now),
+    },
+  };
 }
 
 /** "Last time you added 240 words to this essay and saved 2 sources." */
@@ -456,8 +486,8 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
   }
 
   return analysis
-    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, ...choice }
-    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, ...choice };
+    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, ...choice }
+    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, ...choice };
 }
 
 function toWorkItem(

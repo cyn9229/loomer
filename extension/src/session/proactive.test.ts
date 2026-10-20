@@ -186,6 +186,7 @@ describe('resume briefing', () => {
       levelMinutes: { some: 120, little: 30 },
       sheetTopics: [],
       topicChecks: [],
+    workedDays: new Map(),
     });
     expect(home.status !== 'not-connected' && home.resume).toMatchObject({ facts: ['You edited your draft 1 time and added 40 words.'], recommendationChanged: false });
   });

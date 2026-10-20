@@ -1,7 +1,8 @@
 // The data contract between Loomer's logic and its UI. The side panel renders a
 // HomeModel and never queries the database or Canvas itself. Logic owns this
 // file; UI code imports types from here and treats them as read-only.
-import type { NextStep, RunOutcome } from '../core/db';
+import type { NextStep, RunOutcome, SlipReason } from '../core/db';
+export type { SlipReason } from '../core/db';
 import type { PlanChangeView } from './plan';
 import type { TopicNext } from './session';
 
@@ -141,6 +142,16 @@ export type NextAction = {
   /** The best thing Loomer found about this step, shown under it. Always set; 'countdown' is the fallback. */
   insight: Insight;
   /**
+   * A start Loomer suggested that didn't happen. `count`: missed suggested days
+   * since the student last worked on it. Ask "What got in the way?" only when
+   * count is 1 and answer is null; slip:answer records it.
+   */
+  slip: { assignmentId: string; missedOn: string; count: number; answer: SlipReason | null } | null;
+  /** Start with a short session: the main button reads "Start a 10-minute session" and sends session:start with these minutes. */
+  quickStart: { minutes: number } | null;
+  /** The instructions in plain words, set only after the student answered "Not sure how to start". */
+  plainWords: string | null;
+  /**
    * For practice or study work with a sheet: the topic to do next and why. When
    * set, `action` is "Review <topic>" (explain) or "Check <topic>" (quick
    * check); the primary button can send topic:help with this mode.
@@ -150,6 +161,7 @@ export type NextAction = {
 
 /**
  * What kind of find leads Home's why, picked in this order:
+ * - slipped: Loomer suggested starting this on an earlier day and no session happened; `text` names it once, or what Loomer did after the student's answer.
  * - change: the top of the plan moved since the student last looked.
  * - continue: the student kept a next step at the end of their last session; `text` says what they did then.
  * - hidden-deadline: the instructions set a step before the due date.
@@ -157,7 +169,7 @@ export type NextAction = {
  * - weak-topic: practice or study work with a shaky topic from quick checks.
  * - countdown: nothing new; the due date and days left.
  */
-export type InsightKind = 'change' | 'continue' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
+export type InsightKind = 'slipped' | 'change' | 'continue' | 'hidden-deadline' | 'busy-day' | 'weak-topic' | 'countdown';
 /** One sentence that names the assignment and gives the concrete fact. `aiFound` is true only when the AI read the fact from the instructions. */
 export type Insight = { kind: InsightKind; text: string; aiFound: boolean };
 

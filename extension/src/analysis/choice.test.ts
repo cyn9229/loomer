@@ -61,6 +61,7 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   levelMinutes: DEFAULT_LEVEL_MINUTES,
   sheetTopics: [],
   topicChecks: [],
+    workedDays: new Map(),
   ...over,
 });
 const ctx = (key: string, c: Omit<StudentContext, 'key'>): StudentContext => ({ key, ...c });

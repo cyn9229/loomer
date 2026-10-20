@@ -17,6 +17,7 @@ import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, ty
 import { isOpen } from '../src/analysis/facts';
 import { localDay } from '../src/analysis/plan';
 import { nextPlanSnapshot } from '../src/analysis/recommend';
+import { answerSlip, recordSuggestedStart } from '../src/analysis/slip';
 import { loadHomeData } from '../src/model/homeData';
 import { parseSourceUrl } from '../src/core/url';
 import { addExclusion, deleteAssignmentData, removeExclusion } from '../src/privacy/privacy';
@@ -236,8 +237,12 @@ async function linkDoc(assignmentId: string, docUrl: string): Promise<Reply> {
 async function updatePlan() {
   const { snapshot: prev, ...settings } = await planSettings();
   const data = await loadHomeData(db);
-  const next = nextPlanSnapshot({ ...data, ...settings, snapshot: prev, briefDismissedOn: null, now: new Date() }, prev);
+  const now = new Date();
+  const next = nextPlanSnapshot({ ...data, ...settings, snapshot: prev, briefDismissedOn: null, now }, prev);
   if (JSON.stringify(next) !== JSON.stringify(prev)) await planSnapshotItem.setValue(next);
+  // Home's top says "start today": remember it, so a start that doesn't happen can be noticed tomorrow.
+  const startBy = next?.topId ? next.entries[next.topId]?.startBy : null;
+  if (next?.topId && startBy && localDay(new Date(startBy)) <= localDay(now)) await recordSuggestedStart(db, next.topId, localDay(now));
 }
 
 /** Pings the local AI service and records whether it answered. Only while AI is on. */
@@ -706,6 +711,9 @@ async function handle(message: Message): Promise<Reply> {
       await updatePlan();
       return { ok: true };
     }
+    case 'slip:answer':
+      await answerSlip(db, message.assignmentId, message.missedOn, message.reason, new Date());
+      return { ok: true };
     case 'choice:set':
       await rememberChoice(message.assignmentId);
       return { ok: true };

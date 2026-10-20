@@ -177,8 +177,7 @@ export type StudentContext = {
   hidden?: boolean;
   /** Hint issue types the student dismissed for this assignment; not raised again. */
   dismissedHintIssues?: string[];
-  /** "I did this offline" (leaves the queue) or "Keep this active" (stays ranked). */
-  /** turned-in: the student said they submitted it; it leaves the plan, and comes back a day after the due date if Canvas never shows it. */
+  /** done-offline: "Did it on paper" (leaves the queue). kept-active: stays ranked. turned-in: the student said they submitted it; it leaves the plan, and comes back a day after the due date if Canvas never shows it. */
   correction?: 'done-offline' | 'kept-active' | 'turned-in';
   /** The student's own explanation, shown in context only. */
   note?: string;
@@ -194,7 +193,14 @@ export type StudentContext = {
   workType?: WorkType;
   /** Sheet topics the student skipped (for example the teacher dropped them), by topic key. */
   topicsSkipped?: string[];
+  /** Local dates (YYYY-MM-DD) Home suggested starting this today, newest last, at most 14. */
+  suggestedStarts?: string[];
+  /** The student's answer to "What got in the way?" for the start missed on `missedOn`. */
+  slipAnswer?: { missedOn: string; reason: SlipReason | 'dismissed'; at: string };
 };
+
+/** Why a suggested start didn't happen, in the student's own pick. */
+export type SlipReason = 'too-big' | 'not-sure' | 'no-time' | 'not-feeling-it';
 
 /**
  * One answer on a quick check about a sheet topic: right or wrong only, never

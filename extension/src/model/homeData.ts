@@ -2,12 +2,13 @@
 // inside a live query; the panel hook and the worker share it so both see the
 // same plan.
 import type { RecommendInput } from '../analysis/recommend';
-import type { LoomerDb } from '../core/db';
+import type { LoomerDb, WorkSession } from '../core/db';
+import { localDay } from '../analysis/plan';
 
-export type HomeData = Pick<RecommendInput, 'assignments' | 'courses' | 'analyses' | 'context' | 'lastRun' | 'packets' | 'sources' | 'docUrls' | 'activeSession' | 'room' | 'planChanges' | 'sheetTopics' | 'topicChecks'>;
+export type HomeData = Pick<RecommendInput, 'assignments' | 'courses' | 'analyses' | 'context' | 'lastRun' | 'packets' | 'sources' | 'docUrls' | 'activeSession' | 'room' | 'planChanges' | 'sheetTopics' | 'topicChecks' | 'workedDays'>;
 
 export async function loadHomeData(db: LoomerDb): Promise<HomeData> {
-  const [lastRun, assignments, courses, analyses, context, packets, sources, links, active, room, planChanges, sheetTopics, topicChecks] = await Promise.all([
+  const [lastRun, assignments, courses, analyses, context, packets, sources, links, active, room, planChanges, sheetTopics, topicChecks, sessions] = await Promise.all([
     db.runs.orderBy('startedAt').last(),
     db.assignments.toArray(),
     db.courses.toArray(),
@@ -21,6 +22,7 @@ export async function loadHomeData(db: LoomerDb): Promise<HomeData> {
     db.planChanges.toArray(),
     db.sheetTopics.toArray(),
     db.topicChecks.toArray(),
+    db.sessions.toArray(),
   ]);
   return {
     lastRun,
@@ -36,5 +38,17 @@ export async function loadHomeData(db: LoomerDb): Promise<HomeData> {
     planChanges,
     sheetTopics,
     topicChecks,
+    workedDays: workedDays(sessions),
   };
+}
+
+/** Local days with a session, by assignment. */
+function workedDays(sessions: WorkSession[]): Map<string, string[]> {
+  const days = new Map<string, string[]>();
+  for (const s of sessions) {
+    const day = localDay(new Date(s.startedAt));
+    const list = days.get(s.assignmentId) ?? [];
+    if (!list.includes(day)) days.set(s.assignmentId, [...list, day]);
+  }
+  return days;
 }

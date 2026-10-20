@@ -88,6 +88,13 @@ export const messageSchema = z.discriminatedUnion('type', [
     correction: z.enum(['done-offline', 'kept-active', 'turned-in']).nullable(),
     note: z.string().max(500).optional(),
   }),
+  /** "What got in the way?" for the start missed on `missedOn` (NextAction.slip), or dismissed. */
+  z.object({
+    type: z.literal('slip:answer'),
+    assignmentId: z.string(),
+    missedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    reason: z.enum(['too-big', 'not-sure', 'no-time', 'not-feeling-it', 'dismissed']),
+  }),
   /** The student chose what to work on; kept until relevant evidence changes. */
   z.object({ type: z.literal('choice:set'), assignmentId: z.string() }),
   /** Ask Loomer to reconsider: drop the remembered choice. */
