@@ -1,28 +1,27 @@
 // Home: one focal point, then quiet lines, then the plan.
 // HomeView renders, in order: the running session's strip (with pause), the
-// time-left question after a timed stop, today's brief (once a day), the focus
-// (the next step, or why there isn't one yet), "Why this" when asked, notices
-// (busy days, your changes, sync problem, keep going, older work), the plan
-// (List by start day, or Week day by day), the sync footer, and the Ask bar.
-// Views render only what the model says; they never invent progress, time
-// estimates, or checks.
+// time-left question after a timed stop, the focus (the next step, or why there
+// isn't one yet), notices (sync problem, keep going, older work), the plan
+// (List by start day, or Week day by day, which also holds busy days and your
+// changes), the sync footer, and the Ask bar. The next step is a short title,
+// one line of why, the button, and one quiet line that opens the item's page,
+// where the evidence lives (round 46, 1A). Views render only what the model
+// says; they never invent progress, time estimates, or checks.
 import { useState, type ReactNode } from 'react';
 import type { EditableFields } from '../model/detail';
-import type { DailyBrief, HomeModel, InsightKind, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
+import type { HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import type { PrepStep } from '../model/prep';
 import { shortTitle } from './ask';
-import { Readiness, SESSION } from './prep';
+import { SESSION } from './prep';
 import { useAction, type PanelApi } from './api';
-import { calendarDaysUntil, checkProblem, dueWhen, minutesText, observedAt } from './format';
-import { Icon, type IconName } from './Icon';
+import { checkProblem, dueWhen, minutesText, observedAt } from './format';
+import { Icon } from './Icon';
 import { AiMark } from './aiBlock';
 import { AiServiceDown, EvidenceList, PolicyNote, SubjectTile, SyncFoot } from './parts';
-import { YourChanges } from './planChange';
 import { DayPicker, MovedNotice, canMoveStart } from './notToday';
 import { NoTimeChoices, PlainWords, SlipQuestion, asksWhy, slipLabel } from './slip';
-import { PlanSection, startWords, type PlanMode } from './planView';
+import { PlanSection, type PlanMode } from './planView';
 import { SessionStrip, type ActiveSession, type SessionVerb } from './session';
-import { typeLabel } from './workType';
 import { useElapsedSeconds } from './useNow';
 
 export type HomeActions = {
@@ -95,7 +94,6 @@ type HomeProps = {
 };
 
 export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, refreshing, planMode, onPlanMode, aiDown, askLeft, onAskLeftDone, turnedIn, onTurnedInDone, nudge }: HomeProps) {
-  const [whyOpen, setWhyOpen] = useState(false);
   // The assignment whose start the student just moved (Not today or Today is busy), and when.
   const [moved, setMoved] = useState<{ assignmentId: string; at: number } | null>(null);
   if (model.status === 'not-connected') {
@@ -123,14 +121,6 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
   const movedItem = moved ? ([next?.item, ...model.rest].find((i) => i?.assignmentId === moved.assignmentId) ?? null) : null;
 
   const notices: ReactNode[] = [];
-  if (model.crowded)
-    notices.push(
-      <p className="notice busy" role="note" key="crowded">
-        <Icon name="alert" />
-        <span className="grow">{model.crowded.text}</span>
-      </p>,
-    );
-  if (model.yourChanges.length > 0) notices.push(<YourChanges key="changes" changes={model.yourChanges} now={now} send={actions.send} />);
   if (problem && model.lastCheck)
     notices.push(
       <div className="notice" role="status" key="problem">
@@ -180,15 +170,18 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
       {askLeft && <LeftQuestion item={askLeft} send={actions.send} onDone={onAskLeftDone} />}
       {turnedIn && <TurnedInNotice turnedIn={turnedIn} send={actions.send} onDone={onTurnedInDone} />}
       {movedItem && moved && <MovedNotice item={movedItem} since={moved.at} changes={model.yourChanges} send={actions.send} onDone={() => setMoved(null)} />}
-      {model.brief && <Brief brief={model.brief} now={now} send={actions.send} />}
-      <Focus model={model} now={now} actions={actions} whyOpen={whyOpen} onWhy={() => setWhyOpen((o) => !o)} onMoved={(assignmentId) => setMoved({ assignmentId, at: Date.now() })} />
-      {next && whyOpen && (
-        <section className="why" aria-label="Why this one, in detail">
-          <EvidenceList evidence={next.evidence} now={now} />
-        </section>
-      )}
+      <Focus model={model} now={now} actions={actions} onMoved={(assignmentId) => setMoved({ assignmentId, at: Date.now() })} />
       {notices.length > 0 && <div className="notices">{notices}</div>}
-      <PlanSection items={next ? [next.item, ...model.rest] : model.rest} room={model.room} now={now} actions={actions} mode={planMode} onMode={onPlanMode} />
+      <PlanSection
+        items={next ? [next.item, ...model.rest] : model.rest}
+        room={model.room}
+        crowded={model.crowded}
+        yourChanges={model.yourChanges}
+        now={now}
+        actions={actions}
+        mode={planMode}
+        onMode={onPlanMode}
+      />
       <SyncFoot lastCheck={model.lastCheck} now={now} onRefresh={onRefresh} refreshing={refreshing} />
       <AskBar onOpen={() => actions.openAsk()} aiDown={aiDown} quizOpen={Boolean(active?.assignment.quiz)} send={actions.send} nudge={nudge} />
     </>
@@ -203,8 +196,9 @@ const TIME_CHOICES = [
 ] as const;
 
 /**
- * "How much time do you have?" above Start working. Optional: picking nothing
- * or Not sure starts without a limit. Loomer only repeats this number back.
+ * "How much time do you have?" above Start working, opened from Set a time.
+ * Optional: picking nothing or Not sure starts without a limit. Loomer only
+ * repeats this number back.
  */
 function TimeQuestion({ value, onChange }: { value: number | undefined; onChange: (minutes: number | undefined) => void }) {
   const [picked, setPicked] = useState<string | null>(null);
@@ -277,23 +271,6 @@ function LeftQuestion({ item, send, onDone }: { item: WorkItem; send: PanelApi['
   );
 }
 
-/** One line about today, on the first open of the day, until dismissed (brief:dismiss). */
-function Brief({ brief, now, send }: { brief: NonNullable<DailyBrief>; now: Date; send: PanelApi['send'] }) {
-  const dismiss = useAction();
-  return (
-    <div className="brief" role="status">
-      <Icon name="sun" />
-      <p className="grow">
-        <b>{now.toLocaleDateString(undefined, { weekday: 'long' })}.</b> {brief.text}
-        {dismiss.error && <span className="notice-sub danger-text">{dismiss.error}</span>}
-      </p>
-      <button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" disabled={dismiss.busy} onClick={() => dismiss.run(() => send({ type: 'brief:dismiss' }))}>
-        <Icon name="x" size="sm" />
-      </button>
-    </div>
-  );
-}
-
 /**
  * The way into Ask Loomer, pinned to the bottom of Home. Says up front when the
  * AI service is down, and that Ask Loomer is paused while a quiz session is open.
@@ -318,22 +295,20 @@ function AskBar({ onOpen, aiDown, quizOpen, send, nudge }: { onOpen: () => void;
   );
 }
 
-/** Steps the headline down for long actions so it never needs an ellipsis. */
+/** Steps the headline down for long actions so it never needs an ellipsis. Short ones (about 24 characters) fit one line at 320px. */
 function titleClass(text: string): string {
-  return text.length > 90 ? 'h1 xlong' : text.length > 55 ? 'h1 long' : 'h1';
+  return text.length > 70 ? 'h1 next-t xlong' : text.length > 40 ? 'h1 next-t long' : 'h1 next-t';
 }
 
 type FocusProps = {
   model: Exclude<HomeModel, { status: 'not-connected' }>;
   now: Date;
   actions: HomeActions;
-  whyOpen: boolean;
-  onWhy: () => void;
   /** Not today moved this assignment's start. */
   onMoved: (assignmentId: string) => void;
 };
 
-function Focus({ model, now, actions, whyOpen, onWhy, onMoved }: FocusProps) {
+function Focus({ model, now, actions, onMoved }: FocusProps) {
   switch (model.status) {
     case 'checking':
       return model.progress.total > 0 ? (
@@ -367,7 +342,7 @@ function Focus({ model, now, actions, whyOpen, onWhy, onMoved }: FocusProps) {
         </section>
       );
     case 'ready':
-      return <NextStep next={model.next} resume={model.resume} now={now} actions={actions} whyOpen={whyOpen} onWhy={onWhy} onMoved={onMoved} />;
+      return <NextStep next={model.next} resume={model.resume} now={now} actions={actions} onMoved={onMoved} />;
   }
 }
 
@@ -386,136 +361,78 @@ function Finding() {
 }
 
 /**
- * The small label over the line under the next step: what kind of find
- * Loomer leads with. A countdown (nothing new) has no label.
+ * The next step (round 46, 1A): a short title, one line of why, and the
+ * button. One quiet line under it names the assignment and opens its page,
+ * where the evidence, readiness, and plan live. Below that, only actions:
+ * Not today, Set a time, Start it now anyway, or Ask Loomer to pick again.
  */
-const insightLabel: Record<Exclude<InsightKind, 'countdown' | 'slipped' | 'prep'>, { icon: IconName; text: string }> = {
-  change: { icon: 'refresh', text: 'Changed since you last looked' },
-  continue: { icon: 'flag', text: 'Where you left off' },
-  'hidden-deadline': { icon: 'doc', text: 'Found in the instructions' },
-  'busy-day': { icon: 'calendar', text: 'Planned around your week' },
-  'weak-topic': { icon: 'target', text: 'From your quick checks' },
-};
-
-/** "Unit 5 Test is tomorrow", for the eyebrow over a test prep step. */
-function testWhen(item: WorkItem, now: Date): string {
-  const name = shortTitle(item.title);
-  if (!item.due) return name;
-  const days = calendarDaysUntil(new Date(item.due.at), now);
-  const day = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : new Date(item.due.at).toLocaleDateString(undefined, { weekday: 'long' });
-  return `${name} is ${day}`;
-}
-
-/** The label says what kind of find it is; only a find the AI made gets the AI mark. A skipped start labels itself (slipLabel). */
-function WhyLine({ next, now }: { next: NextAction; now: Date }) {
-  const insight = next.insight;
-  const label =
-    insight.kind === 'countdown'
-      ? null
-      : insight.kind === 'slipped'
-        ? slipLabel(next, now)
-        : insight.kind === 'prep'
-          ? next.prep && (next.prep.waiting ? { icon: 'check' as const, text: 'Done for now' } : SESSION[next.prep.kind])
-          : insightLabel[insight.kind];
-  return (
-    <div className="why-line">
-      {label && (
-        <p className={insight.aiFound ? 'why-k ai' : 'why-k'}>
-          {insight.aiFound ? <AiMark /> : <Icon name={label.icon} size="xs" />}
-          {label.text}
-        </p>
-      )}
-      <p className="why-text">{insight.text}</p>
-    </div>
-  );
-}
-
-function NextStep({
-  next,
-  resume,
-  now,
-  actions,
-  whyOpen,
-  onWhy,
-  onMoved,
-}: {
-  next: NextAction;
-  resume: ResumeBriefing | null;
-  now: Date;
-  actions: HomeActions;
-  whyOpen: boolean;
-  onWhy: () => void;
-  onMoved: (assignmentId: string) => void;
-}) {
+function NextStep({ next, resume, now, actions, onMoved }: { next: NextAction; resume: ResumeBriefing | null; now: Date; actions: HomeActions; onMoved: (assignmentId: string) => void }) {
   const { item } = next;
   const [minutes, setMinutes] = useState<number | undefined>(undefined);
   const [picking, setPicking] = useState(false);
+  const [timing, setTiming] = useState(false);
   const start = startControl(item, actions, minutes);
   const clear = useAction();
   const switchTo = useAction();
-  // A resume briefing for this same assignment folds in, and one "Last time" line follows. The step the
-  // student kept at the end of their last session leads (it is next.action then); else that session's focus.
+  // A resume briefing for this same assignment folds in. The step the student kept at the end of their
+  // last session leads (it is next.action then); else that session's focus.
   const lastTime = resume?.assignment.assignmentId === item.assignmentId ? resume : null;
   const kept = next.insight.kind === 'continue';
   const headline = kept ? next.action : (lastTime?.focus ?? next.action);
-  const continuing = kept || Boolean(lastTime?.focus);
-  const lastFacts = lastTime ? [lastTime.handledHints > 0 && `${lastTime.handledHints} ${lastTime.handledHints === 1 ? 'hint' : 'hints'} handled`, ...lastTime.facts].filter(Boolean) : [];
   const label = lastTime && start.label === 'Start working' ? 'Keep going' : start.label;
   const pick = next.chosenByStudent ? next.loomerPick : null;
   const limited = item.policy.state === 'blocked' || item.policy.state === 'limited' || item.policy.state === 'unresolved';
-  const when = startWords(item, now);
   // Not today: any day with a later day left before the due date, unless the student is working on it now.
   const canMove = !start.current && canMoveStart(item, now);
   // After "What got in the way?": the answer shapes the buttons. A quick start is a short timed session.
   const answer = next.slip?.answer ?? null;
   const quick = start.current ? null : next.quickStart;
   const talkFirst = answer === 'not-sure' && !start.current;
-  // Test prep: today's practice step leads, with readiness under the card and one Start button.
+  // Test prep: today's practice step leads with one Start button; readiness and the plan live on the test's page.
   const prep = next.prep;
   const prepStep = prep ? SESSION[prep.kind] : null;
   // Between today's sessions: the next one waits for later, with an optional reminder.
   const waiting = prep?.waiting ?? null;
+  // A time limit is a second decision, so it opens only from Set a time.
+  const canTime = !start.current && !quick && !talkFirst && !prep;
+  const links: ReactNode[] = [];
+  if (prep && waiting)
+    links.push(
+      <button key="now" type="button" className="center-link" onClick={() => actions.startPractice(prep.assignmentId)}>
+        Start it now anyway
+      </button>,
+    );
+  if (canMove && !prep)
+    links.push(
+      <button key="move" type="button" className="center-link" onClick={() => setPicking(true)}>
+        {answer === 'not-feeling-it' ? 'Pick a day instead' : 'Not today'}
+      </button>,
+    );
+  if (canTime && !timing)
+    links.push(
+      <button key="time" type="button" className="center-link" onClick={() => setTiming(true)}>
+        Set a time
+      </button>,
+    );
+  if (next.chosenByStudent)
+    links.push(
+      <button key="pick" type="button" className="center-link" disabled={clear.busy} onClick={() => clear.run(() => actions.send({ type: 'choice:clear' }))}>
+        {clear.busy ? 'Asking…' : 'Ask Loomer to pick again'}
+      </button>,
+    );
   return (
     <section className="focus" aria-label="Next step">
-      <div className="eyebrow">
+      <h1 className={titleClass(headline)}>
         {/* The AI mark belongs to the step itself, so only when the headline is next.action and the AI wrote it. */}
         {next.aiGenerated && headline === next.action && <AiMark />}
-        {prep ? (
-          <>Test prep · {testWhen(item, now)}</>
-        ) : continuing ? (
-          'Continue'
-        ) : (
-          <>
-            {next.chosenByStudent ? 'Your pick' : 'Next step'}
-            {when && <> · {when}</>}
-          </>
-        )}
-      </div>
-      <h1 className={titleClass(headline)}>{headline}</h1>
-      <WhyLine next={next} now={now} />
+        {headline}
+      </h1>
+      <p className="step-why">{next.why}</p>
       {asksWhy(next.slip) && <SlipQuestion slip={next.slip} send={actions.send} />}
       {answer === 'not-sure' && <PlainWords next={next} />}
       {answer === 'no-time' && canMove && !picking && <NoTimeChoices next={next} now={now} send={actions.send} onPickDay={() => setPicking(true)} onMoved={onMoved} />}
-      <div className="ctx">
-        <SubjectTile courseName={item.courseName} size="lg" />
-        <span className="grow">
-          <button type="button" className="focus-sub" onClick={() => actions.openItem(item.assignmentId)}>
-            {item.title}
-          </button>
-          <span className="focus-meta">
-            {item.courseName ?? 'No class'} · {typeLabel(item).word} · {item.due ? <>due <b>{dueWhen(item.due.at, now)}</b></> : 'no due date'}
-          </span>
-        </span>
-      </div>
-      {lastFacts.length > 0 && (
-        <p className="focus-line ellipsis last-time">
-          {lastTime && lastTime.handledHints > 0 && <Icon name="check" size="xs" />}
-          Last time: {lastFacts.slice(0, 2).join(' · ')}
-        </p>
-      )}
       {limited && <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />}
-      {prep && <Readiness text={prep.readiness} counts={prep.counts} />}
-      {!start.current && !quick && !talkFirst && !prep && <TimeQuestion value={minutes} onChange={setMinutes} />}
+      {timing && canTime && <TimeQuestion value={minutes} onChange={setMinutes} />}
       {prep && waiting ? (
         <WaitingReminder prep={prep} waiting={waiting} actions={actions} />
       ) : prep && prepStep ? (
@@ -544,6 +461,13 @@ function NextStep({
           <Icon name="arrowRight" />
         </button>
       )}
+      <button type="button" className="step-meta" onClick={() => actions.openItem(item.assignmentId)}>
+        <SubjectTile courseName={item.courseName} />
+        <span className="grow ellipsis">
+          {shortTitle(item.title)} · {item.due ? `due ${dueWhen(item.due.at, now)}` : 'no due date'}
+        </span>
+        <Icon name="chevronRight" size="sm" />
+      </button>
       {picking ? (
         <DayPicker
           item={item}
@@ -556,52 +480,20 @@ function NextStep({
           onCancel={() => setPicking(false)}
         />
       ) : (
-        <p className="next-links">
-          {prep && waiting && (
-            <>
-              <button type="button" className="center-link" onClick={() => actions.startPractice(prep.assignmentId)}>
-                Start it now anyway
-              </button>
-              <span className="next-dot" aria-hidden="true">
-                ·
-              </span>
-            </>
-          )}
-          {prep && (
-            <>
-              <button type="button" className="center-link" onClick={() => actions.openItem(item.assignmentId)}>
-                See the plan
-              </button>
-              {next.chosenByStudent && (
-                <span className="next-dot" aria-hidden="true">
-                  ·
-                </span>
-              )}
-            </>
-          )}
-          {canMove && !prep && (
-            <>
-              <button type="button" className="center-link" onClick={() => setPicking(true)}>
-                {answer === 'not-feeling-it' ? 'Pick a day instead' : 'Not today'}
-              </button>
-              <span className="next-dot" aria-hidden="true">
-                ·
-              </span>
-            </>
-          )}
-          {next.chosenByStudent ? (
-            <button type="button" className="center-link" disabled={clear.busy} onClick={() => clear.run(() => actions.send({ type: 'choice:clear' }))}>
-              {clear.busy ? 'Asking…' : 'Ask Loomer to pick again'}
-            </button>
-          ) : (
-            // Test prep explains itself with the readiness line and the plan, so it skips this link.
-            !prep && (
-              <button type="button" className="center-link" aria-expanded={whyOpen} onClick={onWhy}>
-                {whyOpen ? 'Hide how Loomer picked this' : 'How Loomer picked this'}
-              </button>
-            )
-          )}
-        </p>
+        links.length > 0 && (
+          <p className="next-links">
+            {links.flatMap((link, i) =>
+              i === 0
+                ? [link]
+                : [
+                    <span key={`dot${i}`} className="next-dot" aria-hidden="true">
+                      ·
+                    </span>,
+                    link,
+                  ],
+            )}
+          </p>
+        )
       )}
       {pick && (
         <p className="focus-line" style={{ textAlign: 'center' }}>
@@ -643,7 +535,6 @@ function WaitingReminder({ prep, waiting, actions }: { prep: PrepStep; waiting: 
         <Icon name="bell" />
         <span className="grow">
           <b>Remind me at {at}</b>
-          <span>A notification from Chrome, only for this</span>
         </span>
         <span className="prep-toggle" aria-hidden="true" />
       </button>

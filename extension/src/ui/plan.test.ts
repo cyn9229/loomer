@@ -46,7 +46,7 @@ describe('planByStart', () => {
 
 describe('weekDays', () => {
   it('lists starts, checkpoints, then dues on each day', () => {
-    const essay = item('essay', 0, 5, { checkpoints: [{ text: 'Draft', at: day(4), quote: 'the day before', derived: true }] });
+    const essay = item('essay', 0, 5, { checkpoints: [{ text: 'Draft', label: 'Draft due', at: day(4), quote: 'the day before', derived: true }] });
     const week = weekDays([essay, item('quiz', 0, 1)], now);
     expect(week).toHaveLength(7);
     expect(week[0]!.events.map((e) => `${e.kind}:${e.item.assignmentId}`)).toEqual(['start:essay', 'start:quiz']);

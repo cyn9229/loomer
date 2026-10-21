@@ -259,7 +259,9 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
         {settings}
       </>
     );
-    body = <DetailView item={openItem} detail={detail} now={now} actions={actions} nudge={nudgeLine} />;
+    // Home's reason and evidence for its step fold into that item's page.
+    const next = home?.status === 'ready' && home.next.item.assignmentId === openItem.assignmentId ? home.next : null;
+    body = <DetailView item={openItem} detail={detail} now={now} actions={actions} nudge={nudgeLine} next={next} />;
   } else if (view === 'ask') {
     const threads = home ? askThreads(home) : [];
     // The thread switcher is the bar's title, between Home and settings.
@@ -371,7 +373,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
             draft={chatDraft}
             setDraft={setChatDraft}
             hint={
-              (shownHint.value || active.handledHints.length > 0) && (
+              // Handled hints sit behind the focus's info button; without a focus they show here.
+              (shownHint.value || (!active.focus && active.handledHints.length > 0)) && (
                 <>
                   {shownHint.value && (
                     <HintCard
@@ -385,7 +388,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
                       api={api}
                     />
                   )}
-                  <HandledHints hints={active.handledHints} now={now} />
+                  {!active.focus && <HandledHints hints={active.handledHints} now={now} />}
                 </>
               )
             }

@@ -73,30 +73,40 @@ export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChang
 }
 
 /**
- * "Review my draft" (help:review): a short summary, then numbered findings.
- * Each quotes the student's own draft and asks a question that helps them fix
- * it themselves; Loomer never rewrites it.
+ * "Review my draft" (help:review): a short summary, then one numbered line per
+ * finding, titled by the requirement it is about. A line opens to what Loomer
+ * saw, a quote from the student's own draft, and a question that helps them
+ * fix it themselves; Loomer never rewrites it.
  */
 function DraftCheck({ block }: { block: Extract<ChatBlock, { kind: 'draft-check' }> }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const n = block.findings.length;
   return (
     <section className="dcheck" aria-label="Draft check">
       <p className="dcheck-k">
         <Icon name="listChecks" size="xs" />
-        Draft check
+        Draft check{n > 0 && ` · ${n} to look at`}
         {block.scope === 'partial' && <span>· Loomer could read only part of your draft</span>}
       </p>
       <p className="dcheck-sum">{block.summary}</p>
-      {block.findings.length === 0 ? (
+      {n === 0 ? (
         <p className="dcheck-none">Loomer didn’t find anything to point to in your draft.</p>
       ) : (
         <ol className="dcheck-list">
           {block.findings.map((f, i) => (
-            <li key={i}>
-              <p className="dcheck-issue">
-                {f.issue} <span>{f.criterion}</span>
-              </p>
-              {f.quote && <mark className="dcheck-quote">“{f.quote}”</mark>}
-              <p className="dcheck-q">{f.question}</p>
+            <li key={i} className={open === i ? 'open' : undefined}>
+              <button type="button" className="dcheck-row" aria-expanded={open === i} onClick={() => setOpen((o) => (o === i ? null : i))}>
+                <span className="dcheck-n">{i + 1}</span>
+                <span className="grow">{f.criterion || f.issue}</span>
+                <Icon name={open === i ? 'chevronDown' : 'chevronRight'} size="sm" />
+              </button>
+              {open === i && (
+                <div className="dcheck-more">
+                  {f.criterion && <p className="dcheck-issue">{f.issue}</p>}
+                  {f.quote && <mark className="dcheck-quote">“{f.quote}”</mark>}
+                  <p className="dcheck-q">{f.question}</p>
+                </div>
+              )}
             </li>
           ))}
         </ol>

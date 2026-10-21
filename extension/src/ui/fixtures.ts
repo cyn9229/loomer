@@ -104,7 +104,7 @@ export function buildFixtures(now: Date) {
     effort: { label: 'Substantial', reason: 'Compare two sources, build an argument, and revise.', source: 'student' },
     guessMinutes: 180,
     policy: { state: 'permitted', sourceLabel: 'Course syllabus' },
-    checkpoints: [{ text: 'Draft for peer review', at: new Date(Date.parse(essayDue) - DAY).toISOString(), quote: 'Bring a full draft for peer review the day before the final deadline.', derived: true }],
+    checkpoints: [{ text: 'Draft for peer review', label: 'Draft due', at: new Date(Date.parse(essayDue) - DAY).toISOString(), quote: 'Bring a full draft for peer review the day before the final deadline.', derived: true }],
     rankReason: `The next step for this essay, draft for peer review, is due ${new Date(Date.parse(essayDue) - DAY).toLocaleDateString(undefined, { weekday: 'long' })}, so today is a good day to start.`,
   });
   const photo = item(now, {
@@ -276,7 +276,7 @@ export function buildFixtures(now: Date) {
 
   const readyNext: NextAction = {
     item: essay,
-    action: 'Outline the comparison between your two sources',
+    action: 'Outline your comparison',
     reason: 'Connect the EPA findings to the city’s tree cover data. The rubric asks for a comparison, and the deadline is this week.',
     evidence: essayEvidence,
     aiGenerated: true,
@@ -288,6 +288,7 @@ export function buildFixtures(now: Date) {
     quickStart: null,
     plainWords: null,
     prep: null,
+    why: `Your draft for peer review is due ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}.`,
     insight: {
       kind: 'hidden-deadline',
       text: `Canvas says this essay is due ${dayName(essayDue)}, but the instructions ask for a draft for peer review by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
@@ -331,7 +332,7 @@ export function buildFixtures(now: Date) {
       { text: 'Argue which explanation is stronger.', quote: 'argue which explanation is stronger' },
     ],
     recommendationChanged,
-    focus: 'Build the comparison between your two sources',
+    focus: 'Compare your two sources',
     handledHints: 2,
     nextStep: null,
   });
@@ -428,6 +429,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: `${dayName(at(now, 1, 12, 0))} is busy, so this starts today.`,
         insight: { kind: 'busy-day', text: `This reflection is due ${dayName(reflection.due!.at)}, and since you said ${dayName(at(now, 1, 12, 0))} is busy, Loomer moved its start up to today.`, aiFound: false },
       },
       rest: [essay, vocab, lab],
@@ -439,7 +441,7 @@ export function buildFixtures(now: Date) {
       ...noResume,
       next: {
         item: replayItem,
-        action: 'Fill in the canopy data table',
+        action: 'Fill in the data table',
         reason: 'Short and due in three days. Replay data for the demo.',
         evidence: [
           {
@@ -459,6 +461,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: `This data table is due ${dayName(replayItem.due!.at)}.`,
         insight: { kind: 'countdown', text: `This data table is due ${dayName(replayItem.due!.at)}, ${daysAway(replayItem.due!.at)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [{ ...essay, replay: true }],
@@ -470,7 +473,7 @@ export function buildFixtures(now: Date) {
       ...noResume,
       next: {
         item: essay,
-        action: 'Outline the comparison between your two sources',
+        action: 'Outline your comparison',
         reason: 'From the last successful check. Canvas needs you to sign in again before Loomer can update.',
         evidence: essayEvidence.slice(0, 2),
         aiGenerated: true,
@@ -482,6 +485,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: `This essay is due ${dayName(essayDue)}.`,
         insight: { kind: 'countdown', text: `This essay is due ${dayName(essayDue)}, ${daysAway(essayDue)} days from now, so today is a good day to start.`, aiFound: false },
       },
       rest: [vocab, reflection],
@@ -526,6 +530,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: 'You missed 2 of 3 on vertex form last time.',
         insight: {
           kind: 'weak-topic',
           text: `You missed 2 of 3 on vertex form last time, and this review sheet is due ${dayName(sheet.due!.at)}, so start with that topic.`,
@@ -542,8 +547,9 @@ export function buildFixtures(now: Date) {
       next: {
         ...readyNext,
         item: histTest,
-        action: 'Learn and practice: the Hawaii mix-up, the Congo, and Latin America',
+        action: '20 minutes on weak spots',
         aiGenerated: false,
+        why: '3 topics still need work before tomorrow’s test.',
         insight: { kind: 'prep', text: 'Your diagnostic found a mix-up on Hawaii and two shaky topics, so the next 20 minutes teach and practice those before tomorrow’s test.', aiFound: false },
         prep: { assignmentId: histTest.assignmentId, kind: 'focus', minutes: 20, counts: { solid: 4, shaky: 4, unchecked: 0 }, readiness: '4 of 8 topics on this test are solid, and the Hawaii mix-up is the first thing to fix.', waiting: null },
       },
@@ -563,8 +569,9 @@ export function buildFixtures(now: Date) {
       next: {
         ...readyNext,
         item: histTest,
-        action: 'Next at 7 PM: a 10-minute mixed check',
+        action: 'Mixed check at 7 PM',
         aiGenerated: false,
+        why: 'A short check after dinner helps it stick.',
         insight: { kind: 'prep', text: 'You finished learning Hawaii, the Congo, and Latin America, so take a break, and the check after dinner helps it stick.', aiFound: false },
         prep: {
           assignmentId: histTest.assignmentId,
@@ -591,13 +598,14 @@ export function buildFixtures(now: Date) {
       status: 'ready',
       next: {
         ...readyNext,
-        action: 'Build the comparison between your two sources',
+        action: 'Compare your two sources',
         aiGenerated: true,
+        why: 'Last time you added 240 words and saved 2 sources.',
         insight: { kind: 'continue', text: 'Last time you added 240 words to this essay and saved 2 sources.', aiFound: false },
       },
       rest: [vocab, reflection, lab],
       lastCheck,
-      resume: { ...essayResume(false), nextStep: { text: 'Build the comparison between your two sources', aiGenerated: true } },
+      resume: { ...essayResume(false), nextStep: { text: 'Compare your two sources', aiGenerated: true } },
       olderReview: null,
       crowded: null,
       brief: null,
@@ -608,24 +616,29 @@ export function buildFixtures(now: Date) {
 
     // Loomer suggested starting the essay yesterday and no session happened: named once, with the question.
     slipped: slipped(null, {
+      why: 'You didn’t get to this essay yesterday.',
       insight: { kind: 'slipped', text: `You didn’t get to this essay yesterday, and it’s due ${dayName(essayDue)}, so today’s start matters more.`, aiFound: false },
     }),
     // After each answer to "What got in the way?".
     'slip-too-big': slipped('too-big', {
-      action: 'Just 10 minutes: list two ways your sources disagree',
+      action: 'List 2 ways they disagree',
       quickStart: { minutes: 10 },
+      why: 'Loomer cut today’s step down to 10 minutes.',
       insight: { kind: 'slipped', text: 'You said this essay felt too big, so Loomer cut today’s step down to 10 minutes.', aiFound: false },
     }),
     'slip-not-sure': slipped('not-sure', {
       plainWords: 'Compare what your two sources say about why cities get hotter, then argue which one explains it better. Your outline only needs the main point from each source.',
+      why: 'Talk it through first, then start.',
       insight: { kind: 'slipped', text: 'Here’s what this essay asks for in plain words, so you can talk it through before you start.', aiFound: false },
     }),
     'slip-no-time': slipped('no-time', {
+      why: `Pick a day before it’s due ${dayName(essayDue)}.`,
       insight: { kind: 'slipped', text: `You said today has no time, so pick a day for this essay before it’s due ${dayName(essayDue)}.`, aiFound: false },
     }),
     'slip-not-feeling': slipped('not-feeling-it', {
-      action: 'Just 10 minutes: list two ways your sources disagree',
+      action: 'List 2 ways they disagree',
       quickStart: { minutes: 10 },
+      why: 'Ten minutes is enough for today.',
       insight: { kind: 'slipped', text: 'Ten minutes on this essay is enough for today, and you can pick a day instead if that works better.', aiFound: false },
     }),
     // A second skipped start with 1 day left: a smaller step, no second question.
@@ -633,8 +646,9 @@ export function buildFixtures(now: Date) {
       null,
       {
         item: { ...essay, due: { at: at(now, 1, 23, 59), source: 'canvas' } },
-        action: 'Just 10 minutes: write the first sentence of your intro',
+        action: 'Write your first sentence',
         quickStart: { minutes: 10 },
+        why: 'This essay is due tomorrow.',
         insight: { kind: 'slipped', text: 'This essay is due tomorrow, so a 10-minute start today keeps it from all landing on one night.', aiFound: false },
       },
       2,
@@ -644,7 +658,7 @@ export function buildFixtures(now: Date) {
       status: 'ready',
       next: {
         item: vocab,
-        action: 'Finish the Ch. 6 vocabulary check',
+        action: 'Finish the vocab check',
         reason: 'It is due soon and short. The essay is still due this week.',
         evidence: [
           {
@@ -664,6 +678,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: 'Your vocab check is due before this essay.',
         insight: { kind: 'change', text: 'Your vocab check is due before this essay needs to start, so it moved up.', aiFound: false },
       },
       rest: [essay, reflection, lab],
@@ -682,7 +697,7 @@ export function buildFixtures(now: Date) {
       ...noResume,
       next: {
         item: essay,
-        action: 'Outline the comparison between your two sources',
+        action: 'Outline your comparison',
         reason: 'You picked this one. Loomer keeps it until something changes.',
         evidence: essayEvidence.slice(0, 2),
         aiGenerated: true,
@@ -694,6 +709,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: readyNext.why,
         insight: readyNext.insight,
       },
       rest: [vocab, reflection, lab],
@@ -765,6 +781,7 @@ export function buildFixtures(now: Date) {
         quickStart: null,
         plainWords: null,
     prep: null,
+        why: `Your draft for the workshop is due ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}.`,
         insight: {
           kind: 'hidden-deadline',
           text: `Canvas says this synthesis essay is due ${dayName(essayDue)}, but the instructions ask for a full draft for the peer review workshop by ${dayName(new Date(Date.parse(essayDue) - DAY).toISOString())}, so today is a good day to start.`,
@@ -860,6 +877,7 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     plainWords: checked
       ? 'Read two sources about city heat. Explain what each one says and where they agree or disagree. Then argue which explanation is stronger, using both sources.'
       : null,
+    plainShort: checked ? 'Compare two sources on city heat, then argue which is stronger.' : null,
     links: {
       instructions: item.url ? [item.url] : [],
       doc: checked ? 'https://docs.google.com/document/d/1xEssayDraft/edit' : null,

@@ -353,6 +353,62 @@ button.focus-sub:hover {
   margin-right: 5px;
   vertical-align: -3px;
 }
+/* Round 46, 1A: Home's step is a short title (one line at 320px when it is
+   about 24 characters), one line of why, the button, and one quiet line that
+   opens the item's page. */
+.h1.next-t {
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+.h1.next-t.long {
+  font-size: 19px;
+  line-height: 1.22;
+  letter-spacing: -0.3px;
+}
+.h1.next-t.xlong {
+  font-size: 17px;
+  line-height: 1.26;
+  letter-spacing: -0.2px;
+}
+.h1.next-t .ai-mark {
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.step-why {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.step-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+.step-meta .subject {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+.step-meta .subject .icon {
+  width: 13px;
+  height: 13px;
+}
+.step-meta > .icon {
+  flex: none;
+  color: var(--faint);
+}
+@media (hover: hover) and (pointer: fine) {
+  .step-meta:hover .grow {
+    color: var(--text);
+  }
+}
 .last-time .icon {
   margin-right: 4px;
   vertical-align: -2px;
@@ -2236,28 +2292,15 @@ details > summary .icon {
   font-weight: 600;
   color: var(--green-ink);
 }
-.wnums {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 14px 18px 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  font-size: 12.5px;
-  color: var(--muted);
+/* Round 46: words, sources, and the checklist ride in the line under the title. */
+.w-meta .wnum {
+  font: inherit;
+  color: var(--text);
 }
-.wnums b {
-  margin-right: 1px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.wnums button:hover b,
-.wnums button:hover {
-  color: var(--acc-text);
-}
-.wnums .wopen {
-  margin-left: auto;
+@media (hover: hover) and (pointer: fine) {
+  .w-meta .wnum:hover {
+    color: var(--acc-text);
+  }
 }
 .wopen span {
   display: inline-flex;
@@ -2270,6 +2313,24 @@ details > summary .icon {
 }
 .wopen .ok {
   color: var(--green-ink);
+}
+.hint-links {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.focus-block .focus-why {
+  width: 24px;
+  height: 24px;
+  margin: -4px -4px -4px 0;
+  color: var(--faint);
+}
+.focus-block .focus-why[aria-expanded='true'] {
+  color: var(--acc-text);
+}
+.focus-block .handled {
+  margin: 8px 0 0;
 }
 .hint-for {
   margin-top: 4px;
@@ -2616,6 +2677,124 @@ details > summary .icon {
 }
 .rq.observed .rq-note {
   color: var(--green-ink);
+}
+
+/* Round 46: a requirement is one line; tapping it opens the note, quote, and hint. */
+.rq.tap {
+  display: block;
+  padding: 0;
+}
+.rq-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 18px;
+  text-align: left;
+}
+.rq-row > .icon {
+  color: var(--faint);
+}
+.rq-more {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 18px 10px 48px;
+}
+.rq-more .rq-note {
+  max-width: none;
+  text-align: left;
+}
+.rq-more .rq-quote,
+.rq-more .rq-hint {
+  white-space: normal;
+  overflow: visible;
+}
+
+/* The item's page: "Why this is next" folds in under the tiles, and the
+   rarely needed details fold into More options under the links. */
+.d-fold {
+  margin: 14px 18px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.d-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 0;
+  font-size: 14px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.d-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.d-fold > summary .icon {
+  color: var(--faint);
+}
+.d-fold[open] > summary .icon {
+  transform: rotate(90deg);
+}
+.d-fold-body {
+  padding: 0 0 12px;
+}
+.d-fold-text {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.d-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.d-links a,
+.d-links button {
+  color: var(--acc-text);
+}
+.d-more {
+  margin-top: 14px;
+}
+.d-more > summary {
+  display: block;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  list-style: none;
+  cursor: pointer;
+}
+.d-more > summary::-webkit-details-marker {
+  display: none;
+}
+.d-more-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.d-more-body .quoteline {
+  margin: 8px 0 0;
+}
+.d-more-body .correct {
+  margin-top: 10px;
+}
+.d-more-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.d-more-line .icon {
+  color: var(--muted);
 }
 
 /* ---------- Ask Loomer ---------- */
@@ -3572,6 +3751,12 @@ details > summary .icon {
   width: 12px;
   height: 12px;
   color: var(--muted);
+}
+/* Plan rows: the work type and "added by you" are icons, then the class. */
+.item-sub .wtype,
+.item-sub .mine {
+  margin-right: 5px;
+  vertical-align: -1px;
 }
 .w-meta .wtype {
   font-weight: 600;
@@ -4810,13 +4995,42 @@ details > summary .icon {
   color: var(--muted);
 }
 .dcheck-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
 }
 .dcheck-list li {
-  margin-top: 8px;
+  border-top: 1px solid var(--line);
   font-size: 13.5px;
   line-height: 1.4;
+}
+.dcheck-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 0;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+.dcheck-row .icon {
+  color: var(--faint);
+}
+.dcheck-n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--fill);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.dcheck-more {
+  padding: 0 0 10px 30px;
 }
 .dcheck-issue span {
   font-size: 12px;
@@ -4837,7 +5051,7 @@ details > summary .icon {
 }
 
 /* ------------------------------------------------------------ Not today (notToday.tsx)
-   Under Home's next step: Not today and How Loomer picked this share one line.
+   Under Home's next step: the actions (Not today, Set a time, and the rest) share one line.
    Not today opens the day picker in its place: chips from tomorrow to the due
    day, which is marked Due and asks once more before it is picked. */
 .next-links {
@@ -5449,35 +5663,143 @@ details > summary .icon {
    Readiness (one cell per topic, then Loomer's sentence), the plan day by day,
    topics with their standings, mistakes, and the setup before the plan. */
 .prep-ready {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
   margin: 12px 18px 0;
-  font-size: 13.5px;
-  line-height: 1.4;
-  color: var(--text);
 }
-.focus .prep-ready {
-  margin: 12px 0 0;
+.prep-ready b {
+  font-size: 14px;
+  font-weight: 600;
 }
-.prep-meter {
-  display: inline-flex;
-  gap: 2px;
-  flex: none;
-  margin-top: 5px;
-}
-.prep-meter i {
+/* One thin bar: the ready share of a test, or one topic's progress toward ready. Never moves on its own. */
+.tbar {
   display: block;
-  width: 7px;
-  height: 7px;
+  flex: none;
+  width: 64px;
+  height: 4px;
   border-radius: 2px;
-  background: var(--line-strong);
+  background: var(--line);
+  overflow: hidden;
 }
-.prep-meter i.solid {
+.tbar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--amber-dot);
+  transform-origin: left;
+}
+.tbar.full i,
+.tbar.wide i {
   background: var(--green);
 }
-.prep-meter i.shaky {
-  background: var(--amber-dot);
+.tbar.wide {
+  width: 100%;
+  margin-top: 8px;
+}
+/* The plan, one line per session: a mark, the session, when, and a bell for a reminder. */
+.prep-lines {
+  margin: 2px 18px 0;
+  padding: 0;
+  list-style: none;
+}
+.prep-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.prep-line:first-child {
+  border-top: 0;
+}
+.prep-line .grow {
+  min-width: 0;
+}
+.prep-line.done {
+  color: var(--muted);
+}
+.prep-line.done .prep-sd {
+  background: var(--line);
+  box-shadow: none;
+  color: var(--text);
+}
+.prep-line.now {
+  font-weight: 600;
+}
+.prep-line.now .prep-sd {
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+.prep-line.missed .prep-sd {
+  box-shadow: inset 0 0 0 1.5px var(--amber-dot);
+}
+.prep-lw {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.prep-line.now .prep-lw {
+  color: var(--acc-text);
+  font-weight: 600;
+}
+.prep-bell {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-right: -6px;
+  border-radius: 8px;
+  color: var(--faint);
+}
+.prep-bell[aria-checked='true'] {
+  color: var(--acc-text);
+}
+/* Topics, mistakes, and rereads: one row each that opens in place. */
+.prep-fold {
+  margin: 0 18px;
+  border-top: 1px solid var(--line);
+}
+.prep-lines + .prep-fold {
+  margin-top: 12px;
+}
+.prep-fold-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  font-size: 14px;
+  text-align: left;
+}
+.prep-fold-row b {
+  font-weight: 600;
+}
+.prep-fold-row .grow {
+  font-size: 13px;
+  color: var(--muted);
+}
+.prep-fold-row .icon {
+  color: var(--faint);
+}
+.prep-fold-body {
+  padding-bottom: 10px;
+}
+.prep-fold-body .prep-edit {
+  margin-top: 8px;
+  font-size: 13px;
+}
+.prep-mistakes.flat {
+  margin: 0;
+}
+.prep-fold .prep-editing {
+  margin: 0;
+}
+.prep-fold .prep-topics.flat {
+  margin: 0;
+}
+.prep-fold .prep-edit {
+  margin-left: 0;
 }
 .prep > .btn-primary {
   width: calc(100% - 36px);

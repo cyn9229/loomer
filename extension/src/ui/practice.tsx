@@ -486,7 +486,34 @@ function PracticeDone({ summary, title, onHome, onReviewMistakes }: { summary: P
 }
 
 /** One topic with its standing mark (or the mix-up mark) and last check, shared with the test's page. */
-export function TopicLine({ text, standing, lastCheck, mixup = false }: { text: string; standing: Standing; lastCheck: { correct: number; total: number } | null; mixup?: boolean }) {
+/**
+ * One topic. With `progress` (the test's page): a mix-up mark when there is one,
+ * the name, and one thin bar, full only when the topic is ready. Without it
+ * (a practice summary): the standing mark and the latest check's score.
+ */
+export function TopicLine({
+  text,
+  standing,
+  lastCheck,
+  mixup = false,
+  progress,
+}: {
+  text: string;
+  standing: Standing;
+  lastCheck: { correct: number; total: number } | null;
+  mixup?: boolean;
+  progress?: number;
+}) {
+  if (progress !== undefined)
+    return (
+      <div className="prep-topic">
+        {mixup && <OutcomeMark outcome="mixup" />}
+        <span className="grow">{text}</span>
+        <span className={progress >= 1 ? 'tbar full' : 'tbar'} role="img" aria-label={progress >= 1 ? 'Ready' : mixup ? 'A mix-up to fix' : 'Not ready yet'}>
+          <i style={{ transform: `scaleX(${Math.min(1, Math.max(0, progress))})` }} />
+        </span>
+      </div>
+    );
   return (
     <div className="prep-topic">
       {mixup ? (

@@ -1,6 +1,7 @@
 // The Working screen's pieces. WorkHeader: which assignment and what kind of
-// work, then by type: writing gets the session focus and one row of sources
-// and the checklist; practice and study get the teacher's sheets, a Next topic,
+// work, with writing's words, sources, and checklist in the same line, then by
+// type: writing gets the session focus (a few words; why and handled hints
+// behind its info button); practice and study get the teacher's sheets, a Next topic,
 // and the topics with their last Quick check; reading gets neither; a quiz gets
 // only the title. Then the Help | Sources switch (not for a quiz, see QuizNote).
 // SessionControls (Pause or Resume, and End) sit in the top bar and on
@@ -331,12 +332,17 @@ export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onCh
           {kind.word}
         </span>
         {' · '}
-        {session.status === 'paused' ? 'Paused. Loomer isn’t reading your Doc or saving pages.' : writing ? draftLine(session.doc, now) : (item.courseName ?? 'No class')}
+        {session.status === 'paused' ? (
+          'Paused. Loomer isn’t reading your Doc or saving pages.'
+        ) : writing ? (
+          <WorkNumbers session={session} detail={detail} now={now} onSources={() => onTab('sources')} onChecklist={onChecklist} />
+        ) : (
+          (item.courseName ?? 'No class')
+        )}
       </p>
       {item.quiz ? null : (
         <>
-          {session.focus && <FocusBlock focus={session.focus} sessionId={session.sessionId} handled={session.handledHints.length} />}
-          {writing && <WorkNumbers session={session} detail={detail} onSources={() => onTab('sources')} onChecklist={onChecklist} />}
+          {session.focus && <FocusBlock focus={session.focus} sessionId={session.sessionId} handled={session.handledHints} now={now} />}
           {(item.workType.type === 'practice' || item.workType.type === 'study') && (
             <>
               <SheetList sheets={session.teacherSheets} label="From the instructions" requestOrigins={api.requestOrigins} send={api.send} />
@@ -367,42 +373,57 @@ function WorkTabs({ session, tab, onTab, hintWaiting }: { session: ActiveSession
 }
 
 /**
- * The session's one direction, picked near the start of a writing session,
- * with why and how many hints the student has handled so far.
+ * The session's one direction, picked near the start of a writing session, as
+ * a few words. The info button opens why, and the hints that look handled.
  */
-function FocusBlock({ focus, sessionId, handled }: { focus: NonNullable<ActiveSession['focus']>; sessionId: number; handled: number }) {
+function FocusBlock({ focus, sessionId, handled, now }: { focus: NonNullable<ActiveSession['focus']>; sessionId: number; handled: ActiveSession['handledHints']; now: Date }) {
+  const [open, setOpen] = useState(false);
   return (
-    <AiBlock className="focus-block" label="Your focus today" flashKey={`focus:${sessionId}:${focus.text}`}>
+    <AiBlock
+      className="focus-block"
+      label="Your focus"
+      flashKey={`focus:${sessionId}:${focus.text}`}
+      right={
+        <button type="button" className="icon-btn focus-why" aria-label="Why this focus" title="Why this focus" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <Icon name="info" size="sm" />
+        </button>
+      }
+    >
       <p className="focus-text">{focus.text}</p>
-      <p className="ai-sub">{focus.why}</p>
-      {handled > 0 && (
-        <p className="handled-count">
-          <Icon name="check" size="xs" />
-          {handled} {handled === 1 ? 'hint' : 'hints'} handled so far
-        </p>
+      {open && (
+        <>
+          <p className="ai-sub">{focus.why}</p>
+          <HandledHints hints={handled} now={now} />
+        </>
       )}
     </AiBlock>
   );
 }
 
 /**
- * The draft's numbers in one quiet row: saved sources ("2 of 3" when the
- * teacher asks for a number) and what's open on the checklist from the last
- * draft check. Your word count is already in the line under the title. Each
- * one opens where it lives.
+ * The draft's numbers inside the line under the title: the student's words
+ * (when the draft was read; when it was read is the tooltip), saved sources
+ * ("2 of 3" when the teacher asks for a number), and what's open on the
+ * checklist from the last draft check. Sources and the checklist open where
+ * they live. Before the draft is read, the draft's state says why.
  */
-function WorkNumbers({ session, detail, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; onSources: () => void; onChecklist: () => void }) {
+function WorkNumbers({ session, detail, now, onSources, onChecklist }: { session: ActiveSession; detail: AssignmentDetailModel | undefined; now: Date; onSources: () => void; onChecklist: () => void }) {
   const need = session.sourceNeed;
   const saved = session.sources.length;
+  const doc = session.doc;
+  const words = doc.status === 'linked' && doc.readState === 'ok' && doc.studentWords !== null ? doc.studentWords : null;
   return (
-    <div className="wnums">
-      <button type="button" onClick={onSources} title={need ? `“${need.quote}”` : undefined}>
-        <b>{saved}</b> {need ? `of ${need.required} sources` : saved === 1 ? 'source' : 'sources'}
+    <>
+      {words !== null && doc.status === 'linked' ? <span title={doc.lastReadAt ? `Draft read ${observedAt(doc.lastReadAt, now)}` : undefined}>{words} words</span> : draftLine(doc, now)}
+      {' · '}
+      <button type="button" className="wnum" onClick={onSources} title={need ? `“${need.quote}”` : undefined}>
+        {need ? `${saved} of ${need.required} sources` : saved === 1 ? '1 source' : `${saved} sources`}
       </button>
-      <button type="button" className="wopen" onClick={onChecklist}>
+      {' · '}
+      <button type="button" className="wnum wopen" onClick={onChecklist}>
         <ChecklistCount requirements={detail?.status === 'ok' && detail.check ? detail.requirements : null} />
       </button>
-    </div>
+    </>
   );
 }
 
@@ -410,20 +431,8 @@ function WorkNumbers({ session, detail, onSources, onChecklist }: { session: Act
 function ChecklistCount({ requirements }: { requirements: RequirementItem[] | null }) {
   const review = requirements?.filter((r) => r.state === 'needs-review').length ?? 0;
   const unknown = requirements?.filter((r) => r.state === 'unknown').length ?? 0;
-  if (requirements && review + unknown === 0) {
-    return (
-      <span className="ok">
-        <Icon name="checkCircle" size="xs" />
-        All found
-      </span>
-    );
-  }
-  return (
-    <span className={review > 0 ? 'fix' : undefined}>
-      <Icon name="listChecks" size="xs" />
-      {!requirements ? 'Checklist' : review > 0 ? `${review} to fix` : `${unknown} to check`}
-    </span>
-  );
+  if (requirements && review + unknown === 0) return <span className="ok">All found</span>;
+  return <span className={review > 0 ? 'fix' : undefined}>{!requirements ? 'Checklist' : review > 0 ? `${review} to fix` : `${unknown} to check`}</span>;
 }
 
 type HintProps = {
@@ -445,6 +454,9 @@ type HintProps = {
  */
 export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, api }: HintProps) {
   const dismiss = useAction();
+  // The requirement it serves and the line from the draft open from "Show the line".
+  const [lineOpen, setLineOpen] = useState(false);
+  const hasLine = Boolean(hint.reference || hint.requirement);
 
   useEffect(() => {
     // Once per hint. A failed "seen" only leaves the badge up, so it is not shown as an error.
@@ -479,23 +491,32 @@ export function HintCard({ hint, leaving, hidden, onHide, onShow, onMoreHelp, ap
         label="Hint"
         flashKey={`hint:${hint.id}`}
         right={
-          <>
-            <button type="button" className="link muted" onClick={onMoreHelp}>
-              More help
-            </button>
-            <button type="button" className="link muted" onClick={onHide}>
-              Hide
-            </button>
-          </>
+          <button type="button" className="link muted" onClick={onHide}>
+            Hide
+          </button>
         }
       >
-        {hint.requirement && <p className="hint-for">For: {hint.requirement}</p>}
         <p className="hint-text">{hint.text}</p>
-        {hint.reference && (
-          <p className="reference">
-            <mark>“{hint.reference.quote}”</mark> <span className="from">{hint.reference.from}</span>
-          </p>
+        {lineOpen && (
+          <>
+            {hint.requirement && <p className="hint-for">For: {hint.requirement}</p>}
+            {hint.reference && (
+              <p className="reference">
+                <mark>“{hint.reference.quote}”</mark> <span className="from">{hint.reference.from}</span>
+              </p>
+            )}
+          </>
         )}
+        <p className="hint-links">
+          {hasLine && (
+            <button type="button" className="link" aria-expanded={lineOpen} onClick={() => setLineOpen((o) => !o)}>
+              {lineOpen ? 'Hide the line' : 'Show the line'}
+            </button>
+          )}
+          <button type="button" className="link" onClick={onMoreHelp}>
+            More help
+          </button>
+        </p>
       </AiBlock>
     </div>
   );

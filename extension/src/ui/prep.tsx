@@ -3,15 +3,16 @@
 // topics found (remove or add), topics from notes (keep or remove), what's on
 // the test (formats Canvas or the guide named are picked already), and Add
 // your notes, which reads photos of paper notes. Once the plan is ready, the
-// page leads with an honest readiness line (a count of topics the student got
-// right on their own checks, never a grade), Start practice, the plan day by
-// day back from the test, every topic with its standing (Edit opens the same
-// editor), and Your mistakes.
-import { useId, useRef, useState } from 'react';
+// page leads with "4 of 8 ready" over one thin bar (topics the student's own
+// checks made ready for the test, never a grade), Start practice, and the plan
+// as one line per session. Topics, mistakes, and rereads fold to one row each
+// (round 46); opened, each topic is one thin bar from its progress, and a
+// mix-up keeps its mark. The skill ladder behind progress never shows.
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { readAttachment } from '../chat/attachments';
 import type { Attachment } from '../model/chat';
 import { Icon, type IconName } from './Icon';
-import type { PrepFormat, PrepSessionKind, Standing, TeachBlock, TestPrep } from '../model/prep';
+import type { PrepFormat, PrepSession, PrepSessionKind, TeachBlock, TestPrep } from '../model/prep';
 import { Sheet } from './sheet';
 import { TeachBlockView } from './teach';
 import { TopicLine } from './practice';
@@ -43,24 +44,49 @@ export const FORMATS: { key: PrepFormat; icon: IconName; text: string }[] = [
 ];
 const FOUND_WORD = { canvas: 'Found on Canvas', guide: 'In the study guide', notes: 'In your notes' } as const;
 
-/** The readiness line: one small cell per topic, then Loomer's sentence. */
-export function Readiness({ text, counts }: { text: string; counts: TestPrep['counts'] }) {
-  const cells: Standing[] = [...Array<Standing>(counts.solid).fill('solid'), ...Array<Standing>(counts.shaky).fill('shaky'), ...Array<Standing>(counts.unchecked).fill('unchecked')];
+/** "4 of 8 ready" over one thin bar of the ready share, full only when every topic is ready. */
+export function ReadyBar({ counts }: { counts: TestPrep['counts'] }) {
+  const total = counts.solid + counts.shaky + counts.unchecked;
   return (
-    <p className="prep-ready">
-      <span className="prep-meter" aria-hidden="true">
-        {cells.map((s, i) => (
-          <i key={i} className={s} />
-        ))}
+    <div className="prep-ready">
+      <b>
+        {counts.solid} of {total} ready
+      </b>
+      <span className="tbar wide" role="progressbar" aria-label="Topics ready" aria-valuemin={0} aria-valuemax={total} aria-valuenow={counts.solid}>
+        <i style={{ transform: `scaleX(${total > 0 ? counts.solid / total : 0})` }} />
       </span>
-      <span>{text}</span>
-    </p>
+    </div>
   );
+}
+
+/** One row that opens in place: a name, a short count, and a chevron. */
+function Fold({ name, count, open, onToggle, children }: { name: string; count: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <section className="prep-fold" aria-label={name}>
+      <button type="button" className="prep-fold-row" aria-expanded={open} onClick={onToggle}>
+        <b>{name}</b>
+        <span className="grow">{count}</span>
+        <Icon name={open ? 'chevronDown' : 'chevronRight'} size="sm" />
+      </button>
+      {open && <div className="prep-fold-body">{children}</div>}
+    </section>
+  );
+}
+
+/** A session's when, in a word or two: Done, Now, Next, 7 PM, or its day. */
+function whenWord(p: PrepSession): string {
+  if (p.status === 'done') return 'Done';
+  if (p.status === 'missed') return 'Missed';
+  if (p.when === 'now') return 'Now';
+  if (p.when === 'next') return 'Next';
+  if (p.remindAt) return new Date(p.remindAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return p.label;
 }
 
 /** The test's prep on its page: setup first, then readiness, the plan, topics, and mistakes. */
 export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepActions }) {
   const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState<'topics' | 'mistakes' | 'reread' | null>(null);
   if (prep.status === 'setup')
     return (
       <section className="prep setup" aria-label="Set up test prep">
@@ -87,9 +113,16 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
   const now = prep.plan.find((p) => p.status === 'today' && p.when !== 'later-today');
   // Practice needs the test's formats: ask while nothing was found and the student hasn't answered.
   const askFormats = Object.keys(prep.formats.found).length === 0 && !prep.formats.asked;
+  // Editing, a format question, or topics just found in notes keep Topics open: each needs the student.
+  const needsEditor = editing || askFormats || prep.topics.some((t) => t.new);
+  const topicsOpen = open === 'topics' || needsEditor;
+  const needWork = prep.topics.filter((t) => t.standing !== 'solid').length;
+  // Mix-ups first, then what still needs work, then ready topics.
+  const topics = [...prep.topics].sort((a, b) => Number(b.mixup) - Number(a.mixup) || Number(a.standing === 'solid') - Number(b.standing === 'solid'));
+  const toggle = (fold: 'topics' | 'mistakes' | 'reread') => setOpen((o) => (o === fold ? null : fold));
   return (
     <section className="prep" aria-label="Test prep">
-      <Readiness text={prep.readiness} counts={prep.counts} />
+      <ReadyBar counts={prep.counts} />
       {!prep.today.asked && <TimeAsk onSet={actions.onSetTime} busy={actions.busy} />}
       {now && (
         <button type="button" className="btn-primary" disabled={actions.busy} aria-busy={actions.busy} onClick={actions.onStart}>
@@ -101,67 +134,61 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
         <h2>Your plan</h2>
         <span className="aside">{prep.fits ?? (prep.plan.length === 1 ? '1 session' : `${prep.plan.length} sessions`)}</span>
       </div>
-      <ol className="prep-sessions">
-        {prep.plan.map((p) => (
-          <li key={p.id} className={`prep-session ${p.status}`}>
-            <span className="prep-sd" aria-hidden="true">
-              {p.status === 'done' && <Icon name="check" />}
-            </span>
-            <span className="grow">
-              <span className="prep-when">
-                <b>{p.label}</b>
-                <i>{minutesWords(p.minutes)}</i>
+      <ol className="prep-lines">
+        {prep.plan.map((p) => {
+          const at = p.remindAt ? new Date(p.remindAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null;
+          return (
+            <li key={p.id} className={`prep-line ${p.status}${p === now ? ' now' : ''}`}>
+              <span className="prep-sd" aria-hidden="true">
+                {p.status === 'done' && <Icon name="check" />}
               </span>
-              <span className="prep-step">{p.step}</span>
-              {p.sub && <span className="prep-sub">{p.sub}</span>}
-              {p.back && (
-                <span className="prep-back">
-                  <Icon name="repeat" size="xs" />
-                  {p.back}
-                </span>
-              )}
-              {p.remindAt && p.status !== 'done' && (
-                <button type="button" role="switch" aria-checked={p.reminder} className="prep-remind" disabled={actions.busy} onClick={() => actions.onRemind(p.id, !p.reminder)}>
+              <span className="grow">{p.step}</span>
+              <span className="prep-lw">{whenWord(p)}</span>
+              {at && p.status !== 'done' && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={p.reminder}
+                  className="prep-bell"
+                  aria-label={`Remind me at ${at}`}
+                  title={p.reminder ? `Reminder on for ${at}` : `Remind me at ${at}`}
+                  disabled={actions.busy}
+                  onClick={() => actions.onRemind(p.id, !p.reminder)}
+                >
                   <Icon name="bell" size="xs" />
-                  Remind me at {new Date(p.remindAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                  <span className="prep-toggle" aria-hidden="true" />
                 </button>
               )}
-            </span>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
-      {prep.note && (
-        <p className="prep-sleep">
-          <Icon name="moon" size="sm" />
-          {prep.note}
-        </p>
-      )}
-      <div className="sec">
-        <h2>Topics</h2>
-        <span className="aside">{prep.topics.length}</span>
-        <button type="button" className="link prep-edit" aria-expanded={editing || askFormats} onClick={() => setEditing((e) => !e)}>
-          {editing ? 'Done' : 'Edit'}
-        </button>
-      </div>
-      {editing || askFormats || prep.topics.some((t) => t.new) ? (
-        <div className="prep-editing">
-          <PrepEditor prep={prep} actions={actions} />
-        </div>
-      ) : (
-        <div className="prep-topics">
-          {prep.topics.map((t) => (
-            <TopicLine key={t.id} text={t.text} standing={t.standing} lastCheck={t.lastCheck} mixup={t.mixup} />
-          ))}
-        </div>
-      )}
-      {prep.mistakes.length > 0 && (
-        <>
-          <div className="sec">
-            <h2>Your mistakes</h2>
-            <span className="aside">{prep.mistakes.length}</span>
+      <Fold
+        name="Topics"
+        count={needWork === 0 ? 'All ready' : `${needWork} need work`}
+        open={topicsOpen}
+        onToggle={() => {
+          if (topicsOpen) setEditing(false);
+          toggle('topics');
+        }}
+      >
+        {needsEditor ? (
+          <div className="prep-editing">
+            <PrepEditor prep={prep} actions={actions} />
           </div>
-          <div className="prep-mistakes">
+        ) : (
+          <div className="prep-topics flat">
+            {topics.map((t) => (
+              <TopicLine key={t.id} text={t.text} standing={t.standing} lastCheck={t.lastCheck} mixup={t.mixup} progress={t.progress} />
+            ))}
+          </div>
+        )}
+        <button type="button" className="link prep-edit" aria-expanded={editing} onClick={() => setEditing((e) => !e)}>
+          {editing ? 'Done' : 'Edit topics'}
+        </button>
+      </Fold>
+      {prep.mistakes.length > 0 && (
+        <Fold name="Mistakes" count={String(prep.mistakes.length)} open={open === 'mistakes'} onToggle={() => toggle('mistakes')}>
+          <div className="prep-mistakes flat">
             {prep.mistakes.map((m) => (
               <div className="prep-mistake" key={m.id}>
                 <span className="grow">
@@ -176,13 +203,13 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
               </div>
             ))}
           </div>
-          <p className="prep-note">
-            <Icon name="calendar" size="sm" />
-            The practice test the day before brings back a question like each one you missed.
-          </p>
-        </>
+        </Fold>
       )}
-      {prep.blocks.length > 0 && <Reread blocks={prep.blocks} />}
+      {prep.blocks.length > 0 && (
+        <Fold name="Reread" count={String(prep.blocks.length)} open={open === 'reread'} onToggle={() => toggle('reread')}>
+          <Reread blocks={prep.blocks} />
+        </Fold>
+      )}
     </section>
   );
 }
@@ -335,10 +362,6 @@ export const SESSION: Record<PrepSessionKind, { icon: IconName; text: string; bu
   rescue: { icon: 'sun', text: 'Test today', button: 'Start the rescue' },
 };
 
-/** "About 15 min", or "5 min" for a short one. */
-function minutesWords(minutes: number): string {
-  return minutes >= 10 ? `About ${minutes} min` : `${minutes} min`;
-}
 
 const TIME_CHOICES = [
   { label: '15 min', minutes: 15 },
@@ -372,11 +395,7 @@ function Reread({ blocks }: { blocks: TeachBlock[] }) {
   const titleId = useId();
   return (
     <>
-      <div className="sec">
-        <h2>Reread before the test</h2>
-        <span className="aside">{blocks.length}</span>
-      </div>
-      <div className="prep-mistakes">
+      <div className="prep-mistakes flat">
         {blocks.map((b) => (
           <div className="prep-mistake" key={b.id}>
             <span className="subject">

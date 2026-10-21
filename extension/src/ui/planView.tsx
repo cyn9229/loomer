@@ -1,24 +1,28 @@
 // "Your plan" on Home, in two views the student switches between. List groups
-// work by the day it should start (a day can hold several starts). Week shows
-// each of the next seven days with what starts, which checkpoints land, and
-// what is due. Below both: Later, No due date, Past due and Hidden as folds.
-import type { DayRoom, WorkItem } from '../model/home';
+// work by the day it should start (a day can hold several starts); each row is
+// its title, class, and day, and why it sits there lives on its page. Week
+// shows each of the next seven days with what starts, which checkpoints land,
+// and what is due, under the busy-week note and the student's own changes.
+// Below both: Later, No due date, Past due and Hidden as folds.
+import type { CrowdedWeek, DayRoom, WorkItem } from '../model/home';
+import type { PlanChangeView } from '../model/plan';
 import { calendarDaysUntil, minutesText, timeOf, ymd } from './format';
 import type { HomeActions } from './home';
 import { Icon, type IconName } from './Icon';
 import { RoomMeter, WorkRow } from './parts';
-import { PLAN_DAYS, planByStart, weekDays, type WeekEvent } from './plan';
+import { planByStart, weekDays, type WeekEvent } from './plan';
+import { YourChanges } from './planChange';
 import { subjectIcon } from './subject';
 
 export type PlanMode = 'list' | 'week';
 
-type PlanProps = { items: WorkItem[]; room: DayRoom[]; now: Date; actions: HomeActions; mode: PlanMode; onMode: (mode: PlanMode) => void };
+type PlanProps = { items: WorkItem[]; room: DayRoom[]; crowded: CrowdedWeek; yourChanges: PlanChangeView[]; now: Date; actions: HomeActions; mode: PlanMode; onMode: (mode: PlanMode) => void };
 
 /**
  * Your plan: List or Week, then the folds. Add (in the heading, and a line at
  * the end) adds work that isn't on Canvas; it shows even when the plan is empty.
  */
-export function PlanSection({ items, room, now, actions, mode, onMode }: PlanProps) {
+export function PlanSection({ items, room, crowded, yourChanges, now, actions, mode, onMode }: PlanProps) {
   const plan = planByStart(items, now);
   const addLine = (
     <button type="button" className="plan-add-line" onClick={actions.addAssignment}>
@@ -49,7 +53,24 @@ export function PlanSection({ items, room, now, actions, mode, onMode }: PlanPro
           ))}
         </span>
       </div>
-      {mode === 'list' ? <PlanList days={plan.days} now={now} onOpen={actions.openItem} /> : <PlanWeek items={items} room={room} now={now} onOpen={actions.openItem} />}
+      {mode === 'list' ? (
+        <PlanList days={plan.days} now={now} onOpen={actions.openItem} />
+      ) : (
+        <>
+          {(crowded || yourChanges.length > 0) && (
+            <div className="notices">
+              {crowded && (
+                <p className="notice busy" role="note">
+                  <Icon name="alert" />
+                  <span className="grow">{crowded.text}</span>
+                </p>
+              )}
+              {yourChanges.length > 0 && <YourChanges changes={yourChanges} now={now} send={actions.send} />}
+            </div>
+          )}
+          <PlanWeek items={items} room={room} now={now} onOpen={actions.openItem} />
+        </>
+      )}
       <Folds items={items} later={plan.later} now={now} actions={actions} />
       {addLine}
     </>
@@ -63,11 +84,7 @@ function startHeading(offset: number, now: Date): string {
   return offset === 0 ? 'Start today' : offset === 1 ? `Start tomorrow · ${name}` : `Start by ${name}`;
 }
 
-/**
- * The plan grouped by start day. Each row's gray line is the planner's reason,
- * one full sentence shown as is ("This quiz is due tomorrow, so today is a good
- * day to start."); it is also the row's tooltip when the line is cut off.
- */
+/** The plan grouped by start day. Each row is its title, class, and day; the planner's reason is its tooltip. */
 function PlanList({ days, now, onOpen }: { days: { offset: number; items: WorkItem[] }[]; now: Date; onOpen: (id: string) => void }) {
   if (days.length === 0) return <p className="empty-line">Nothing needs a start this week.</p>;
   return (
@@ -86,7 +103,7 @@ function PlanList({ days, now, onOpen }: { days: { offset: number; items: WorkIt
             {items.length > 1 && <> · {items.length}</>}
           </div>
           {items.map((item) => (
-            <WorkRow key={item.assignmentId} item={item} now={now} note={item.rankReason} onOpen={onOpen} />
+            <WorkRow key={item.assignmentId} item={item} now={now} onOpen={onOpen} />
           ))}
         </section>
       ))}
@@ -253,11 +270,4 @@ function Folds({ items, later, now, actions }: { items: WorkItem[]; later: WorkI
       )}
     </div>
   );
-}
-
-/** "start today", "start tomorrow", "start by Tue", or null without a start date. For the next step's eyebrow. */
-export function startWords(item: WorkItem, now: Date): string | null {
-  if (!item.startBy) return null;
-  const offset = Math.max(0, calendarDaysUntil(new Date(item.startBy.at), now));
-  return offset === 0 ? 'start today' : offset === 1 ? 'start tomorrow' : offset < PLAN_DAYS ? `start by ${new Date(item.startBy.at).toLocaleDateString(undefined, { weekday: 'short' })}` : null;
 }

@@ -1,21 +1,22 @@
 // Assignment detail: tap any assignment. Subject icon, class and kind of work
-// (a menu to change it), title, the
-// instructions in plain words (AI, when allowed), three tiles (start by, due,
-// workload; "you set this" when the student chose them), the student's own
-// time guess, the checkpoint track when the instructions set earlier dates, and
-// what the assignment asks for as a checklist with open items first. Links,
-// Ask Loomer, and Start working sit at the bottom. Renders the
+// (a menu to change it), title, the instructions in plain words in one
+// sentence (More opens the rest), three tiles (start by, the next checkpoint
+// or the workload, due), "Why this is next" when it is Home's step, and what
+// the assignment asks for, one line per requirement that opens to its
+// evidence. Start working, then Canvas, the draft, and Ask Loomer; workload,
+// the student's time guess, checkpoint quotes, sources, Did it already?, Hide,
+// and Delete fold into More options (round 46). Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
 import { useState, type ReactNode } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
-import type { StudentCorrection, WorkItem } from '../model/home';
+import type { NextAction, StudentCorrection, WorkItem } from '../model/home';
 import type { TestPrep } from '../model/prep';
 import { useAction } from './api';
 import { calendarDaysUntil, minutesText, monthDay, observedAt, timeOf, weekday, workloadWord } from './format';
 import { type HomeActions, startControl } from './home';
 import { AiBlock } from './aiBlock';
 import { Icon } from './Icon';
-import { PolicyNote, SizeMeter, SubjectTile } from './parts';
+import { EvidenceList, PolicyNote, SizeMeter, SubjectTile } from './parts';
 import { PrepSection } from './prep';
 import { DeleteAssignmentData } from './privacy';
 import { SheetList } from './sheets';
@@ -23,13 +24,24 @@ import { TypeMenu } from './workType';
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
 
-export function DetailView({ item, detail, now, actions, nudge }: { item: WorkItem; detail: AssignmentDetailModel | undefined; now: Date; actions: HomeActions; nudge?: ReactNode }) {
+type DetailProps = {
+  item: WorkItem;
+  detail: AssignmentDetailModel | undefined;
+  now: Date;
+  actions: HomeActions;
+  nudge?: ReactNode;
+  /** Home's next step, when it is this item: its reason and evidence fold in as "Why this is next". */
+  next?: NextAction | null;
+};
+
+export function DetailView({ item, detail, now, actions, nudge, next = null }: DetailProps) {
   const start = startControl(item, actions);
   const ok = detail?.status === 'ok' ? detail : null;
-  const effortReason = ok?.effort.reason ?? item.effort.reason;
   // Work the student added by hand: marked, editable, and done only when they say so.
   const mine = item.source === 'student';
   const editable = ok?.editable ?? null;
+  // The next checkpoint takes the middle tile; without one, the workload does.
+  const checkpoint = item.checkpoints.find((c) => Date.parse(c.at) >= now.getTime()) ?? null;
   return (
     <>
       <div className="d-head">
@@ -52,37 +64,16 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
             <Icon name="user" size="xs" />
             Added by you
           </span>
-          <span>Loomer can’t see a Canvas submission for it, so you mark it done yourself.</span>
         </p>
       )}
       {item.sameAsCanvas && <SameAsCanvas item={item} same={item.sameAsCanvas} actions={actions} />}
-      {ok?.plainWords && (
-        <AiBlock className="plain" label="In plain words" flashKey={`plain:${item.assignmentId}:${ok.plainWords}`}>
-          <p className="ai-text">{ok.plainWords}</p>
-        </AiBlock>
-      )}
+      {ok?.plainWords && <PlainWordsBlock id={item.assignmentId} full={ok.plainWords} short={ok.plainShort} />}
       {ok?.prep && <TestPrepBlock prep={ok.prep} actions={actions} />}
       <div className="facts">
         <StartTile item={item} now={now} />
+        {checkpoint ? <CheckpointTile at={checkpoint.at} label={checkpoint.label} now={now} /> : <WorkloadTile item={item} />}
         <DueTile item={item} now={now} />
-        <div className={item.effort.source === 'student' ? 'fact you' : 'fact'}>
-          <SizeMeter label={item.effort.label} />
-          <b>{workloadWord[item.effort.label]}</b>
-          <span>{item.effort.source === 'student' ? 'Workload · you set this' : 'Workload'}</span>
-        </div>
       </div>
-      {item.guessMinutes !== null && (
-        <p className="guess">
-          <Icon name="clock" size="sm" />
-          Your guess: about {minutesText(item.guessMinutes)}
-        </p>
-      )}
-      {item.checkpoints.length > 0 && item.due && <CheckpointTrack item={item} due={item.due.at} now={now} />}
-      {item.effort.source === 'ai' && item.effort.label !== 'Unknown' && effortReason && (
-        <p className="quoteline">
-          Why {workloadWord[item.effort.label].toLowerCase()}? {effortReason}
-        </p>
-      )}
       {item.dueConflict && (
         <p className="d-note warn">
           <Icon name="alert" size="xs" />
@@ -94,20 +85,108 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
           <PolicyNote state={item.policy.state} quote={item.policy.quote} source={item.policy.sourceLabel} />
         </div>
       )}
+      {next && <WhyNext next={next} now={now} />}
       {ok ? <Requirements detail={ok} now={now} actions={actions} /> : <p className="hint-line" style={{ paddingTop: 16 }}>Loading…</p>}
       <div className="end">
         {nudge}
-        <Links item={item} detail={ok} onAsk={() => actions.openAsk(item.assignmentId)} />
         <button type="button" className="btn-primary" onClick={start.onClick} disabled={start.disabled} aria-busy={start.busy}>
           {start.busy ? 'Starting…' : start.label}
           <Icon name="arrowRight" />
         </button>
-        {mine ? (
-          <MarkDone item={item} correction={ok?.correction ?? item.correction} actions={actions} />
-        ) : (
-          <Corrections item={item} correction={ok?.correction ?? item.correction} actions={actions} />
+        <Links item={item} detail={ok} onAsk={() => actions.openAsk(item.assignmentId)} />
+        {mine && <MarkDone item={item} correction={ok?.correction ?? item.correction} actions={actions} />}
+        <MoreOptions item={item} detail={ok} now={now} actions={actions} withWorkload={Boolean(checkpoint)} />
+      </div>
+    </>
+  );
+}
+
+/** One sentence of plain words; More opens the whole rewrite. Uses `short` when Loomer wrote one, else the first sentence. */
+function PlainWordsBlock({ id, full, short }: { id: string; full: string; short: string | null }) {
+  const [open, setOpen] = useState(false);
+  const first = short ?? full.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? full;
+  const more = first.trim() !== full.trim();
+  return (
+    <AiBlock
+      className="plain"
+      label="In plain words"
+      flashKey={`plain:${id}:${full}`}
+      right={
+        more && (
+          <button type="button" className="link muted" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            {open ? 'Less' : 'More'}
+          </button>
+        )
+      }
+    >
+      <p className="ai-text">{open ? full : first}</p>
+    </AiBlock>
+  );
+}
+
+/** Home's reason for this step, and the evidence behind it, folded. Only for the item that is Home's next step. */
+function WhyNext({ next, now }: { next: NextAction; now: Date }) {
+  return (
+    <details className="d-fold">
+      <summary>
+        <span className="grow">Why this is next</span>
+        <Icon name="chevronRight" size="sm" />
+      </summary>
+      <div className="d-fold-body">
+        <p className="d-fold-text">{next.insight.text}</p>
+        <EvidenceList evidence={next.evidence} now={now} />
+      </div>
+    </details>
+  );
+}
+
+/**
+ * Everything a student rarely needs, folded under the links: the workload and
+ * why (when a checkpoint took its tile), their own time guess, why each
+ * checkpoint falls where it does, saved sources, Did it already?, Hide, and
+ * deleting Loomer's data.
+ */
+function MoreOptions({ item, detail, now, actions, withWorkload }: { item: WorkItem; detail: Detail | null; now: Date; actions: HomeActions; withWorkload: boolean }) {
+  const mine = item.source === 'student';
+  const reason = detail?.effort.reason ?? item.effort.reason;
+  const sources = detail?.links.sources.length ?? 0;
+  const need = detail?.sourceNeed ?? null;
+  return (
+    <details className="d-more">
+      <summary>More options</summary>
+      <div className="d-more-body">
+        {withWorkload && (
+          <p className="d-more-line">
+            <SizeMeter label={item.effort.label} />
+            <span>
+              <b>{workloadWord[item.effort.label]}</b> workload{item.effort.source === 'student' ? ', you set this' : ''}
+            </span>
+          </p>
         )}
-        <div className="row-actions center" style={{ marginTop: 14 }}>
+        {item.effort.source === 'ai' && item.effort.label !== 'Unknown' && reason && (
+          <p className="quoteline">
+            Why {workloadWord[item.effort.label].toLowerCase()}? {reason}
+          </p>
+        )}
+        {item.guessMinutes !== null && (
+          <p className="d-more-line">
+            <Icon name="clock" size="sm" />
+            Your guess: about {minutesText(item.guessMinutes)}
+          </p>
+        )}
+        {item.checkpoints.map((c) => (
+          <p className="quoteline" key={c.at + c.quote}>
+            Why {dayWord(c.at, now)}? The instructions say “{c.quote}”
+          </p>
+        ))}
+        {(sources > 0 || need) && (
+          <p className="d-more-line" title={need ? `“${need.quote}”` : undefined}>
+            <Icon name="layers" size="sm" />
+            {need ? `${sources} of ${need.required} ${need.required === 1 ? 'source' : 'sources'} saved` : sources === 1 ? '1 source saved' : `${sources} sources saved`}
+          </p>
+        )}
+        {!mine && <Corrections item={item} correction={detail?.correction ?? item.correction} actions={actions} />}
+        <div className="row-actions" style={{ marginTop: 10 }}>
           <button type="button" className="link subtle" onClick={() => actions.setHidden(item.assignmentId, !item.hidden)}>
             {item.hidden ? 'Show it in my lists again' : 'Hide from my lists'}
           </button>
@@ -115,7 +194,7 @@ export function DetailView({ item, detail, now, actions, nudge }: { item: WorkIt
           {!mine && <DeleteAssignmentData assignmentId={item.assignmentId} send={actions.send} />}
         </div>
       </div>
-    </>
+    </details>
   );
 }
 
@@ -162,42 +241,26 @@ function DueTile({ item, now }: { item: WorkItem; now: Date }) {
   );
 }
 
-/**
- * Start, each checkpoint from the instructions, then the due date, on one
- * line. Under it, each checkpoint's quote, so a date Loomer worked out (like
- * "the day before the final deadline") shows where it came from.
- */
-function CheckpointTrack({ item, due, now }: { item: WorkItem; due: string; now: Date }) {
-  const start = item.startBy && Date.parse(item.startBy.at) > now.getTime() ? item.startBy.at : now.toISOString();
+/** The next checkpoint from the instructions, by its short label ("Draft due"). Why it falls there is under More options. */
+function CheckpointTile({ at, label, now }: { at: string; label: string; now: Date }) {
+  const soon = calendarDaysUntil(new Date(at), now) <= 1;
   return (
-    <>
-      <ol className="cptrack" aria-label="Checkpoints">
-        <li className="cp now">
-          <i />
-          <b>{dayWord(start, now)}</b>
-          <span>Start</span>
-        </li>
-        {item.checkpoints.map((c) => (
-          <li className="cp mid" key={c.at + c.text}>
-            <i>
-              <Icon name="flag" />
-            </i>
-            <b>{dayWord(c.at, now)}</b>
-            <span>{c.text}</span>
-          </li>
-        ))}
-        <li className="cp due">
-          <i />
-          <b>{dayWord(due, now)}</b>
-          <span>Due {timeOf(due)}</span>
-        </li>
-      </ol>
-      {item.checkpoints.map((c) => (
-        <p className="quoteline" key={c.at + c.quote}>
-          Why {dayWord(c.at, now)}? The instructions say “{c.quote}”
-        </p>
-      ))}
-    </>
+    <div className={soon ? 'fact urgent' : 'fact'}>
+      <Icon name="flag" />
+      <b>{dayWord(at, now)}</b>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** The workload, when no checkpoint needs the middle tile. */
+function WorkloadTile({ item }: { item: WorkItem }) {
+  return (
+    <div className={item.effort.source === 'student' ? 'fact you' : 'fact'}>
+      <SizeMeter label={item.effort.label} />
+      <b>{workloadWord[item.effort.label]}</b>
+      <span>{item.effort.source === 'student' ? 'Workload · you set this' : 'Workload'}</span>
+    </div>
   );
 }
 
@@ -221,7 +284,11 @@ const notChecked: Record<Exclude<Detail['checkAvailability'], 'available'>, stri
   quiz: 'This is a quiz or test, so Loomer won’t read your answers.',
 };
 
-/** What the assignment asks for. Checks describe what was seen in the draft, never a grade. */
+/**
+ * What the assignment asks for, one line per requirement with open items
+ * first. A line opens to what Loomer saw in the draft (a note and a quote) and
+ * its latest hint. Checks describe what was seen in the draft, never a grade.
+ */
 function Requirements({ detail, now, actions }: { detail: Detail; now: Date; actions: HomeActions }) {
   const check = useAction();
   // The draft check reads the student's own draft, so it exists only for writing.
@@ -229,12 +296,13 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   const canCheck = writing && detail.checkAvailability === 'available';
   const checking = detail.checkPending || check.busy;
   const run = () => check.run(() => actions.send({ type: 'requirements:check', assignmentId: detail.item.assignmentId }));
-  const sorted = [...detail.requirements].sort((a, b) => order[a.state] - order[b.state]);
+  const rows = detail.check ? [...detail.requirements].sort((a, b) => order[a.state] - order[b.state]) : detail.requirements;
+  const open = detail.requirements.filter((r) => r.state !== 'observed').length;
   return (
     <section aria-label="What it asks for">
       <div className="sec">
         <h2>What it asks for</h2>
-        {detail.check && <span className="aside">Checked {observedAt(detail.check.at, now)}</span>}
+        {detail.check && <span className="aside">{open === 0 ? 'All found' : `${open} open`}</span>}
       </div>
       <SheetList sheets={detail.sheets} label="Sheets in the instructions" requestOrigins={actions.requestOrigins} send={actions.send} />
       {detail.requirements.length === 0 ? (
@@ -242,37 +310,17 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
           <p className="hint-line">Loomer hasn’t read the requirements yet.</p>
           {detail.descriptionExcerpt && <p className="hint-line" style={{ color: 'var(--text)' }}>{detail.descriptionExcerpt}</p>}
         </>
-      ) : detail.check ? (
+      ) : (
         <>
-          {(detail.check.scope === 'partial' || detail.check.stale) && (
+          {detail.check && (detail.check.scope === 'partial' || detail.check.stale) && (
             <p className="hint-line">{detail.check.stale ? 'Your draft changed since this check.' : 'Only part of your draft was readable.'}</p>
           )}
           <ul className="checklist">
-            {sorted.map((r, i) => (
-              <li className={`rq ${r.state}`} key={i}>
-                <span className="cbx" aria-label={fallbackNote[r.state]}>
-                  {r.state === 'observed' && <Icon name="check" />}
-                </span>
-                <span className="rq-text">{r.text}</span>
-                <span className="rq-note">{r.evidence?.note ?? fallbackNote[r.state]}</span>
-                {r.state === 'needs-review' && r.evidence?.quote && <span className="rq-quote">“{r.evidence.quote}”</span>}
-                {r.hint && <RequirementHint hint={r.hint} />}
-              </li>
+            {rows.map((r, i) => (
+              <RequirementRow key={i} r={r} checked={Boolean(detail.check)} />
             ))}
           </ul>
-        </>
-      ) : (
-        <>
-          <ul className="checklist">
-            {detail.requirements.map((r, i) => (
-              <li className="rq" key={i}>
-                <span className="cbx" aria-hidden="true" />
-                <span className="rq-text">{r.text}</span>
-                {r.hint && <RequirementHint hint={r.hint} />}
-              </li>
-            ))}
-          </ul>
-          {writing && (
+          {!detail.check && writing && (
             <p className="hint-line" style={{ paddingTop: 6 }}>
               {detail.checkAvailability === 'available' ? 'Loomer hasn’t checked your draft yet.' : notChecked[detail.checkAvailability]}
             </p>
@@ -281,13 +329,49 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
       )}
       {canCheck && detail.requirements.length > 0 && (
         <p className="pad" style={{ paddingTop: 8 }}>
-          <button type="button" className="link" disabled={checking} aria-busy={checking} onClick={run}>
+          <button type="button" className="link" disabled={checking} aria-busy={checking} title={detail.check ? `Checked ${observedAt(detail.check.at, now)}` : undefined} onClick={run}>
             {checking ? 'Checking…' : detail.check ? 'Check my draft again' : 'Check my draft'}
           </button>
         </p>
       )}
       {check.error && <p className="status-line error pad">{check.error}</p>}
     </section>
+  );
+}
+
+/** One requirement: its box and text, and, when tapped, the note, the quote, and the hint. Before a check, only a hint opens it. */
+function RequirementRow({ r, checked }: { r: RequirementItem; checked: boolean }) {
+  const [open, setOpen] = useState(false);
+  const note = checked ? (r.evidence?.note ?? fallbackNote[r.state]) : null;
+  const quote = checked ? (r.evidence?.quote ?? null) : null;
+  const opens = Boolean(note || quote || r.hint);
+  const box = (
+    <span className="cbx" aria-label={checked ? fallbackNote[r.state] : undefined} aria-hidden={checked ? undefined : true}>
+      {checked && r.state === 'observed' && <Icon name="check" />}
+    </span>
+  );
+  if (!opens)
+    return (
+      <li className="rq">
+        {box}
+        <span className="rq-text">{r.text}</span>
+      </li>
+    );
+  return (
+    <li className={['rq tap', checked && r.state, open && 'open'].filter(Boolean).join(' ')}>
+      <button type="button" className="rq-row" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {box}
+        <span className="rq-text">{r.text}</span>
+        <Icon name={open ? 'chevronDown' : 'chevronRight'} size="sm" />
+      </button>
+      {open && (
+        <span className="rq-more">
+          {note && <span className="rq-note">{note}</span>}
+          {quote && <span className="rq-quote">“{quote}”</span>}
+          {r.hint && <RequirementHint hint={r.hint} />}
+        </span>
+      )}
+    </li>
   );
 }
 
@@ -306,40 +390,25 @@ function RequirementHint({ hint }: { hint: NonNullable<RequirementItem['hint']> 
   );
 }
 
-/**
- * Where the work lives (Canvas, the draft, saved sources, "2 of 3" when the
- * teacher asks for a number), plus Ask Loomer about it. The teacher's sheets
- * are listed under What it asks for.
- */
+/** Where the work lives (Canvas, the draft) and Ask Loomer about it, as one quiet line under Start working. Saved sources are under More options. */
 function Links({ item, detail, onAsk }: { item: WorkItem; detail: Detail | null; onAsk: () => void }) {
   const instructions = detail?.links.instructions[0] ?? item.url;
-  const sources = detail?.links.sources.length ?? 0;
-  const need = detail?.sourceNeed ?? null;
   return (
-    <div className="icon-links">
+    <p className="d-links">
       {instructions && (
         <a href={instructions} target="_blank" rel="noreferrer">
-          <Icon name="external" />
           {item.replay ? 'Replay page' : 'Canvas'}
         </a>
       )}
       {detail?.links.doc && (
         <a href={detail.links.doc} target="_blank" rel="noreferrer">
-          <Icon name="doc" />
           Your draft
         </a>
       )}
-      {(sources > 0 || need) && (
-        <span title={need ? `“${need.quote}”` : undefined}>
-          <Icon name="layers" />
-          {need ? `${sources} of ${need.required} ${need.required === 1 ? 'source' : 'sources'}` : sources === 1 ? '1 source' : `${sources} sources`}
-        </span>
-      )}
       <button type="button" onClick={onAsk}>
-        <Icon name="sparkle" />
         Ask Loomer
       </button>
-    </div>
+    </p>
   );
 }
 
