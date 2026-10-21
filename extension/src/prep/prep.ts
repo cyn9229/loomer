@@ -28,7 +28,7 @@ import { assignmentNoun } from '../analysis/insight';
 import { dayWords, localDay } from '../analysis/plan';
 import { topicKey } from '../analysis/topicStanding';
 import { isQuiz, storedWorkType } from '../analysis/workType';
-import { activeTopics, answerRight, answerSolid, counts, diagnosis, matchTopic, mistakes, names, outcomeOf, planSessions, practiceFor, readiness, topicCount, topicStandings, weakest } from './plan';
+import { activeTopics, answerRight, answerSolid, counts, diagnosis, fewNames, matchTopic, mistakes, names, outcomeOf, planSessions, practiceFor, readiness, stillWeak, topicCount, topicStandings, weakest } from './plan';
 
 const PREP_HORIZON_DAYS = 14;
 const SOURCE_CHARS = 15_000;
@@ -216,6 +216,7 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, sessio
     like: mistake ? { topic: mistake.topic.slice(0, 160), kind: mistake.kind, prompt: (mistake.prompt || mistake.term).slice(0, 2_000) } : null,
     avoid: askedPrompts(practices),
     perTopic: plan.perTopic,
+    harder: plan.topics.filter((t) => t.standing === 'solid' && !t.mixup).map((t) => t.text.slice(0, 160)),
   };
   const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
   if (typeof reply === 'string') {
@@ -443,6 +444,7 @@ export async function practiceLike(deps: PrepDeps, practiceId: string, questionI
     like: { topic: q.topic.slice(0, 160), kind: q.kind, prompt: (q.prompt || q.term).slice(0, 2_000) },
     avoid: askedPrompts([p]),
     perTopic: null,
+    harder: [],
   };
   const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
   const fresh = (await db.practices.get(practiceId))!;
@@ -577,14 +579,19 @@ export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typ
   const when = dayWords(testAt, now);
   const weak = weakest(topics, checks, 2);
   const waiting = session.when === 'later-today' && session.remindAt && Date.parse(session.remindAt) > now.getTime();
+  // Only topics that really need work are called weak; when everything is solid, the line says so.
+  const shaky = stillWeak(topics);
+  const focusOn = shaky.length ? shaky : weak;
   const insight =
-    waiting ? `Coming back to ${names(weak)} after a few hours helps ${weak.length === 1 ? 'it' : 'them'} stick for ${when}.`
-    : session.kind === 'diagnostic' ? `Loomer found ${topicCount(topics.length)} for ${noun}, so a diagnostic shows which ones to work on first.`
-    : session.kind === 'practice-test' ? `${Noun} is ${when}, so today is a practice test in its formats.`
-    : session.kind === 'warm-up' ? `${Noun} is ${when}, so a short warm-up on ${names(weak)} is the last step.`
-    : session.kind === 'rescue' ? `${Noun} is today, so ${session.minutes} minutes on ${names(weak)} helps most.`
-    : session.kind === 'review' ? `${Noun} is ${when}, so a light review keeps it fresh without cramming.`
-    : `${capFirst(names(weak))} ${weak.length === 1 ? 'is' : 'are'} the weakest, so today is ${session.minutes} minutes on ${weak.length === 1 ? 'it' : 'them'} before ${when}.`;
+    waiting ? 'Coming back after a few hours helps it stick.'
+    : session.kind === 'diagnostic' ? `Loomer found ${topicCount(topics.length)}, so this shows where to start.`
+    : session.kind === 'practice-test' ? `${Noun} is ${when}, so practice in its real format.`
+    : session.kind === 'warm-up' ? `A quick warm-up on ${fewNames(focusOn.slice(0, 2))} before the test.`
+    : session.kind === 'rescue' ? `${Noun} is today, so spend this on ${fewNames(focusOn.slice(0, 2))}.`
+    : session.kind === 'review' ? `A light review keeps ${noun} fresh without cramming.`
+    : session.kind === 'mixed-check' ? (shaky.length ? `A mixed check on ${fewNames(shaky)} shows what stuck.` : 'Everything is solid, so a mixed check helps it stick.')
+    : shaky.length ? `${capFirst(fewNames(shaky))} ${shaky.length === 1 ? 'is' : 'are'} still shaky, so start there.`
+    : 'Everything is solid, so this keeps it fresh.';
   return {
     step: {
       assignmentId: a.id,

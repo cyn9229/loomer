@@ -226,6 +226,7 @@ const practiceTask = defineTask({
   effort: 'low',
   system: `You write practice questions to help a student prepare for a test. ${PREP_BOUNDARY}
 Write exactly the requested number of questions of each kind, spread over the given topics, each answerable from what a student in this class learned. Every field is required; use "" or [] or -1 or null where it does not apply.
+Difficulty: as hard as the real class test or harder, never easier. A student who only skimmed the topic should get them wrong. Multiple choice: all 4 options plausible and about the same length and style, wrong options drawn from related people, places, dates, or causes in the same unit (common mix-ups), never a silly or obviously wrong option, and never an answer given away by wording. Prefer questions that need understanding (why, cause and effect, which case fits, what changed) over one-word recall. For topics listed in harder, write apply-level questions: compare two cases, pick the example that fits a concept, or reason about a cause, with distractors that are close.
 - topic: one of the given topic names, copied exactly. label: a short name for the question, at most 8 words, e.g. "Why Leopold II's rule drew protests".
 - skill: remember (a fact, name, or date), understand (a cause, reason, or meaning), or apply (use the idea on a new case or compare cases). Mix skills; when perTopic is given, write exactly that many questions for each topic, each with a different skill (remember first, then understand, then apply).
 - mcq: prompt, 4 options, answerIndex of the correct one, why: one sentence on why it is right.
@@ -243,6 +244,7 @@ If like is given, write one question of that kind on the same idea with new deta
       `Terms: ${req.terms.map((t) => `${t.term}: ${t.definition}`).join('; ') || 'none'}`,
       `Write: ${req.kinds.map((k) => `${k.count} ${k.kind}`).join(', ')}`,
       req.perTopic ? `perTopic: ${req.perTopic}` : null,
+      req.harder.length ? `harder: ${req.harder.join('; ')}` : null,
       req.like ? `Like this one (${req.like.kind}, topic ${req.like.topic}): ${req.like.prompt}` : null,
       req.avoid.length ? `Avoid these prompts:\n${req.avoid.map((p) => `- ${p}`).join('\n')}` : null,
     ]
@@ -273,7 +275,7 @@ const teachTask = defineTask({
 Start from what they picked or wrote: name the mix-up kindly and say what is actually true, in plain words a tired student follows. Never shame, never grade.
 block.kind: choose what fits the idea and is not in avoidKinds. compare: two cases side by side (heads are the two case names; rows such as Who, How, Why, What happened to people, each cell a few words). timeline: causes or events in order (steps with when and text). explain: a short plain explanation. frq-skill: how to build the kind of answer the question needs, with frame: a sentence frame as pieces, where text is fixed wording and blank (when non-empty) labels what the student fills in, such as "your claim" or "evidence from Hawaii"; never fill a blank in. visual: 3 to 5 boxes in steps showing how the idea works.
 block.title: at most 8 words. block.text: 2 to 4 short sentences (the explanation, or the lead-in for a table, timeline, frame, or boxes). block.quote: an exact passage from <source> that backs it, or "". Use null for compare, steps, or frame when the kind does not use them.
-checks: 1 or 2 new questions on the same idea (same fields as practice questions; prefer mcq with 4 options), never the missed question reworded, never a prompt in avoid.`,
+checks: 1 or 2 new questions on the same idea (same fields as practice questions; prefer mcq with 4 options, all plausible, at the level of the real test), never the missed question reworded, never a prompt in avoid.`,
   user: (req) =>
     [
       `Test: ${req.title}`,

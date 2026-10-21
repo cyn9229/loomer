@@ -4,7 +4,7 @@
 // asks. Never a grade, and never a guess at how long the student needs.
 import type { PracticeRecord, PrepRecord, TopicCheckRecord } from '../core/db';
 import type { Confidence, Outcome, PracticeKind, PrepMistake, PrepSession, PrepSessionKind, PrepTopic, Standing } from '../model/prep';
-import { lastCheck, standingOf, topicKey } from '../analysis/topicStanding';
+import { lastCheck, topicKey } from '../analysis/topicStanding';
 import { dayIndex, localDay } from '../analysis/plan';
 
 export const SESSION_MINUTES: Record<PrepSessionKind, number> = { diagnostic: 15, focus: 20, 'mixed-check': 10, 'practice-test': 25, review: 10, 'warm-up': 5, rescue: 10 };
@@ -34,12 +34,32 @@ export function mixupTopics(practices: PracticeRecord[]): Set<string> {
   return new Set([...latest].flatMap(([id, o]) => (o === 'mixup' ? [id] : [])));
 }
 
-/** Each active topic with its standing from the latest practice that covered it. */
+/**
+ * A topic's last two practices together (the last answer per question in each).
+ * Solid needs at least 2 sure, right answers there and 80% or better, so one
+ * lucky answer never makes a topic look ready.
+ */
+export function recentCheck(checks: TopicCheckRecord[]): { correct: number; total: number } | null {
+  const quizzes = [...new Set(checks.slice().sort((a, b) => b.at.localeCompare(a.at)).map((c) => c.quizId))].slice(0, 2);
+  if (quizzes.length === 0) return null;
+  return quizzes
+    .map((q) => lastCheck(checks.filter((c) => c.quizId === q))!)
+    .reduce((sum, c) => ({ correct: sum.correct + c.correct, total: sum.total + c.total }), { correct: 0, total: 0 });
+}
+
+const MIN_SOLID_ANSWERS = 2;
+function prepStanding(check: { correct: number; total: number } | null): Standing {
+  if (!check || check.total === 0) return 'unchecked';
+  return check.total >= MIN_SOLID_ANSWERS && check.correct / check.total >= SOLID_RATIO ? 'solid' : 'shaky';
+}
+const SOLID_RATIO = 0.8;
+
+/** Each active topic with its standing from its last two practices. */
 export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[], practices: PracticeRecord[] = []): PrepTopic[] {
   const mixups = mixupTopics(practices);
   return activeTopics(prep).map((t) => {
-    const check = lastCheck(checks.filter((c) => c.topic === topicKey(t.text)));
-    return { id: t.id, text: t.text, standing: standingOf(check), lastCheck: check && { correct: check.correct, total: check.total }, source: t.source, new: t.new, mixup: mixups.has(t.id) };
+    const check = recentCheck(checks.filter((c) => c.topic === topicKey(t.text)));
+    return { id: t.id, text: t.text, standing: prepStanding(check), lastCheck: check, source: t.source, new: t.new, mixup: mixups.has(t.id) };
   });
 }
 
@@ -125,25 +145,36 @@ export function sessionSlots(startDay: string, testDay: string): Slot[] {
   return [...first, ...focus, { date: addDays(testDay, -2), kind: 'practice-test', when: 'day' }, { date: addDays(testDay, -1), kind: 'review', when: 'day' }, morning];
 }
 
-/** "10 minutes on the Congo and Latin America". */
-export function stepText(kind: PrepSessionKind, topics: PrepTopic[], checks: TopicCheckRecord[], minutes = SESSION_MINUTES[kind]): string {
-  const weak = (n: number) => names(weakest(topics, checks, n));
+/**
+ * A session's title: a few words, never a list of topics (those go in the line
+ * under it), so the page stays easy to scan: "10-minute mixed check".
+ */
+export function stepText(kind: PrepSessionKind, topics: PrepTopic[], minutes = SESSION_MINUTES[kind]): string {
   switch (kind) {
     case 'diagnostic':
-      return topics.length === 1 ? 'Diagnostic on the one topic' : `Diagnostic on all ${topics.length} topics`;
+      return topics.length === 1 ? 'Diagnostic on 1 topic' : `Diagnostic on ${topics.length} topics`;
     case 'focus':
-      return `${minutes} minutes on ${weak(FOCUS_TOPICS)}`;
+      return stillWeak(topics).length ? `${minutes} minutes on weak spots` : `${minutes}-minute review`;
     case 'mixed-check':
-      return `A ${minutes}-minute mixed check on ${weak(3)}`;
+      return `${minutes}-minute mixed check`;
     case 'practice-test':
-      return "A practice test in this test's formats";
+      return 'Practice test';
     case 'review':
-      return `A light review of ${weak(3)}`;
+      return 'Light review';
     case 'warm-up':
-      return `${minutes}-minute warm-up on ${weak(2)}`;
+      return `${minutes}-minute warm-up`;
     case 'rescue':
-      return `${minutes} minutes on ${weak(2)}, the weakest topics`;
+      return `${minutes}-minute rescue`;
   }
+}
+
+/** Topics that really need work: mix-ups, shaky, or unchecked. */
+export const stillWeak = (topics: PrepTopic[]) => topics.filter((t) => t.mixup || t.standing !== 'solid');
+
+/** At most two names, then "and 3 more": "Hawaii and the Congo", "Hawaii, the Congo, and 3 more". */
+export function fewNames(items: { text: string }[]): string {
+  if (items.length <= 2) return names(items);
+  return `${items[0]!.text}, ${items[1]!.text}, and ${items.length - 2} more`;
 }
 
 const MINUTE_WORDS: Record<number, string> = { 15: '15 minutes', 30: '30 minutes', 60: '1 hour' };
@@ -197,7 +228,7 @@ export function planSessions(
       label: labelOf(slot, today, testDay, remindAt),
       kind: slot.kind,
       minutes,
-      step: stepText(slot.kind, topics, checks, minutes),
+      step: stepText(slot.kind, topics, minutes),
       sub: done ? `Done, ${solid} solid` : status === 'missed' ? 'Skipped' : '',
       status,
       back: gap ? `Back after ${gap} ${gap === 1 ? 'day' : 'days'}` : null,
