@@ -281,8 +281,8 @@ export const practiceRequestSchema = z.strictObject({
   avoid: z.array(z.string().max(400)).max(60),
   /** Diagnostic: exactly this many questions per topic, each testing a different skill. */
   perTopic: z.number().int().min(1).max(3).nullable(),
-  /** Topics the student already answers well: ask harder, apply-level questions on them. */
-  harder: z.array(z.string().max(160)).max(12),
+  /** The rung to ask each topic at (the skill ladder): recall, explain, apply, tell-apart, or transfer. */
+  ask: z.array(z.strictObject({ topic: z.string().max(160), rung: z.enum(['recall', 'explain', 'apply', 'tell-apart', 'transfer']) })).max(12),
 });
 
 export const PRACTICE_SKILLS = ['remember', 'understand', 'apply'] as const;

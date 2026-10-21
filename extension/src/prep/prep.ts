@@ -28,7 +28,8 @@ import { assignmentNoun } from '../analysis/insight';
 import { dayWords, localDay } from '../analysis/plan';
 import { topicKey } from '../analysis/topicStanding';
 import { isQuiz, storedWorkType } from '../analysis/workType';
-import { activeTopics, answerRight, answerSolid, counts, diagnosis, fewNames, matchTopic, mistakes, names, outcomeOf, planSessions, practiceFor, readiness, stillWeak, topicCount, topicStandings, weakest } from './plan';
+import { strictnessFor } from './ladder';
+import { activeTopics, answerRight, answerSolid, counts, diagnosis, fewNames, ladders, matchTopic, mistakes, names, outcomeOf, planSessions, practiceFor, readiness, stillWeak, topicCount, topicStandings, weakest } from './plan';
 
 const PREP_HORIZON_DAYS = 14;
 const SOURCE_CHARS = 15_000;
@@ -174,7 +175,7 @@ async function sessionsFor(db: LoomerDb, prep: PrepRecord, a: Assignment, now: D
   const testAt = effectiveDue(a, now).at;
   if (!testAt) return null;
   const [checks, practices] = await Promise.all([db.topicChecks.where('assignmentId').equals(prep.assignmentId).toArray(), db.practices.where('assignmentId').equals(prep.assignmentId).toArray()]);
-  const topics = topicStandings(prep, checks, practices);
+  const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now));
   return { topics, checks, practices, testAt, ...planSessions(prep, testAt, topics, practices, checks, now) };
 }
 
@@ -195,7 +196,10 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, sessio
   const settings = await ai();
   if (!(await prepAllowed(db, settings, a))) return null;
   const [checks, practices] = await Promise.all([db.topicChecks.where('assignmentId').equals(assignmentId).toArray(), db.practices.where('assignmentId').equals(assignmentId).toArray()]);
-  const topics = topicStandings(prep, checks, practices);
+  const strict = strictnessFor(effectiveDue(a, now()).at ?? now().toISOString(), now());
+  const topics = topicStandings(prep, checks, practices, strict);
+  // Each topic is asked at its own rung on the ladder; the student never sees the rungs.
+  const climbed = ladders(prep, practices, strict);
   const kind: PrepSessionKind | 'mistake' = mistake ? 'mistake' : (session?.kind ?? 'review');
   const practicedToday = practices.filter((p) => p.day === localDay(now())).flatMap((p) => p.questions.map((q) => q.topicId));
   const plan = mistake
@@ -216,7 +220,7 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, sessio
     like: mistake ? { topic: mistake.topic.slice(0, 160), kind: mistake.kind, prompt: (mistake.prompt || mistake.term).slice(0, 2_000) } : null,
     avoid: askedPrompts(practices),
     perTopic: plan.perTopic,
-    harder: plan.topics.filter((t) => t.standing === 'solid' && !t.mixup).map((t) => t.text.slice(0, 160)),
+    ask: plan.perTopic ? [] : plan.topics.map((t) => ({ topic: t.text.slice(0, 160), rung: climbed.get(t.id)?.ask ?? 'recall' })),
   };
   const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
   if (typeof reply === 'string') {
@@ -444,7 +448,7 @@ export async function practiceLike(deps: PrepDeps, practiceId: string, questionI
     like: { topic: q.topic.slice(0, 160), kind: q.kind, prompt: (q.prompt || q.term).slice(0, 2_000) },
     avoid: askedPrompts([p]),
     perTopic: null,
-    harder: [],
+    ask: [],
   };
   const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
   const fresh = (await db.practices.get(practiceId))!;
@@ -502,7 +506,7 @@ async function summaryOf(db: LoomerDb, p: PracticeRecord, now: Date): Promise<Pr
   if (!a || !prep) return null;
   const answered = p.questions.filter((q) => p.answers[q.id]);
   const ids = new Set(answered.map((q) => q.topicId));
-  const all = topicStandings(prep, checks, practices);
+  const all = topicStandings(prep, checks, practices, strictnessFor(effectiveDue(a, now).at ?? now.toISOString(), now));
   const topics = all.filter((t) => ids.has(t.id));
   const wrong = answered.filter((q) => answerRight(p.answers[q.id]!) === false).length;
   const noun = assignmentNoun(a);
@@ -570,7 +574,7 @@ export async function loadPrep(db: LoomerDb, a: Assignment, now: Date): Promise<
 export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typeof topicStandings>[1], practices: PracticeRecord[], now: Date): { step: PrepStep; action: string; insight: string } | null {
   const testAt = effectiveDue(a, now).at;
   if (prep.status !== 'ready' || !testAt) return null;
-  const topics = topicStandings(prep, checks, practices);
+  const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now));
   if (topics.length === 0) return null;
   const session = planSessions(prep, testAt, topics, practices, checks, now).sessions.find((s) => s.status === 'today');
   if (!session) return null;

@@ -44,8 +44,13 @@ export type TestPrep = {
   notes: { photos: number; found: string | null };
 };
 
-/** `new`: just found in notes, shown with an x until kept (prep:topics-edit keep). `mixup`: the latest check had a sure-but-wrong answer. */
-export type PrepTopic = { id: string; text: string; standing: Standing; lastCheck: { correct: number; total: number } | null; source: 'guide' | 'notes' | 'student'; new: boolean; mixup: boolean };
+/**
+ * `new`: just found in notes, shown with an x until kept (prep:topics-edit keep).
+ * `mixup`: a sure, wrong answer not yet cleared. `progress`: 0 to 1 toward ready,
+ * for one simple bar. Solid means ready for the test; Loomer keeps the steps
+ * behind it (the skill ladder) out of sight.
+ */
+export type PrepTopic = { id: string; text: string; standing: Standing; lastCheck: { correct: number; total: number } | null; source: 'guide' | 'notes' | 'student'; new: boolean; mixup: boolean; progress: number };
 
 /**
  * What a session does. diagnostic: 2 or 3 questions per topic with Sure or

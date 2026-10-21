@@ -6,6 +6,8 @@ import type { PracticeRecord, PrepRecord, TopicCheckRecord } from '../core/db';
 import type { Confidence, Outcome, PracticeKind, PrepMistake, PrepSession, PrepSessionKind, PrepTopic, Standing } from '../model/prep';
 import { lastCheck, topicKey } from '../analysis/topicStanding';
 import { dayIndex, localDay } from '../analysis/plan';
+import { answerRight, climb, observationsFor, type Ladder, type Strictness } from './ladder';
+export { answerRight, answerSolid } from './ladder';
 
 export const SESSION_MINUTES: Record<PrepSessionKind, number> = { diagnostic: 15, focus: 20, 'mixed-check': 10, 'practice-test': 25, review: 10, 'warm-up': 5, rescue: 10 };
 /** A later-today check opens at 7 PM; after 9:30 PM Loomer plans nothing, because sleep helps memory more. */
@@ -22,17 +24,6 @@ export function outcomeOf(right: boolean, confidence: Confidence | null): Outcom
   return confidence === 'guessing' ? 'gap' : 'mixup';
 }
 
-/** Topics whose latest multiple-choice answer was sure but wrong, and not answered solidly since. */
-export function mixupTopics(practices: PracticeRecord[]): Set<string> {
-  const latest = new Map<string, Outcome>();
-  for (const p of practices.slice().sort((x, y) => x.createdAt.localeCompare(y.createdAt))) {
-    for (const q of p.questions) {
-      const a = p.answers[q.id];
-      if (a?.kind === 'mcq') latest.set(q.topicId, a.outcome);
-    }
-  }
-  return new Set([...latest].flatMap(([id, o]) => (o === 'mixup' ? [id] : [])));
-}
 
 /**
  * A topic's last two practices together (the last answer per question in each).
@@ -47,19 +38,23 @@ export function recentCheck(checks: TopicCheckRecord[]): { correct: number; tota
     .reduce((sum, c) => ({ correct: sum.correct + c.correct, total: sum.total + c.total }), { correct: 0, total: 0 });
 }
 
-const MIN_SOLID_ANSWERS = 2;
-function prepStanding(check: { correct: number; total: number } | null): Standing {
-  if (!check || check.total === 0) return 'unchecked';
-  return check.total >= MIN_SOLID_ANSWERS && check.correct / check.total >= SOLID_RATIO ? 'solid' : 'shaky';
+/** Each active topic's ladder (see ladder.ts): what to ask next and whether it is ready. */
+export function ladders(prep: PrepRecord, practices: PracticeRecord[], strict: Strictness): Map<string, Ladder> {
+  return new Map(activeTopics(prep).map((t) => [t.id, climb(observationsFor(t.id, practices), strict)]));
 }
-const SOLID_RATIO = 0.8;
 
-/** Each active topic with its standing from its last two practices. */
-export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[], practices: PracticeRecord[] = []): PrepTopic[] {
-  const mixups = mixupTopics(practices);
+/**
+ * Each active topic as the panel shows it. Solid means ready on the ladder
+ * (the right rung held, no open mix-up, and a later sitting), shown only as a
+ * simple bar (`progress`) and the standing, never as rungs.
+ */
+export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[], practices: PracticeRecord[], strict: Strictness): PrepTopic[] {
+  const climbed = ladders(prep, practices, strict);
   return activeTopics(prep).map((t) => {
+    const ladder = climbed.get(t.id)!;
     const check = recentCheck(checks.filter((c) => c.topic === topicKey(t.text)));
-    return { id: t.id, text: t.text, standing: prepStanding(check), lastCheck: check, source: t.source, new: t.new, mixup: mixups.has(t.id) };
+    const standing: Standing = !ladder.seen ? 'unchecked' : ladder.ready ? 'solid' : 'shaky';
+    return { id: t.id, text: t.text, standing, lastCheck: check, source: t.source, new: t.new, mixup: ladder.mixupOpen, progress: Math.round(ladder.progress * 100) / 100 };
   });
 }
 
@@ -67,13 +62,12 @@ export function counts(topics: PrepTopic[]): Record<Standing, number> {
   return { solid: topics.filter((t) => t.standing === 'solid').length, shaky: topics.filter((t) => t.standing === 'shaky').length, unchecked: topics.filter((t) => t.standing === 'unchecked').length };
 }
 
-const ratio = (t: PrepTopic) => (t.lastCheck && t.lastCheck.total ? t.lastCheck.correct / t.lastCheck.total : 0);
 const lastAt = (t: PrepTopic, checks: TopicCheckRecord[]) => checks.filter((c) => c.topic === topicKey(t.text)).reduce((max, c) => (c.at > max ? c.at : max), '');
 
-/** Mix-ups first, then the shakiest (lowest share right), then unchecked, then the oldest solid. */
+/** Mix-ups first, then the shakiest (least progress on the ladder), then unchecked, then the oldest solid. */
 export function weakest(topics: PrepTopic[], checks: TopicCheckRecord[], n: number): PrepTopic[] {
   const mixups = topics.filter((t) => t.mixup);
-  const shaky = topics.filter((t) => !t.mixup && t.standing === 'shaky').sort((a, b) => ratio(a) - ratio(b));
+  const shaky = topics.filter((t) => !t.mixup && t.standing === 'shaky').sort((a, b) => a.progress - b.progress);
   const unchecked = topics.filter((t) => !t.mixup && t.standing === 'unchecked');
   const solid = topics.filter((t) => !t.mixup && t.standing === 'solid').sort((a, b) => lastAt(a, checks).localeCompare(lastAt(b, checks)));
   return [...mixups, ...shaky, ...unchecked, ...solid].slice(0, n);
@@ -290,27 +284,6 @@ export function practiceFor(kind: PrepSessionKind, prep: PrepRecord, topics: Pre
       return { topics: weak, kinds: [{ kind: 'mcq', count: 4 }], perTopic: null };
     }
   }
-}
-
-/** Was this answer right? Written answers count when at least two thirds of what they needed was there. */
-export function answerRight(a: PracticeRecord['answers'][string]): boolean | null {
-  switch (a.kind) {
-    case 'mcq':
-    case 'math':
-      return a.right;
-    case 'vocab':
-      return a.knew;
-    case 'short':
-    case 'explain':
-      return a.status === 'ready' ? a.met.length * 3 >= (a.met.length + a.missing.length) * 2 : null;
-    case 'frq':
-      return a.status === 'ready' ? a.needs.filter((n) => n.met).length * 3 >= a.needs.length * 2 : null;
-  }
-}
-
-/** Counts toward a topic being solid: right, and not a guess. */
-export function answerSolid(a: PracticeRecord['answers'][string]): boolean | null {
-  return a.kind === 'mcq' ? a.outcome === 'solid' : answerRight(a);
 }
 
 /** Wrong answers, newest first; "then right" once a later answer on the same topic was right. */

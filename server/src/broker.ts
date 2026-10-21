@@ -226,7 +226,7 @@ const practiceTask = defineTask({
   effort: 'low',
   system: `You write practice questions to help a student prepare for a test. ${PREP_BOUNDARY}
 Write exactly the requested number of questions of each kind, spread over the given topics, each answerable from what a student in this class learned. Every field is required; use "" or [] or -1 or null where it does not apply.
-Difficulty: as hard as the real class test or harder, never easier. A student who only skimmed the topic should get them wrong. Multiple choice: all 4 options plausible and about the same length and style, wrong options drawn from related people, places, dates, or causes in the same unit (common mix-ups), never a silly or obviously wrong option, and never an answer given away by wording. Prefer questions that need understanding (why, cause and effect, which case fits, what changed) over one-word recall. For topics listed in harder, write apply-level questions: compare two cases, pick the example that fits a concept, or reason about a cause, with distractors that are close.
+Difficulty: as hard as the real class test or harder, never easier. A student who only skimmed the topic should get them wrong. Multiple choice: all 4 options plausible and about the same length and style, wrong options drawn from related people, places, dates, or causes in the same unit (common mix-ups), never a silly or obviously wrong option, and never an answer given away by wording. Prefer questions that need understanding (why, cause and effect, which case fits, what changed) over one-word recall. When ask gives a rung for a topic, write that topic's questions at that rung: recall (a fact, name, date, or term; skill remember), explain (why or what it means; skill understand), apply (use it on a new case or example; skill apply), tell-apart (tell it from the things students mix it up with, with distractors that are those exact mix-ups; skill apply), transfer (compare it with another case or use it somewhere new; skill apply). Never ask below the given rung.
 - topic: one of the given topic names, copied exactly. label: a short name for the question, at most 8 words, e.g. "Why Leopold II's rule drew protests".
 - skill: remember (a fact, name, or date), understand (a cause, reason, or meaning), or apply (use the idea on a new case or compare cases). Mix skills; when perTopic is given, write exactly that many questions for each topic, each with a different skill (remember first, then understand, then apply).
 - mcq: prompt, 4 options, answerIndex of the correct one, why: one sentence on why it is right.
@@ -244,7 +244,7 @@ If like is given, write one question of that kind on the same idea with new deta
       `Terms: ${req.terms.map((t) => `${t.term}: ${t.definition}`).join('; ') || 'none'}`,
       `Write: ${req.kinds.map((k) => `${k.count} ${k.kind}`).join(', ')}`,
       req.perTopic ? `perTopic: ${req.perTopic}` : null,
-      req.harder.length ? `harder: ${req.harder.join('; ')}` : null,
+      req.ask.length ? `ask:\n${req.ask.map((a) => `- ${a.topic}: ${a.rung}`).join('\n')}` : null,
       req.like ? `Like this one (${req.like.kind}, topic ${req.like.topic}): ${req.like.prompt}` : null,
       req.avoid.length ? `Avoid these prompts:\n${req.avoid.map((p) => `- ${p}`).join('\n')}` : null,
     ]
