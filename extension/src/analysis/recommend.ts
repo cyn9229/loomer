@@ -226,7 +226,7 @@ function withPrep(input: RecommendInput, core: CoreModel): CoreModel {
   if (!prep || !a) return core;
   const today = prepStep(prep, a, input.topicChecks.filter((c) => c.assignmentId === id), input.practices.filter((p) => p.assignmentId === id), input.now);
   if (!today) return core;
-  return { ...core, next: { ...core.next, prep: today.step, action: today.action, aiGenerated: false, insight: { kind: 'prep', text: today.insight, aiFound: false }, slip: null, quickStart: null, plainWords: null } };
+  return { ...core, next: { ...core.next, prep: today.step, action: today.action, detail: today.detail, aiGenerated: false, insight: { kind: 'prep', text: today.insight, aiFound: false }, slip: null, quickStart: null, plainWords: null } };
 }
 
 /**
@@ -556,8 +556,8 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
   }
 
   return analysis
-    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, why: '', ...choice }
-    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, why: '', ...choice };
+    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, why: '', detail: analysis.plainShort || null, ...choice }
+    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, why: '', detail: null, ...choice };
 }
 
 function toWorkItem(

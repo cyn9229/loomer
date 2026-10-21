@@ -66,6 +66,7 @@ describe('sessions by the time left', () => {
     const plan = planSessions(prep, tomorrow, topics, [], [], now);
     expect(plan.sessions.map((s) => [s.kind, s.minutes, s.status])).toEqual([['diagnostic', 15, 'today'], ['focus', 15, 'later'], ['warm-up', 5, 'later']]);
     expect([plan.fits, plan.note?.startsWith("Loomer won't plan anything late tonight")]).toEqual(['Fits your 30 minutes', true]);
+    expect(plan.sessions.map((x) => x.detail)).toEqual(['All 1 topic, 3 questions each', 'On Hawaii', 'On Hawaii']);
     const roomy = planSessions({ ...prep, today: undefined }, tomorrow, topics, [], [], now);
     expect(roomy.sessions.find((s) => s.kind === 'mixed-check')).toMatchObject({ label: 'After dinner, around 7 PM', when: 'later-today' });
     const late = planSessions({ ...prep, today: undefined }, tomorrow, topics, [], [], new Date(2026, 9, 20, 22));

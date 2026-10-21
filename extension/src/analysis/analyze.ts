@@ -18,6 +18,8 @@ import { assignmentPolicy, courseKey, effectiveDue, inDecisionSet, policyAnswer 
 /** Provider failures are usually transient (timeouts, rate limits). */
 const RETRY_FAILED_AFTER_MS = 10 * 60 * 1000;
 const CONCURRENCY = 4;
+/** Raise when the analysis prompt changes in a way older results should pick up. 2: a specific 3-to-6-word first step. */
+export const ANALYSIS_VERSION = 2;
 
 export type AnalyzeOptions = { db: LoomerDb; ai: () => Promise<AiSettings>; now?: Date; fetch?: typeof fetch };
 
@@ -44,8 +46,8 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
     }
     const prior = analysisById.get(a.id);
     // An ok analysis from before work types existed is read again once, to learn the type.
-    // Analyses from before work types, or before the short fields (plainShort, labels), are read again once.
-    const current = prior?.status === 'ok' && prior.workType !== undefined && prior.plainShort !== undefined;
+    // An analysis from an older prompt (before work types, short fields, or specific first steps) is read again once.
+    const current = prior?.status === 'ok' && (prior.version ?? 1) >= ANALYSIS_VERSION;
     if (prior?.detailHash === a.detail.hash && (current || (prior.status === 'failed' && now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS))) continue;
     const decision = checkAiDispatch({ aiEnabled: settings.enabled, policy, answer: policyAnswer(a, contextByKey), purpose: 'requirements-analysis' });
     if (decision.allowed) queue.push(a);
@@ -92,7 +94,7 @@ async function analyzeOne(db: LoomerDb, a: Assignment, settings: AiSettings, ai:
   // Typed first: Dexie's insert type does not narrow a union record.
   const record: Analysis =
     reply.ok && parsed?.success
-      ? { ...base, status: 'ok', model: reply.model, ...groundInSource(parsed.data, request) }
+      ? { ...base, status: 'ok', model: reply.model, version: ANALYSIS_VERSION, ...groundInSource(parsed.data, request) }
       : { ...base, status: 'failed', error: reply.ok ? 'invalid result' : reply.error };
   await db.analyses.put(record);
 }

@@ -76,6 +76,8 @@ export type PrepSession = {
   status: 'done' | 'today' | 'later' | 'missed';
   /** "Back after 3 days", when the session brings topics back. */
   back: string | null;
+  /** The specifics under the title: the topics it covers ("On Hawaii, the Congo, and 1 more") or the formats ("Multiple choice and free response"). */
+  detail: string;
   /** For a later-today session: when it opens, and whether a reminder is set (prep:remind). */
   remindAt: string | null;
   reminder: boolean;

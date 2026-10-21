@@ -47,7 +47,7 @@ export const requirementsResponseSchema = z.strictObject({
   plainWords: z.string(),
   /** The same in one short sentence, about 12 words. */
   plainShort: z.string(),
-  /** One concrete first step, 2 to 4 words (at most 24 characters), that starts with a verb and does not do the work. */
+  /** One concrete, specific first step, 3 to 6 words (at most 40 characters), that starts with a verb and does not do the work. */
   firstStep: z.string(),
   /** What kind of work it is, so the session can help the right way. */
   workType: z.enum(WORK_TYPES),

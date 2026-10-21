@@ -146,6 +146,12 @@ export type NextAction = {
   /** One short, general line under Home's title: about 8 words, at most 60 characters, no topic names. */
   why: string;
   /**
+   * A subtitle with the specifics, under the title: the topics a practice
+   * covers ("On Latin American independence, the Monroe Doctrine, and 1 more"),
+   * or what the work asks (the analysis's plainShort). Null when Loomer has none.
+   */
+  detail: string | null;
+  /**
    * A start Loomer suggested that didn't happen. `count`: missed suggested days
    * since the student last worked on it. Ask "What got in the way?" only when
    * count is 1 and answer is null; slip:answer records it.

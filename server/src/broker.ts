@@ -83,7 +83,7 @@ Return JSON matching the schema:
 - milestones: earlier checkpoints the text states (for example a draft due before the final), each with an exact quote and a label of 1 or 2 words ending in "due", such as "Draft due" or "Outline due". date: the stated date as YYYY-MM-DD, or null. daysBeforeDue: when the text states it relative to the final deadline ("the day before the final deadline" is 1), else null. Never guess a date the text does not give. Empty if none.
 - plainWords: what the assignment asks, in 2 or 3 short plain sentences a tired student can follow. Explain the task and what success looks like; never start it, never suggest a thesis or answer.
 - plainShort: the same in one short sentence, about 12 words.
-- firstStep: one concrete action of 2 to 4 words, at most 24 characters, that starts with a verb and helps the student begin, such as "Note each claim" or "Outline your comparison". It is a one-line headline on a narrow panel, so keep it that short. Never write a thesis, an answer, or any part of the work.
+- firstStep: one concrete action of 3 to 6 words, at most 40 characters, that starts with a verb, names what in this assignment to work on, and helps the student begin, such as "Find three quotes about Victor" or "Outline your two-source comparison". Never generic (not "Review the novel" or "Start the essay"). Never write a thesis, an answer, or any part of the work.
 - workType: writing (the student writes prose: essays, responses, reflections, reports, posts), practice (problems or exercises to solve: worksheets, review sheets, problem sets, corrections), study (preparing for a test or quiz, study guides, vocabulary), or reading (reading or annotating a text, with at most short answers).
 Every quote must be copied character for character from the given text. If you cannot quote support, use effort Unknown and leave lists empty.`,
   user: (req) =>
@@ -180,7 +180,7 @@ const focusTask = defineTask({
   response: focusResponseSchema,
   system: `You pick one focus for a student's writing session, so their work and hints have a direction. ${BOUNDARY}
 Look at the numbered requirements and what the draft already does. Pick the single most useful next target: a requirement the draft has not reached or addresses weakly. If a previous focus is given and the draft now handles it, move on; if not, it can stay.
-Return JSON: focus starts with a verb, 3 to 5 words, names a part of the work (for example "Compare your two sources"), never content for it. why: one short sentence grounded in the draft or requirements. requirementIndex: the requirement's number, or null.`,
+Return JSON: focus starts with a verb, 4 to 7 words, names a specific part of the work (for example "Compare how your two sources use evidence"), never content for it. why: one short sentence grounded in the draft or requirements. requirementIndex: the requirement's number, or null.`,
   user: (req) =>
     [
       `Assignment: ${req.title}`,

@@ -162,6 +162,32 @@ export function stepText(kind: PrepSessionKind, topics: PrepTopic[], minutes = S
   }
 }
 
+const FORMAT_WORDS: Record<PrepRecord['formats']['selected'][number], string> = { mcq: 'multiple choice', frq: 'free response', vocab: 'vocabulary', short: 'short answer', math: 'math problems' };
+
+/** The specifics under a session's title: which topics it covers, or for a practice test, its formats. */
+export function sessionDetail(kind: PrepSessionKind, prep: PrepRecord, topics: PrepTopic[], checks: TopicCheckRecord[]): string {
+  const on = (n: number) => {
+    const weak = stillWeak(topics);
+    return `On ${fewNames((weak.length ? weakest(weak, checks, n) : weakest(topics, checks, n)))}`;
+  };
+  switch (kind) {
+    case 'diagnostic':
+      return `All ${topicCount(topics.length)}, ${topics.length <= 4 ? 3 : 2} questions each`;
+    case 'practice-test': {
+      const formats = prep.formats.selected.map((f) => FORMAT_WORDS[f]);
+      const list = formats.length <= 1 ? (formats[0] ?? 'multiple choice') : `${formats.slice(0, -1).join(', ')} and ${formats.at(-1)}`;
+      return `${list.charAt(0).toUpperCase()}${list.slice(1)}, like the real test`;
+    }
+    case 'focus':
+    case 'warm-up':
+    case 'rescue':
+      return on(2);
+    case 'mixed-check':
+    case 'review':
+      return on(3);
+  }
+}
+
 /** Topics that really need work: mix-ups, shaky, or unchecked. */
 export const stillWeak = (topics: PrepTopic[]) => topics.filter((t) => t.mixup || t.standing !== 'solid');
 
@@ -223,6 +249,7 @@ export function planSessions(
       kind: slot.kind,
       minutes,
       step: stepText(slot.kind, topics, minutes),
+      detail: sessionDetail(slot.kind, prep, topics, checks),
       sub: done ? `Done, ${solid} ready` : status === 'missed' ? 'Skipped' : '',
       status,
       back: gap ? `Back after ${gap} ${gap === 1 ? 'day' : 'days'}` : null,

@@ -158,6 +158,8 @@ export type Analysis =
       status: 'ok';
       createdAt: string;
       model: string;
+      /** The analysis prompt's version (ANALYSIS_VERSION); older ones are read again once. Absent before version 2. */
+      version?: number;
       effort: EffortLabel;
       effortReason: Quoted;
       deliverables: Quoted[];

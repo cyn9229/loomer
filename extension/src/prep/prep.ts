@@ -571,7 +571,7 @@ export async function loadPrep(db: LoomerDb, a: Assignment, now: Date): Promise<
 }
 
 /** Home's step for a test with prep: the current session, or the later-today one it waits for. Null when today's sessions are done. */
-export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typeof topicStandings>[1], practices: PracticeRecord[], now: Date): { step: PrepStep; action: string; insight: string } | null {
+export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typeof topicStandings>[1], practices: PracticeRecord[], now: Date): { step: PrepStep; action: string; detail: string; insight: string } | null {
   const testAt = effectiveDue(a, now).at;
   if (prep.status !== 'ready' || !testAt) return null;
   const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now));
@@ -606,6 +606,7 @@ export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typ
       waiting: waiting ? { sessionId: session.id, label: `Next at ${new Date(session.remindAt!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`, step: session.step, remindAt: session.remindAt!, reminder: session.reminder } : null,
     },
     action: session.step,
+    detail: session.detail,
     insight,
   };
 }
