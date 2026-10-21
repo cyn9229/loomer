@@ -21,3 +21,19 @@ it('moves old session help messages into the assignment chat thread', async () =
   ]);
   expect(await db.chat.count()).toBe(0);
 });
+
+it('gives practices saved before sessions and teaching blocks the new fields', async () => {
+  const name = `test-${crypto.randomUUID()}`;
+  const old = new Dexie(name);
+  old.version(12).stores({ practices: 'id, assignmentId' });
+  await old.table('practices').add({
+    id: 'p1', assignmentId: 't', dayKind: 'check-all', day: '2026-10-20', createdAt: '', startedAt: '', endedAt: '', closed: true, writing: false, error: null, index: 0,
+    questions: [{ id: 'q1', kind: 'mcq' }],
+    answers: { q1: { kind: 'mcq', picked: 1, correct: 1, right: true, why: 'Because.' } },
+  });
+  old.close();
+
+  const p = (await new LoomerDb(name).practices.get('p1'))!;
+  expect([p.blocks, p.showing, p.sessionId, p.dayKind, p.questions[0]!.skill]).toEqual([[], null, null, 'diagnostic', 'remember']);
+  expect(p.answers.q1).toMatchObject({ outcome: 'solid', confidence: null });
+});

@@ -557,6 +557,23 @@ export class LoomerDb extends Dexie {
     });
     this.version(11).stores({ chatFiles: '++id, threadKey' });
     this.version(12).stores({ preps: 'assignmentId', practices: 'id, assignmentId' });
+    // Practices saved before sessions, confidence, and teaching blocks get the new fields once.
+    this.version(13).upgrade((tx) =>
+      tx.table<Record<string, unknown> & { questions: Record<string, unknown>[]; answers: Record<string, Record<string, unknown>> }>('practices').toCollection().modify((p) => {
+        p.blocks ??= [];
+        p.showing ??= null;
+        p.sessionId ??= null;
+        if (p.dayKind === 'check-all') p.dayKind = 'diagnostic';
+        if (p.dayKind === 'comeback') p.dayKind = 'review';
+        for (const q of p.questions) q.skill ??= 'remember';
+        for (const a of Object.values(p.answers)) {
+          if (a.kind !== 'mcq' || a.outcome) continue;
+          a.confidence = null;
+          a.outcome = a.right ? 'solid' : 'mixup';
+          a.next = '';
+        }
+      }),
+    );
   }
 }
 
