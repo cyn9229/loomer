@@ -36,10 +36,10 @@ export function buildPrepFixtures(now: Date) {
     fits: 'Fits your 1 hour',
     note: 'Loomer won’t plan a late-night session, because sleep helps you remember more than another hour of studying.',
     plan: [
-      { id: 's1', date: day(now, 0), when: 'now', label: 'Now', kind: 'diagnostic', minutes: 15, step: 'Diagnostic on 8 topics', sub: 'Done, 4 ready', status: 'done', back: null, remindAt: null, reminder: false },
-      { id: 's2', date: day(now, 0), when: 'next', label: 'Next', kind: 'focus', minutes: 20, step: '20 minutes on weak spots', sub: '', status: 'today', back: null, remindAt: null, reminder: false },
-      { id: 's3', date: day(now, 0), when: 'later-today', label: 'After dinner, around 7 PM', kind: 'mixed-check', minutes: 10, step: '10-minute mixed check', sub: '', status: 'later', back: null, remindAt: at(19), reminder: false },
-      { id: 's4', date: day(now, 1), when: 'morning', label: 'Tomorrow morning', kind: 'warm-up', minutes: 5, step: '5-minute warm-up', sub: 'Before the 9:00 AM test', status: 'later', back: null, remindAt: null, reminder: false },
+      { id: 's1', date: day(now, 0), when: 'now', label: 'Now', kind: 'diagnostic', minutes: 15, step: 'Diagnostic on 8 topics', detail: 'All 8 topics, 2 or 3 questions each', sub: 'Done, 4 ready', status: 'done', back: null, remindAt: null, reminder: false },
+      { id: 's2', date: day(now, 0), when: 'next', label: 'Next', kind: 'focus', minutes: 20, step: '20 minutes on weak spots', detail: 'On Hawaii, the Congo, and Latin America', sub: '', status: 'today', back: null, remindAt: null, reminder: false },
+      { id: 's3', date: day(now, 0), when: 'later-today', label: 'After dinner, around 7 PM', kind: 'mixed-check', minutes: 10, step: '10-minute mixed check', detail: 'On Hawaii, the Congo, and Latin America', sub: '', status: 'later', back: null, remindAt: at(19), reminder: false },
+      { id: 's4', date: day(now, 1), when: 'morning', label: 'Tomorrow morning', kind: 'warm-up', minutes: 5, step: '5-minute warm-up', detail: 'Your 2 weakest topics, before the test', sub: 'Before the 9:00 AM test', status: 'later', back: null, remindAt: null, reminder: false },
     ],
     mistakes: [
       { id: 'm1', topicId: 't-congo', topic: 'The Congo', label: 'Why Leopold II’s rule drew protests', sub: 'Missed yesterday, then right' },

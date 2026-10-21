@@ -4,8 +4,8 @@
 // isn't one yet), notices (sync problem, keep going, older work), the plan
 // (List by start day, or Week day by day, which also holds busy days and your
 // changes), the sync footer, and the Ask bar. The next step is a short title,
-// one line of why, the button, and one quiet line that opens the item's page,
-// where the evidence lives (round 46, 1A). Views render only what the model
+// a subtitle with the specifics, one quiet line of why, the button, and one
+// quiet line that opens the item's page, where the evidence lives (round 46, 1A). Views render only what the model
 // says; they never invent progress, time estimates, or checks.
 import { useState, type ReactNode } from 'react';
 import type { EditableFields } from '../model/detail';
@@ -356,7 +356,8 @@ function Finding() {
 }
 
 /**
- * The next step (round 46, 1A): a short title, one line of why, and the
+ * The next step (round 46, 1A): a short title, a subtitle with the specifics
+ * (the topics, or what the work asks), one quiet line of why, and the
  * button. One quiet line under it names the assignment and opens its page,
  * where the evidence, readiness, and plan live. Below that, only actions:
  * Not today, Set a time, Start it now anyway, or Ask Loomer to pick again.
@@ -417,12 +418,17 @@ function NextStep({ next, resume, now, actions, onMoved }: { next: NextAction; r
     );
   return (
     <section className="focus" aria-label="Next step">
-      {/* One line: Loomer's steps fit in about 24 characters; a topic step or one the student typed can run longer, so it ends in an ellipsis and the full text is the tooltip. */}
+      {/* Up to two lines: Loomer's steps fit in about 40 characters; a step the student typed can run longer, so past two lines it ends in an ellipsis and the full text is the tooltip. */}
       <h1 className="h1 next-t" title={headline}>
         {/* The AI mark belongs to the step itself, so only when the headline is next.action and the AI wrote it. */}
         {next.aiGenerated && headline === next.action && <AiMark />}
         {headline}
       </h1>
+      {next.detail && (
+        <p className="step-detail" title={next.detail}>
+          {next.detail}
+        </p>
+      )}
       <p className="step-why">{next.why}</p>
       {asksWhy(next.slip) && <SlipQuestion slip={next.slip} send={actions.send} />}
       {answer === 'not-sure' && <PlainWords next={next} />}

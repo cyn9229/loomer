@@ -357,22 +357,34 @@ button.focus-sub:hover {
    about 24 characters), one line of why, the button, and one quiet line that
    opens the item's page. */
 .h1.next-t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-size: 22px;
   line-height: 1.2;
   letter-spacing: -0.5px;
-  white-space: nowrap;
+}
+/* The specifics under the title: the topics, or what the work asks. Up to two lines. */
+.step-detail {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
 }
 .h1.next-t .ai-mark {
   margin-right: 6px;
   vertical-align: -2px;
 }
 .step-why {
-  margin-top: 6px;
-  font-size: 14.5px;
+  margin-top: 4px;
+  font-size: 13.5px;
   line-height: 1.4;
-  color: var(--text);
+  color: var(--muted);
 }
 .step-meta {
   display: flex;
@@ -5713,7 +5725,17 @@ details > summary .icon {
   border-top: 0;
 }
 .prep-line .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
+  padding: 8px 0;
+}
+.prep-ld {
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--muted);
 }
 .prep-line.done {
   color: var(--muted);

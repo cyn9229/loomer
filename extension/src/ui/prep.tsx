@@ -5,7 +5,7 @@
 // your notes, which reads photos of paper notes. Once the plan is ready, the
 // page leads with "4 of 8 ready" over one thin bar (topics the student's own
 // checks made ready for the test, never a grade), Start practice, and the plan
-// as one line per session. Topics, mistakes, and rereads fold to one row each
+// as one row per session (its title, and the topics or formats under it). Topics, mistakes, and rereads fold to one row each
 // (round 46); opened, each topic is one thin bar from its progress, and a
 // mix-up keeps its mark. The skill ladder behind progress never shows.
 import { useId, useRef, useState, type ReactNode } from 'react';
@@ -142,7 +142,10 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
               <span className="prep-sd" aria-hidden="true">
                 {p.status === 'done' && <Icon name="check" />}
               </span>
-              <span className="grow">{p.step}</span>
+              <span className="grow">
+                <span className="prep-lt">{p.step}</span>
+                {p.detail && <span className="prep-ld">{p.detail}</span>}
+              </span>
               <span className="prep-lw">{whenWord(p)}</span>
               {at && p.status !== 'done' && (
                 <button
