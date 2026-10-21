@@ -225,8 +225,9 @@ function Choice({ q, answer, picked, locked, onPick }: { q: PracticeQuestion; an
 }
 
 /** Right or wrong, and how sure: four outcomes, each with its own mark. A mix-up (wrong but sure) is the one to fix first. */
-const OUTCOME_TITLE: Record<Outcome, string> = { solid: 'Solid', shaky: 'Right, but a guess', mixup: 'A mix-up to fix', gap: 'Not learned yet' };
-export const OUTCOME_WORD: Record<Outcome, string> = { solid: 'Solid', shaky: 'Shaky', mixup: 'Mix-up', gap: 'Not learned yet' };
+// A right-and-sure answer reads Strong; Ready is kept for the stricter test-readiness rule.
+const OUTCOME_TITLE: Record<Outcome, string> = { solid: 'Strong', shaky: 'Right, but a guess', mixup: 'A mix-up to fix', gap: 'Not learned yet' };
+export const OUTCOME_WORD: Record<Outcome, string> = { solid: 'Strong', shaky: 'Shaky', mixup: 'Mix-up', gap: 'Not learned yet' };
 
 /** The mark for an outcome: a check, half full, a red "!", or striped. */
 export function OutcomeMark({ outcome }: { outcome: Outcome }) {
@@ -444,7 +445,7 @@ function PracticeDone({ summary, title, onHome, onReviewMistakes }: { summary: P
             ))}
             {solid.length > shownSolid.length && (
               <button type="button" className="link diag-more" onClick={() => setAllSolid(true)}>
-                {solid.length - shownSolid.length === 1 ? '1 more solid topic' : `${solid.length - shownSolid.length} more solid topics`}
+                {solid.length - shownSolid.length === 1 ? '1 more strong topic' : `${solid.length - shownSolid.length} more strong topics`}
               </button>
             )}
           </div>

@@ -360,16 +360,9 @@ button.focus-sub:hover {
   font-size: 22px;
   line-height: 1.2;
   letter-spacing: -0.5px;
-}
-.h1.next-t.long {
-  font-size: 19px;
-  line-height: 1.22;
-  letter-spacing: -0.3px;
-}
-.h1.next-t.xlong {
-  font-size: 17px;
-  line-height: 1.26;
-  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .h1.next-t .ai-mark {
   margin-right: 6px;
@@ -2695,6 +2688,14 @@ details > summary .icon {
 }
 .rq-row > .icon {
   color: var(--faint);
+}
+.rq-row .rq-text {
+  min-width: 0;
+}
+.rq.tap:not(.open) .rq-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rq-more {
   display: flex;

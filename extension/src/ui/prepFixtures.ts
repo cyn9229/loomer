@@ -28,7 +28,7 @@ export function buildPrepFixtures(now: Date) {
     testAt,
     status: 'ready',
     error: null,
-    readiness: '4 of 8 topics on this test are solid, and the Hawaii mix-up is the first thing to fix.',
+    readiness: '4 of 8 topics on this test are ready, and the Hawaii mix-up is the first thing to fix.',
     counts: { solid: 4, shaky: 4, unchecked: 0 },
     topics: TOPICS,
     formats: { selected: ['mcq', 'frq', 'vocab'], found: { mcq: 'canvas', frq: 'canvas', vocab: 'guide' }, asked: false },
@@ -230,7 +230,7 @@ export function buildPracticeFixtures() {
     done: practice(null, null, 10, {
       done: {
         line: 'You did 10 minutes on the Congo and Latin America.',
-        detail: 'The Congo is solid now, and Latin America still needs one more round before Friday.',
+        detail: 'The Congo is ready now, and Latin America still needs one more round before Friday.',
         topics: [
           { text: 'The Congo under Leopold II', standing: 'solid', lastCheck: { correct: 3, total: 3 } },
           { text: 'Latin America and the Roosevelt Corollary', standing: 'shaky', lastCheck: { correct: 2, total: 4 } },
@@ -287,7 +287,7 @@ function round44() {
       practice(null, null, 20, {
         done: {
           line: 'Here’s where you are for tomorrow’s Unit 5 Test.',
-          detail: '4 of 8 topics are solid, and the Hawaii mix-up is the first thing to fix.',
+          detail: '4 of 8 topics look strong so far, and the Hawaii mix-up is the first thing to fix.',
           topics: [],
           mistakes: 3,
           diagnosis: [

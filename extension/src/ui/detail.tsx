@@ -339,12 +339,13 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   );
 }
 
-/** One requirement: its box and text, and, when tapped, the note, the quote, and the hint. Before a check, only a hint opens it. */
+/** One requirement: its box and text, and, when tapped, the full text, the note, the quote, and the hint. Before a check, only a hint or a long text opens it. */
 function RequirementRow({ r, checked }: { r: RequirementItem; checked: boolean }) {
   const [open, setOpen] = useState(false);
   const note = checked ? (r.evidence?.note ?? fallbackNote[r.state]) : null;
   const quote = checked ? (r.evidence?.quote ?? null) : null;
-  const opens = Boolean(note || quote || r.hint);
+  // A long row (a rubric line in the teacher's words) clamps to one line, so it opens even with nothing else to show.
+  const opens = Boolean(note || quote || r.hint) || r.text.length > 40;
   const box = (
     <span className="cbx" aria-label={checked ? fallbackNote[r.state] : undefined} aria-hidden={checked ? undefined : true}>
       {checked && r.state === 'observed' && <Icon name="check" />}

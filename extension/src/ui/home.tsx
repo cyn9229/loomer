@@ -295,11 +295,6 @@ function AskBar({ onOpen, aiDown, quizOpen, send, nudge }: { onOpen: () => void;
   );
 }
 
-/** Steps the headline down for long actions so it never needs an ellipsis. Short ones (about 24 characters) fit one line at 320px. */
-function titleClass(text: string): string {
-  return text.length > 70 ? 'h1 next-t xlong' : text.length > 40 ? 'h1 next-t long' : 'h1 next-t';
-}
-
 type FocusProps = {
   model: Exclude<HomeModel, { status: 'not-connected' }>;
   now: Date;
@@ -422,7 +417,8 @@ function NextStep({ next, resume, now, actions, onMoved }: { next: NextAction; r
     );
   return (
     <section className="focus" aria-label="Next step">
-      <h1 className={titleClass(headline)}>
+      {/* One line: Loomer's steps fit in about 24 characters; a topic step or one the student typed can run longer, so it ends in an ellipsis and the full text is the tooltip. */}
+      <h1 className="h1 next-t" title={headline}>
         {/* The AI mark belongs to the step itself, so only when the headline is next.action and the AI wrote it. */}
         {next.aiGenerated && headline === next.action && <AiMark />}
         {headline}

@@ -578,7 +578,7 @@ export function buildFixtures(now: Date) {
           kind: 'mixed-check',
           minutes: 10,
           counts: { solid: 6, shaky: 2, unchecked: 0 },
-          readiness: '6 of 8 topics on this test are solid now, and Latin America still needs a check.',
+          readiness: '6 of 8 topics on this test are ready now, and Latin America still needs a check.',
           waiting: { sessionId: 's3', label: 'Next at 7:00 PM', step: 'A mixed check on those 3 topics', remindAt: at(now, 0, 19, 0), reminder: false },
         },
       },
@@ -865,6 +865,14 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
       {
         text: 'Cite in MLA format',
         source: { quote: 'cite them in MLA format', label: 'Assignment instructions' },
+        state: 'unknown',
+        evidence: null,
+        hint: null,
+      },
+      // A rubric row in the teacher's own words: long, so it clamps to one line until opened.
+      {
+        text: 'Explains how each source supports or complicates the claim, using specific evidence from both',
+        source: { quote: 'Explains how each source supports or complicates the claim, using specific evidence from both', label: 'Rubric, criterion 3' },
         state: 'unknown',
         evidence: null,
         hint: null,
