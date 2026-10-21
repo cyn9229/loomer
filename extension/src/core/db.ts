@@ -144,7 +144,8 @@ export type Course = {
 export type Quoted = { text: string; quote: string };
 
 /** A checkpoint as the model read it. Date fields are absent on analyses stored before they existed. */
-export type Milestone = Quoted & { date?: string | null; daysBeforeDue?: number | null };
+/** `label`: 1 or 2 words for a tile ("Draft due"); absent on older analyses. */
+export type Milestone = Quoted & { date?: string | null; daysBeforeDue?: number | null; label?: string };
 
 /**
  * One AI interpretation of an assignment's requirements. Valid only while the
@@ -164,6 +165,8 @@ export type Analysis =
       firstStep: string;
       /** Instructions in plain words; absent on older analyses. */
       plainWords?: string;
+      /** plainWords in one short sentence; absent on older analyses. */
+      plainShort?: string;
       /** The AI's reading of the kind of work; absent on older analyses. */
       workType?: WorkType;
     }

@@ -31,6 +31,8 @@ const quoted = z.strictObject({
  */
 const milestone = z.strictObject({
   text: z.string(),
+  /** 1 or 2 words for a tile, ending in "due": "Draft due". */
+  label: z.string(),
   quote: z.string(),
   date: z.string().nullable(),
   daysBeforeDue: z.number().int().nullable(),
@@ -43,7 +45,9 @@ export const requirementsResponseSchema = z.strictObject({
   milestones: z.array(milestone),
   /** What the assignment asks, in 2 or 3 plain sentences. Explains the task; never starts it. */
   plainWords: z.string(),
-  /** One concrete first step, at most about 9 words, that starts with a verb and does not do the work. */
+  /** The same in one short sentence, about 12 words. */
+  plainShort: z.string(),
+  /** One concrete first step, 2 to 4 words (at most 24 characters), that starts with a verb and does not do the work. */
   firstStep: z.string(),
   /** What kind of work it is, so the session can help the right way. */
   workType: z.enum(WORK_TYPES),

@@ -5,7 +5,7 @@
 // Pure, except the two small writes at the end.
 import type { LoomerDb, SlipReason, StudentContext } from '../core/db';
 import type { Insight, NextAction } from '../model/home';
-import { dayWords, localDay, lowerFirst } from './plan';
+import { dayWords, localDay } from './plan';
 
 /** Suggested days kept per assignment. */
 const KEEP_DAYS = 14;
@@ -65,8 +65,6 @@ export function slipInsight(slip: NonNullable<NextAction['slip']>, noun: string,
 /** Whether the next start should be a short session: the student said it felt too big or didn't feel like it, or it was missed more than once. */
 export const wantsQuickStart = (slip: NonNullable<NextAction['slip']>) => slip.answer === 'too-big' || slip.answer === 'not-feeling-it' || (slip.answer === null && slip.count > 1);
 
-/** "Just 10 minutes: outline the comparison between your two sources". */
-export const smallerStep = (action: string) => `Just ${QUICK_START_MINUTES} minutes: ${lowerFirst(action)}`;
 
 /** Records that Home suggested starting this assignment today. The worker calls it after each plan update. */
 export async function recordSuggestedStart(db: LoomerDb, assignmentId: string, today: string) {

@@ -107,6 +107,12 @@ const endOfLocalDay = (ymd: string) => {
   return new Date(y!, m! - 1, d!, 23, 59).getTime();
 };
 
+/** A tile label for a checkpoint from an older analysis: "Draft due", "Outline due", or "Step due". */
+function checkpointLabel(text: string): string {
+  const noun = /\b(draft|outline|proposal|thesis|bibliography|presentation|peer review)\b/i.exec(text)?.[1];
+  return noun ? `${noun.charAt(0).toUpperCase()}${noun.slice(1).toLowerCase()} due` : 'Step due';
+}
+
 /** Checkpoints with real dates: stated dates, or a stated number of days before the due date. */
 export function checkpointsFor(e: PlanEntry): Checkpoint[] {
   const due = e.due ? Date.parse(e.due) : null;
@@ -114,7 +120,7 @@ export function checkpointsFor(e: PlanEntry): Checkpoint[] {
     .flatMap((m) => {
       const at = m.date ? endOfLocalDay(m.date) : due !== null && m.daysBeforeDue != null ? due - m.daysBeforeDue * DAY_MS : null;
       if (at === null || (due !== null && at > due)) return [];
-      return [{ text: m.text, at: new Date(at).toISOString(), quote: m.quote, derived: !m.date }];
+      return [{ text: m.text, label: m.label ?? checkpointLabel(m.text), at: new Date(at).toISOString(), quote: m.quote, derived: !m.date }];
     })
     .sort((a, b) => a.at.localeCompare(b.at));
 }

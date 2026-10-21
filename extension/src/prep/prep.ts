@@ -518,8 +518,8 @@ async function summaryOf(db: LoomerDb, p: PracticeRecord, now: Date): Promise<Pr
     const solid = lines.filter((l) => l.outcome === 'solid').length;
     const first = lines.find((l) => l.outcome === 'mixup') ?? lines.find((l) => l.outcome === 'gap') ?? lines.find((l) => l.outcome === 'shaky');
     const detail = !first
-      ? `All ${topicCount(lines.length)} are solid, so a warm-up is all that's left.`
-      : `${solid} of ${topicCount(lines.length)} ${solid === 1 ? 'is' : 'are'} solid, and ${first.outcome === 'mixup' ? `the ${first.topic} mix-up` : first.topic} is the first thing to fix.`;
+      ? `All ${topicCount(lines.length)} look strong so far, and a later check makes them ready.`
+      : `${solid} of ${topicCount(lines.length)} ${solid === 1 ? 'looks' : 'look'} strong so far, and ${first.outcome === 'mixup' ? `the ${first.topic} mix-up` : first.topic} is the first thing to fix.`;
     return { line: `Here's where you are for ${testName(a, due, now)}.`, detail, topics: view, mistakes: wrong, diagnosis: lines };
   }
   const line =
@@ -535,9 +535,9 @@ async function summaryOf(db: LoomerDb, p: PracticeRecord, now: Date): Promise<Pr
   const before = due ? ` before ${dayWords(due, now)}` : '';
   const detail =
     topics.length === 0 ? 'Start again whenever you are ready.'
-    : weak.length === 0 ? `${capFirst(names(solid))} ${solid.length === 1 ? 'is' : 'are'} solid now.`
+    : weak.length === 0 ? `${capFirst(names(solid))} ${solid.length === 1 ? 'is' : 'are'} ready now.`
     : solid.length === 0 ? `${capFirst(names(weak))} still ${weak.length === 1 ? 'needs' : 'need'} one more round${before}.`
-    : `${capFirst(names(solid))} ${solid.length === 1 ? 'is' : 'are'} solid now, and ${names(weak)} still ${weak.length === 1 ? 'needs' : 'need'} one more round${before}.`;
+    : `${capFirst(names(solid))} ${solid.length === 1 ? 'is' : 'are'} ready now, and ${names(weak)} still ${weak.length === 1 ? 'needs' : 'need'} one more round${before}.`;
   return { line, detail, topics: view, mistakes: wrong, diagnosis: null };
 }
 
@@ -593,9 +593,9 @@ export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typ
     : session.kind === 'warm-up' ? `A quick warm-up on ${fewNames(focusOn.slice(0, 2))} before the test.`
     : session.kind === 'rescue' ? `${Noun} is today, so spend this on ${fewNames(focusOn.slice(0, 2))}.`
     : session.kind === 'review' ? `A light review keeps ${noun} fresh without cramming.`
-    : session.kind === 'mixed-check' ? (shaky.length ? `A mixed check on ${fewNames(shaky)} shows what stuck.` : 'Everything is solid, so a mixed check helps it stick.')
+    : session.kind === 'mixed-check' ? (shaky.length ? `A mixed check on ${fewNames(shaky)} shows what stuck.` : 'Everything is ready, so a mixed check helps it stick.')
     : shaky.length ? `${capFirst(fewNames(shaky))} ${shaky.length === 1 ? 'is' : 'are'} still shaky, so start there.`
-    : 'Everything is solid, so this keeps it fresh.';
+    : 'Everything is ready, so this keeps it fresh.';
   return {
     step: {
       assignmentId: a.id,

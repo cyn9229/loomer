@@ -51,7 +51,8 @@ export type WorkBucket = 'soon' | 'later' | 'no-date' | 'past';
  * a draft due for peer review). `derived` means Loomer computed the date from a
  * relative phrase such as "the day before the final deadline"; quote shows it.
  */
-export type Checkpoint = { text: string; at: string; quote: string; derived: boolean };
+/** `label`: 1 or 2 words for a tile, e.g. "Draft due". */
+export type Checkpoint = { text: string; label: string; at: string; quote: string; derived: boolean };
 
 /**
  * When to begin, not just when it's due: the checkpoint (or due date) minus the
@@ -140,8 +141,10 @@ export type NextAction = {
   loomerPick: { item: WorkItem; reason: string } | null;
   /** One line when the top of the plan moved since the last check, and why. Null when nothing moved. */
   change: string | null;
-  /** The best thing Loomer found about this step, shown under it. Always set; 'countdown' is the fallback. */
+  /** The best thing Loomer found about this step; the longer version, for when the student opens it. Always set; 'countdown' is the fallback. */
   insight: Insight;
+  /** One short, general line under Home's title: about 8 words, at most 60 characters, no topic names. */
+  why: string;
   /**
    * A start Loomer suggested that didn't happen. `count`: missed suggested days
    * since the student last worked on it. Ask "What got in the way?" only when

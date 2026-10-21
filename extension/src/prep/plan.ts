@@ -97,8 +97,8 @@ export function readiness(topics: PrepTopic[], checks: TopicCheckRecord[]): stri
   if (n === 0) return "Loomer hasn't found the topics on this test yet, so add your notes or a topic to start.";
   if (c.unchecked === n) return `Loomer found ${topicCount(n)} on this test and hasn't checked any yet, so start with the diagnostic.`;
   const weak = weakest(topics, checks, 1)[0]!;
-  if (c.solid === n && !weak.mixup) return n === 1 ? "The one topic on this test is solid, so a warm-up is all that's left." : `All ${n} topics on this test are solid, so a warm-up is all that's left.`;
-  return `${c.solid} of ${topicCount(n)} on this test ${c.solid === 1 ? 'is' : 'are'} solid, and ${weak.mixup ? `the ${weak.text} mix-up` : weak.text} still needs work.`;
+  if (c.solid === n && !weak.mixup) return n === 1 ? "The one topic on this test is ready, so a warm-up is all that's left." : `All ${n} topics on this test are ready, so a warm-up is all that's left.`;
+  return `${c.solid} of ${topicCount(n)} on this test ${c.solid === 1 ? 'is' : 'are'} ready, and ${weak.mixup ? `the ${weak.text} mix-up` : weak.text} still needs work.`;
 }
 
 const dayOf = (ymd: string) => {
@@ -223,7 +223,7 @@ export function planSessions(
       kind: slot.kind,
       minutes,
       step: stepText(slot.kind, topics, minutes),
-      sub: done ? `Done, ${solid} solid` : status === 'missed' ? 'Skipped' : '',
+      sub: done ? `Done, ${solid} ready` : status === 'missed' ? 'Skipped' : '',
       status,
       back: gap ? `Back after ${gap} ${gap === 1 ? 'day' : 'days'}` : null,
       remindAt,
@@ -325,7 +325,7 @@ export function diagnosis(p: PracticeRecord, laterToday: boolean): { topicId: st
       const line =
         outcome === 'mixup' ? `You were sure about a wrong answer on ${topic}, so Loomer fixes that first.`
         : outcome === 'gap' ? `${capFirst(topic)} isn't learned yet, so Loomer teaches it next.`
-        : outcome === 'solid' ? `${capFirst(topic)} is solid.`
+        : outcome === 'solid' ? `${capFirst(topic)} looks strong so far.`
         : solidSkill('remember') && weakSkill('understand') ? `You know the facts of ${topic}, but its causes are shaky, so Loomer starts with why it happened.`
         : solidSkill('remember') && weakSkill('apply') ? `You know ${topic}, but using it on a new case is shaky, so Loomer practices that next.`
         : `You got ${topic} partly right or guessed, so it ${back}.`;

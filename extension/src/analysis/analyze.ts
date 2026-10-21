@@ -44,7 +44,8 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
     }
     const prior = analysisById.get(a.id);
     // An ok analysis from before work types existed is read again once, to learn the type.
-    const current = prior?.status === 'ok' && prior.workType !== undefined;
+    // Analyses from before work types, or before the short fields (plainShort, labels), are read again once.
+    const current = prior?.status === 'ok' && prior.workType !== undefined && prior.plainShort !== undefined;
     if (prior?.detailHash === a.detail.hash && (current || (prior.status === 'failed' && now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS))) continue;
     const decision = checkAiDispatch({ aiEnabled: settings.enabled, policy, answer: policyAnswer(a, contextByKey), purpose: 'requirements-analysis' });
     if (decision.allowed) queue.push(a);
@@ -110,11 +111,13 @@ export function groundInSource(r: RequirementsResponse, req: RequirementsRequest
     deliverables: r.deliverables.filter(supported),
     milestones: r.milestones.filter(supported).map((m) => ({
       text: m.text,
+      label: m.label.trim().slice(0, 24) || undefined,
       quote: m.quote,
       date: m.date && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : null,
       daysBeforeDue: m.daysBeforeDue !== null && m.daysBeforeDue >= 0 && m.daysBeforeDue <= 90 ? m.daysBeforeDue : null,
     })),
     plainWords: r.plainWords.trim().slice(0, 600),
+    plainShort: r.plainShort.trim().slice(0, 140),
     firstStep: headline(r.firstStep),
     workType: r.workType,
   };

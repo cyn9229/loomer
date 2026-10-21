@@ -7,11 +7,11 @@ import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, Insight, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet, isOpen, offPlan, policyAnswer, type EffectiveDue } from './facts';
 import type { PlanChangeView } from '../model/plan';
-import { comparePlanned, crowdedWeek, dailyBrief, dueWords, keepPreviousTop, localDay, lowerFirst, plan, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
+import { comparePlanned, crowdedWeek, dailyBrief, dayIndex, dayWords, dueWords, keepPreviousTop, localDay, lowerFirst, plan, weekdayLong, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
 import { nextTopic, topicItems } from './topicStanding';
 import { assignmentNoun, insightFor, weakTopicInsight } from './insight';
-import { QUICK_START_MINUTES, slipInsight, slipOf, smallerStep, wantsQuickStart } from './slip';
+import { QUICK_START_MINUTES, slipInsight, slipOf, wantsQuickStart } from './slip';
 import { prepStep } from '../prep/prep';
 import { isQuiz, workTypeFor } from './workType';
 import { sameAsCanvas } from '../session/added';
@@ -92,7 +92,7 @@ export function buildHomeModel(input: RecommendInput): HomeModel {
   if (!input.connected) return { status: 'not-connected' };
   const roomFor = roomLookup(input.room);
   const ranking = rank(input, roomFor);
-  const core = withPrep(input, withSlip(input, withNextStep(input, withTopic(input, buildCore(input, ranking)))));
+  const core = withWhy(input.now, withPrep(input, withSlip(input, withNextStep(input, withTopic(input, buildCore(input, ranking))))));
   if (core.status === 'not-connected') return core;
   const next = core.status === 'ready' ? core.next.item.assignmentId : null;
   const today = localDay(input.now);
@@ -162,6 +162,61 @@ function withNextStep(input: RecommendInput, core: CoreModel): CoreModel {
   return { ...core, next: { ...core.next, action: packet.nextStep.text, aiGenerated: packet.nextStep.aiGenerated, insight } };
 }
 
+/** Home's short line under the title, from whatever decided the step: about 8 words, no topic names. */
+function withWhy(now: Date, core: CoreModel): CoreModel {
+  if (core.status !== 'ready') return core;
+  return { ...core, next: { ...core.next, why: shortWhy(core.next, now) } };
+}
+
+function shortWhy(next: NextAction, now: Date): string {
+  const due = next.item.due?.at ?? null;
+  const days = due ? dayIndex(Date.parse(due)) - dayIndex(now.getTime()) : null;
+  const dueLine = (): string => {
+    if (!due || days === null) return "Loomer didn't find a due date.";
+    if (days < 0) return `This was due ${dayWords(due, now)}.`;
+    if (days === 0) return 'Due today.';
+    if (days === 1) return 'Due tomorrow.';
+    return days <= 6 ? `Due ${weekdayLong(due)}, in ${days} days.` : `Due ${dayWords(due, now)}.`;
+  };
+  if (next.prep) {
+    const test = !due || days === null ? 'the test' : days === 0 ? "today's test" : days === 1 ? "tomorrow's test" : `${weekdayLong(due)}'s test`;
+    if (next.prep.waiting) return `${next.prep.waiting.label}, so it sticks.`;
+    if (next.prep.kind === 'diagnostic') return `Find your weak spots before ${test}.`;
+    const left = next.prep.counts.shaky + next.prep.counts.unchecked;
+    return left ? `${left} ${left === 1 ? 'topic still needs' : 'topics still need'} work before ${test}.` : `Everything is ready for ${test}.`;
+  }
+  if (next.slip) {
+    switch (next.slip.answer) {
+      case 'too-big':
+        return 'Made smaller: just 10 minutes.';
+      case 'not-feeling-it':
+        return 'A small start still counts.';
+      case 'not-sure':
+        return "Here's what it asks for.";
+      case 'no-time':
+        return 'Pick a day that works.';
+      case null:
+        return next.slip.count > 1 ? `${dueLine().replace(/\.$/, '')}, so start small.` : 'You missed the last planned start.';
+    }
+  }
+  switch (next.insight.kind) {
+    case 'change':
+      return 'Your plan changed since last time.';
+    case 'continue':
+      return 'Pick up where you left off.';
+    case 'hidden-deadline': {
+      const cp = next.item.checkpoints.find((c) => Date.parse(c.at) >= now.getTime());
+      return cp ? `${cp.label} ${dayWords(cp.at, now)}.` : 'An earlier step is due first.';
+    }
+    case 'busy-day':
+      return 'Moved up around your busy day.';
+    case 'weak-topic':
+      return 'Your last check found a weak spot.';
+    default:
+      return next.chosenByStudent ? `You picked this. ${dueLine()}` : dueLine();
+  }
+}
+
 /** A test with prep: today's practice step replaces the generic next step. */
 function withPrep(input: RecommendInput, core: CoreModel): CoreModel {
   if (core.status !== 'ready' || input.activeSession) return core;
@@ -195,7 +250,6 @@ function withSlip(input: RecommendInput, core: CoreModel): CoreModel {
       slip,
       quickStart: quick ? { minutes: QUICK_START_MINUTES } : null,
       plainWords,
-      action: quick ? smallerStep(core.next.action) : core.next.action,
       insight: slipInsight(slip, assignmentNoun(a), core.next.item.due?.at ?? null, plainWords, input.now),
     },
   };
@@ -502,8 +556,8 @@ function nextAction(top: Candidate, extra: Pick<NextAction, 'chosenByStudent' | 
   }
 
   return analysis
-    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, ...choice }
-    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, ...choice };
+    ? { item, action: analysis.firstStep, reason, evidence, aiGenerated: true, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, why: '', ...choice }
+    : { item, action: 'Open the instructions', reason, evidence, aiGenerated: false, topic: null, slip: null, quickStart: null, plainWords: null, prep: null, why: '', ...choice };
 }
 
 function toWorkItem(

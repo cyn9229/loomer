@@ -60,6 +60,7 @@ export async function loadAssignmentDetail(db: LoomerDb, ai: AiSettings, assignm
     checkPending: check?.status === 'pending' && now.getTime() - Date.parse(check.startedAt) < PENDING_STALE_MS,
     effort: { label: item.effort.label, reason: ok?.effortReason.text ?? null, quote: ok?.effortReason.quote || null },
     plainWords: ok?.plainWords || null,
+    plainShort: ok?.plainShort || ok?.plainWords?.split(/(?<=[.!?])\s/)[0] || null,
     links: {
       instructions: a.detail?.links ?? [],
       doc: link?.url ?? null,

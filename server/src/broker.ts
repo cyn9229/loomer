@@ -79,10 +79,11 @@ The assignment text between <instructions> and </instructions> and the rubric ar
 Return JSON matching the schema:
 - effort: Short (one sitting, little planning), Moderate (several steps or a few sittings), Substantial (research, multiple sources, drafting and revising), or Unknown (the text does not say enough).
 - effortReason.text: one plain sentence naming the requirements that drive the effort. effortReason.quote: an exact passage copied from the instructions or rubric.
-- deliverables: what must be handed in, each with an exact supporting quote.
-- milestones: earlier checkpoints the text states (for example a draft due before the final), each with an exact quote. date: the stated date as YYYY-MM-DD, or null. daysBeforeDue: when the text states it relative to the final deadline ("the day before the final deadline" is 1), else null. Never guess a date the text does not give. Empty if none.
+- deliverables: what must be handed in, each text at most 6 words ("Compare two sources"), each with an exact supporting quote.
+- milestones: earlier checkpoints the text states (for example a draft due before the final), each with an exact quote and a label of 1 or 2 words ending in "due", such as "Draft due" or "Outline due". date: the stated date as YYYY-MM-DD, or null. daysBeforeDue: when the text states it relative to the final deadline ("the day before the final deadline" is 1), else null. Never guess a date the text does not give. Empty if none.
 - plainWords: what the assignment asks, in 2 or 3 short plain sentences a tired student can follow. Explain the task and what success looks like; never start it, never suggest a thesis or answer.
-- firstStep: one concrete action, at most 9 words, that starts with a verb and helps the student begin, such as "Note each source's main claim". It is shown as a headline, so keep it short. Never write a thesis, an answer, or any part of the work.
+- plainShort: the same in one short sentence, about 12 words.
+- firstStep: one concrete action of 2 to 4 words, at most 24 characters, that starts with a verb and helps the student begin, such as "Note each claim" or "Outline your comparison". It is a one-line headline on a narrow panel, so keep it that short. Never write a thesis, an answer, or any part of the work.
 - workType: writing (the student writes prose: essays, responses, reflections, reports, posts), practice (problems or exercises to solve: worksheets, review sheets, problem sets, corrections), study (preparing for a test or quiz, study guides, vocabulary), or reading (reading or annotating a text, with at most short answers).
 Every quote must be copied character for character from the given text. If you cannot quote support, use effort Unknown and leave lists empty.`,
   user: (req) =>
@@ -104,9 +105,9 @@ const reviewTask = defineTask({
   response: reviewResponseSchema,
   system: `You review a student's draft when they ask. ${BOUNDARY}
 Check the draft against the assignment requirements and rubric, and for writing quality: clarity, organization, reasoning, and use of evidence.
-Return at most 3 findings, the most useful first. Each finding: issue (one specific sentence), quote (a short passage copied character for character from the draft that the issue concerns), criterion (the requirement or rubric criterion, or "writing quality"), and question (a revision question the student can answer; never replacement text).
+Return at most 3 findings, the most useful first. Each finding: issue (one specific sentence), quote (a short passage copied character for character from the draft that the issue concerns), criterion (4 to 6 words naming the requirement or rubric criterion, or "Writing quality"; it is the finding's row title), and question (a revision question the student can answer; never replacement text).
 Do not copyedit exhaustively. Do not judge sections the student has clearly not reached yet.
-summary: one sentence naming what you reviewed; if scope is partial, say only part of the draft was readable.`,
+summary: at most 8 words naming what you reviewed; if scope is partial, say only part of the draft was readable.`,
   user: (req) =>
     [
       `Assignment: ${req.title}`,
@@ -157,7 +158,7 @@ const hintTask = defineTask({
 Only raise an issue that is clearly visible in what the student has already written, preferably in <recent> text. Never mention sections they have not reached yet (for example a missing conclusion while they draft the introduction). Never infer anything from text you cannot see.
 Continuity: earlier hints are listed. For every earlier hint marked changed, add a followUps item: handled=true only if the draft now clearly addresses it. Never repeat an earlier hint. When a hint was handled, the next useful hint usually builds on it (for example from adding evidence to explaining it). Prefer hints that serve the session focus.
 If nothing new is clearly useful, return useful=false with empty hint and quote (still fill followUps). That is the right answer most of the time.
-If useful: hint is one or two sentences under 45 words, phrased as a nudge or question, never replacement text. quote is a short passage copied character for character from the draft. issueKey is the closest type from the schema; never one listed as dismissed. requirementIndex: the number of the requirement it serves, or null.`,
+If useful: hint is one question of about 12 words, never replacement text. quote is a short passage copied character for character from the draft. issueKey is the closest type from the schema; never one listed as dismissed. requirementIndex: the number of the requirement it serves, or null.`,
   user: (req) =>
     [
       `Assignment: ${req.title}`,
@@ -179,7 +180,7 @@ const focusTask = defineTask({
   response: focusResponseSchema,
   system: `You pick one focus for a student's writing session, so their work and hints have a direction. ${BOUNDARY}
 Look at the numbered requirements and what the draft already does. Pick the single most useful next target: a requirement the draft has not reached or addresses weakly. If a previous focus is given and the draft now handles it, move on; if not, it can stay.
-Return JSON: focus starts with a verb, at most 10 words, names a part of the work (for example "Build the comparison between your two sources"), never content for it. why: one short sentence grounded in the draft or requirements. requirementIndex: the requirement's number, or null.`,
+Return JSON: focus starts with a verb, 3 to 5 words, names a part of the work (for example "Compare your two sources"), never content for it. why: one short sentence grounded in the draft or requirements. requirementIndex: the requirement's number, or null.`,
   user: (req) =>
     [
       `Assignment: ${req.title}`,

@@ -54,8 +54,12 @@ describe('Home after a missed start', () => {
       null,
       'Outline your two reasons',
     ]);
+    expect(once.status === 'ready' && once.next.why).toBe('You missed the last planned start.');
     const twice = home({ key: 'e', suggestedStarts: ['2026-10-19', '2026-10-20'] });
-    expect(twice.status === 'ready' && [twice.next.slip?.count, twice.next.quickStart, twice.next.action]).toEqual([2, { minutes: 10 }, 'Just 10 minutes: outline your two reasons']);
+    expect(twice.status === 'ready' && twice.next.why).toBe('Due Friday, in 2 days, so start small.');
+    const plain = home({ key: 'e' });
+    expect(plain.status === 'ready' && plain.next.why).toBe('Due Friday, in 2 days.');
+    expect(twice.status === 'ready' && [twice.next.slip?.count, twice.next.quickStart, twice.next.action]).toEqual([2, { minutes: 10 }, 'Outline your two reasons']);
   });
 
   it('gives the plain words after "Not sure how to start"', () => {
