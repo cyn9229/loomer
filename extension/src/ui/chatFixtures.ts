@@ -4,6 +4,7 @@
 // local AI service not running. `revealTurn` replays a finished reply step by
 // step so the preview shows how replies stream in. Fixture data only.
 import { GENERAL_THREAD, type ChatBlock, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
+import type { Pending } from '../model/wait';
 import type { DayRoom, WorkItem } from '../model/home';
 import type { PlanChangeView } from '../model/plan';
 import { roomFixture } from './fixtures';
@@ -85,10 +86,15 @@ const QUIZ: ChatBlock = {
   },
 };
 
+/** A chat wait that started `secAgo` seconds ago; Stop in the composer cancels it. */
+function chatWait(now: Date, title: string, about: string | null, secAgo: number, usualSec: [number, number]): Pending {
+  return { title, about, startedAt: new Date(now.getTime() - secAgo * 1000).toISOString(), usualSec, steps: null, canCancel: true };
+}
+
 function turns(now: Date, pairs: [string, ChatBlock[], Partial<ChatTurn>?][]): ChatTurn[] {
   return pairs.flatMap(([question, reply, over], i) => [
-    { id: i * 2 + 1, role: 'student' as const, blocks: [{ kind: 'markdown' as const, text: question }], status: 'done' as const, createdAt: new Date(now.getTime() - 60_000).toISOString() },
-    { id: i * 2 + 2, role: 'loomer' as const, blocks: reply, status: 'done' as const, createdAt: now.toISOString(), ...over },
+    { id: i * 2 + 1, role: 'student' as const, blocks: [{ kind: 'markdown' as const, text: question }], status: 'done' as const, pending: null, createdAt: new Date(now.getTime() - 60_000).toISOString() },
+    { id: i * 2 + 2, role: 'loomer' as const, blocks: reply, status: 'done' as const, pending: null, createdAt: now.toISOString(), ...over },
   ]);
 }
 
@@ -213,6 +219,50 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       ]),
     }),
     stopped: general({ turns: turns(now, [['explain photosynthesis', [{ kind: 'markdown', text: 'Plants turn light, water and carbon dioxide into' }], { status: 'stopped' }]]) }),
+    // Round 45 waits: before the first word, a draft check with its steps, and a chart being made.
+    'reply-pending': general({
+      streaming: true,
+      turns: turns(now, [['what does figure 2 show', [], { status: 'streaming', pending: chatWait(now, 'Writing a reply', null, 2, [2, 6]) }]]),
+    }),
+    'check-pending': {
+      threadKey: essay?.assignmentId ?? 'a-essay',
+      assignment: essay,
+      availability: 'available',
+      streaming: true,
+      planChanges: {},
+      added: {},
+      threads,
+      setAside,
+      turns: turns(now, [
+        [
+          'Review my draft.',
+          [],
+          {
+            status: 'streaming',
+            pending: {
+              ...chatWait(now, 'Checking your draft', null, 9, [10, 40]),
+              steps: [
+                { label: 'Reading your draft', detail: 'Your draft, 840 words', status: 'done' },
+                { label: 'Checking it against the assignment', detail: null, status: 'now' },
+              ],
+            },
+          },
+        ],
+      ]),
+    } satisfies ChatModel,
+    'visual-pending': general({
+      streaming: true,
+      turns: turns(now, [
+        [
+          'show me how much free time i have this week',
+          [
+            { kind: 'tool', label: 'Looked at your week', status: 'done' },
+            { kind: 'pending', shape: 'visual', pending: chatWait(now, 'Making a visual', 'Your free time this week', 5, [8, 25]) },
+          ],
+          { status: 'streaming', pending: null },
+        ],
+      ]),
+    }),
   } satisfies Record<string, ChatModel>;
 }
 

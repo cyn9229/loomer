@@ -20,6 +20,8 @@ import { EvidenceList, PolicyNote, SizeMeter, SubjectTile } from './parts';
 import { DeleteAssignmentData } from './privacy';
 import { SheetList } from './sheets';
 import { TypeMenu } from './workType';
+import { Before, FailedLine, WaitLine, WaitNote, WaitOutline } from './wait';
+import { ReadLine, readAside } from './readState';
 
 // Test prep shows only on a test's page, so its screens load when one opens.
 const PrepSection = lazy(() => import('./prep').then((m) => ({ default: m.PrepSection })));
@@ -69,7 +71,21 @@ export function DetailView({ item, detail, now, actions, nudge, next = null }: D
         </p>
       )}
       {item.sameAsCanvas && <SameAsCanvas item={item} same={item.sameAsCanvas} actions={actions} />}
-      {ok?.plainWords && <PlainWordsBlock id={item.assignmentId} full={ok.plainWords} short={ok.plainShort} />}
+      {/* Has Loomer read it? A rule that says no AI already shows below as the policy note, so it isn't said twice. */}
+      {item.read && !(item.read.state === 'blocked' && item.read.reason !== 'ai-off') && (
+        <ReadLine item={item} read={item.read} actions={{ onReadNow: () => void actions.send({ type: 'read:now', assignmentId: item.assignmentId }), openSettings: actions.openSettings }} />
+      )}
+      {ok?.plainWords ? (
+        <PlainWordsBlock id={item.assignmentId} full={ok.plainWords} short={ok.plainShort} />
+      ) : item.read?.state === 'reading' || item.read?.state === 'changed' ? (
+        <WaitNote label="In plain words" text="Loomer writes these instructions in plain words after reading them." />
+      ) : (
+        // With the read line saying AI is off, the placeholder here would repeat it.
+        ok?.checkAvailability === 'ai-off' &&
+        item.read?.state !== 'blocked' && (
+          <Before label="In plain words" text="Turn on AI help, and Loomer rewrites these instructions in plain words." action={{ label: 'Turn on AI help', onClick: actions.openSettings }} />
+        )
+      )}
       {ok?.prep && (
         <Suspense fallback={<p className="lazy-wait">Opening your test prep…</p>}>
           <TestPrepBlock prep={ok.prep} actions={actions} />
@@ -300,7 +316,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
   // The draft check reads the student's own draft, so it exists only for writing.
   const writing = !detail.item.quiz && detail.item.workType.type === 'writing';
   const canCheck = writing && detail.checkAvailability === 'available';
-  const checking = detail.checkPending || check.busy;
+  const checking = Boolean(detail.checkPending) || check.busy;
   const run = () => check.run(() => actions.send({ type: 'requirements:check', assignmentId: detail.item.assignmentId }));
   const rows = detail.check ? [...detail.requirements].sort((a, b) => order[a.state] - order[b.state]) : detail.requirements;
   const open = detail.requirements.filter((r) => r.state !== 'observed').length;
@@ -308,20 +324,34 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
     <section aria-label="What it asks for">
       <div className="sec">
         <h2>What it asks for</h2>
-        {detail.check && <span className="aside">{open === 0 ? 'All found' : `${open} open`}</span>}
+        {detail.check ? <span className="aside">{open === 0 ? 'All found' : `${open} open`}</span> : detail.item.read && readAside(detail.item.read, now) && <span className="aside">{readAside(detail.item.read, now)}</span>}
       </div>
       <SheetList sheets={detail.sheets} label="Sheets in the instructions" requestOrigins={actions.requestOrigins} send={actions.send} />
+      {detail.checkPending && (
+        <div className="pad">
+          <WaitLine pending={detail.checkPending} />
+        </div>
+      )}
+      {detail.checkFailed && !detail.checkPending && <FailedLine failed={detail.checkFailed} onRetry={canCheck ? run : undefined} />}
       {detail.requirements.length === 0 ? (
-        <>
-          <p className="hint-line">Loomer hasn’t read the requirements yet.</p>
-          {detail.descriptionExcerpt && <p className="hint-line" style={{ color: 'var(--text)' }}>{detail.descriptionExcerpt}</p>}
-        </>
+        detail.item.read?.state === 'reading' || detail.item.read?.state === 'changed' ? (
+          <div className="pad">
+            <WaitOutline shape="rows" />
+            <p className="hint-line flat">This list fills in when Loomer finishes reading.</p>
+          </div>
+        ) : (
+          <>
+            {/* The read line above already says why the list is empty, so this offers the instructions themselves. */}
+            <p className="hint-line">{detail.item.read && detail.item.read.state !== 'read' ? 'Here’s the start of the instructions, so you can work from them now.' : 'Loomer hasn’t read the requirements yet.'}</p>
+            {detail.descriptionExcerpt && <p className="hint-line" style={{ color: 'var(--text)' }}>{detail.descriptionExcerpt}</p>}
+          </>
+        )
       ) : (
         <>
           {detail.check && (detail.check.scope === 'partial' || detail.check.stale) && (
             <p className="hint-line">{detail.check.stale ? 'Your draft changed since this check.' : 'Only part of your draft was readable.'}</p>
           )}
-          <ul className="checklist">
+          <ul className={detail.checkPending ? 'checklist waiting' : 'checklist'}>
             {rows.map((r, i) => (
               <RequirementRow key={i} r={r} checked={Boolean(detail.check)} />
             ))}
@@ -333,7 +363,7 @@ function Requirements({ detail, now, actions }: { detail: Detail; now: Date; act
           )}
         </>
       )}
-      {canCheck && detail.requirements.length > 0 && (
+      {canCheck && detail.requirements.length > 0 && !detail.checkPending && (
         <p className="pad" style={{ paddingTop: 8 }}>
           <button type="button" className="link" disabled={checking} aria-busy={checking} title={detail.check ? `Checked ${observedAt(detail.check.at, now)}` : undefined} onClick={run}>
             {checking ? 'Checking…' : detail.check ? 'Check my draft again' : 'Check my draft'}

@@ -19,6 +19,7 @@ import { observedAt, timeOf } from './format';
 import { SheetList } from './sheets';
 import { typeLabel } from './workType';
 import { AiBlock } from './aiBlock';
+import { FailedLine, WaitLine, WaitOutline, WaitSlot } from './wait';
 import { Icon } from './Icon';
 import { DeleteAssignmentData, docRule, hostRule, NeverRead } from './privacy';
 
@@ -250,8 +251,22 @@ function TopicsList({ topics, item, help, send }: { topics: NonNullable<ActiveSe
         <b>{title}</b>
         {topics.status === 'ok' && shown.length > 0 && <span>{summary}</span>}
       </div>
-      {topics.status === 'reading' && <p className="topics-note">Loomer is reading the sheet…</p>}
-      {topics.status === 'failed' && <p className="topics-note">Loomer couldn’t find topics on the sheet, but you can still ask for help.</p>}
+      {topics.status === 'reading' &&
+        (topics.pending ? (
+          <>
+            <WaitLine pending={topics.pending} />
+            <WaitOutline shape="rows" />
+          </>
+        ) : (
+          <p className="topics-note">Loomer is reading the sheet for its topics.</p>
+        ))}
+      {topics.status === 'failed' && (
+        <p className="topics-note">
+          {topics.retryAt
+            ? `Loomer couldn’t read the sheet, so it will try again at ${timeOf(topics.retryAt)}, and you can still ask for help now.`
+            : 'Loomer couldn’t find topics on the sheet, but you can still ask for help.'}
+        </p>
+      )}
       {topics.status === 'ok' && topics.items.length === 0 && <p className="topics-note">No topics found on the sheet.</p>}
       {topics.status === 'ok' &&
         (grouped
@@ -342,7 +357,13 @@ export function WorkHeader({ session, now, tab, onTab, hintWaiting, detail, onCh
       </p>
       {item.quiz ? null : (
         <>
-          {session.focus && <FocusBlock focus={session.focus} sessionId={session.sessionId} handled={session.handledHints} now={now} />}
+          {session.focus ? (
+            <FocusBlock focus={session.focus} sessionId={session.sessionId} handled={session.handledHints} now={now} />
+          ) : session.focusPending ? (
+            <WaitSlot label="Your focus" pending={session.focusPending} />
+          ) : (
+            session.focusFailed && <FailedLine failed={session.focusFailed} />
+          )}
           {(item.workType.type === 'practice' || item.workType.type === 'study') && (
             <>
               <SheetList sheets={session.teacherSheets} label="From the instructions" requestOrigins={api.requestOrigins} send={api.send} />

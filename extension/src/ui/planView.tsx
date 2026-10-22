@@ -12,6 +12,7 @@ import { Icon, type IconName } from './Icon';
 import { RoomMeter, WorkRow } from './parts';
 import { planByStart, weekDays, type WeekEvent } from './plan';
 import { YourChanges } from './planChange';
+import { rowReadWords } from './readState';
 import { subjectIcon } from './subject';
 
 export type PlanMode = 'list' | 'week';
@@ -184,6 +185,8 @@ const eventIcon: Partial<Record<WeekEvent['kind'], IconName>> = { start: 'play',
 
 function WeekRow({ event, onOpen }: { event: WeekEvent; onOpen: (id: string) => void }) {
   const icon = eventIcon[event.kind];
+  // Whether Loomer has read it, on starts only, so one assignment says it once a day; under the title, so a long title can't cut it off.
+  const read = event.kind === 'start' ? rowReadWords(event.item) : null;
   return (
     <button type="button" className={`ev ${event.kind}`} onClick={() => onOpen(event.item.assignmentId)}>
       <span className={`evk ${event.kind}`}>{icon && <Icon name={icon} />}</span>
@@ -191,15 +194,18 @@ function WeekRow({ event, onOpen }: { event: WeekEvent; onOpen: (id: string) => 
       <span className="evi">
         <Icon name={subjectIcon(event.item.courseName)} size="xs" />
       </span>
-      <span className="evt">
-        {event.kind === 'checkpoint' ? (
-          <>
-            {event.checkpoint.text}
-            <span className="evs"> · {event.item.title}</span>
-          </>
-        ) : (
-          event.item.title
-        )}
+      <span className="evtw">
+        <span className="evt">
+          {event.kind === 'checkpoint' ? (
+            <>
+              {event.checkpoint.text}
+              <span className="evs"> · {event.item.title}</span>
+            </>
+          ) : (
+            event.item.title
+          )}
+        </span>
+        {read && event.item.read && <span className={`evr read-w s-${event.item.read.state}`}>{read}</span>}
       </span>
       {event.kind === 'due' && <span className="evw">{timeOf(event.at)}</span>}
     </button>
@@ -235,7 +241,7 @@ function Folds({ items, later, now, actions }: { items: WorkItem[]; later: WorkI
               <Icon name="chevronRight" />
             </summary>
             {f.items.map((item) => (
-              <WorkRow key={item.assignmentId} item={item} now={now} note={f.note(item)} onOpen={actions.openItem} />
+              <WorkRow key={item.assignmentId} item={item} now={now} note={f.note(item)} onOpen={actions.openItem} inFold />
             ))}
           </details>
         ))}

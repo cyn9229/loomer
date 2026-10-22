@@ -17,8 +17,15 @@ const ACCEPT = 'image/*,.pdf,.docx,.txt,.md,.csv,.tsv,.json,.html,.rtf,.tex';
 /** localStorage: the student has seen where attached files go. A per-browser convenience only. */
 const NOTE_KEY = 'loomer.attachNoteSeen';
 
-/** One file in the composer: its name, and the read attachment once it is ready (null while reading). */
-type Slot = { key: number; name: string; attachment: Attachment | null };
+/** One file in the composer: its name, what's happening to it while it's read, and the read attachment once it is ready (null until then). */
+type Slot = { key: number; name: string; doing: string; attachment: Attachment | null };
+
+/** What happens to a file while it's read, in a few words for its chip. */
+function doingWords(file: File): string {
+  if (file.type.startsWith('image/')) return 'Shrinking it to send';
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) return 'Reading the PDF';
+  return 'Reading the file';
+}
 
 /**
  * Files waiting in the composer, in the order the student added them, the
@@ -33,12 +40,12 @@ export function useAttachments() {
   const taken = useRef(0);
 
   /** Slots for `names`, as many as fit; says which ones won't fit. */
-  const reserve = (names: string[]): Slot[] => {
+  const reserve = (names: string[], doing: (i: number) => string = () => 'Reading the file'): Slot[] => {
     const room = Math.max(0, MAX_ATTACHMENTS - taken.current);
     const left = names.slice(room);
     if (left.length > 0)
       setError(`You can attach up to ${MAX_ATTACHMENTS} files to one message, so ${left.length === 1 ? `${left[0]} won’t be sent` : `${left.length} files won’t be sent`}.`);
-    const fit = names.slice(0, room).map((name) => ({ key: nextKey.current++, name, attachment: null }));
+    const fit = names.slice(0, room).map((name, i) => ({ key: nextKey.current++, name, doing: doing(i), attachment: null }));
     taken.current += fit.length;
     return fit;
   };
@@ -57,7 +64,10 @@ export function useAttachments() {
   /** Files the student picked, dropped, or pasted. */
   const addFiles = (list: File[]) => {
     setError(null);
-    const fit = reserve(list.map((f) => f.name));
+    const fit = reserve(
+      list.map((f) => f.name),
+      (i) => doingWords(list[i]!),
+    );
     setSlots((all) => [...all, ...fit]);
     fit.forEach((slot, i) => void readAttachment(list[i]!).then((result) => settle(slot.key, result)));
   };
@@ -71,7 +81,7 @@ export function useAttachments() {
   /** Chrome's share picker for one frame. Must run inside the click, before any await. */
   const screenshot = () => {
     setError(null);
-    const [slot] = reserve(['the screenshot']);
+    const [slot] = reserve(['the screenshot'], () => 'Taking a screenshot of this tab');
     if (!slot) return;
     setSlots((all) => [...all, { ...slot, name: 'Screenshot' }]);
     void captureScreen().then((result) => settle(slot.key, result));
@@ -166,12 +176,13 @@ function waitingDetail(a: Attachment): string {
   return 'Image';
 }
 
-/** The files waiting in the composer, each with an x; one still being read says so. */
+/** The files waiting in the composer, each with an x; one still being read says what's happening to it, and Send waits. */
 export function AttachChips({ attach }: { attach: Attachments }) {
   if (attach.slots.length === 0) return null;
   return (
     <div className="attach-chips">
-      {attach.slots.map(({ key, name, attachment: a }) =>
+      {attach.reading > 0 && <p className="attach-wait">Send waits for {attach.reading === 1 ? 'this file' : `${attach.reading} files`} to finish.</p>}
+      {attach.slots.map(({ key, name, doing, attachment: a }) =>
         a?.kind === 'image' ? (
           <span className="attach-img" key={key} title={a.name}>
             <img src={a.thumb} alt={a.name} />
@@ -184,7 +195,7 @@ export function AttachChips({ attach }: { attach: Attachments }) {
             </span>
             <span className="attach-fb">
               <b>{name}</b>
-              <span>{a ? waitingDetail(a) : 'Reading…'}</span>
+              <span>{a ? waitingDetail(a) : doing}</span>
             </span>
             {a && <RemoveButton name={name} onClick={() => attach.remove(key)} />}
           </span>

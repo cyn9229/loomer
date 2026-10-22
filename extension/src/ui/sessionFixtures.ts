@@ -5,6 +5,7 @@
 // AI turned off, and the other kinds of work: practice (two teacher sheets with
 // grouped topics, one sheet, and sheets Loomer couldn't read), reading, and a quiz.
 import type { SessionModel } from '../model/session';
+import type { Pending } from '../model/wait';
 import { buildFixtures, essaySources } from './fixtures';
 
 const MIN = 60_000;
@@ -37,6 +38,15 @@ export function buildSessionFixtures(now: Date) {
     studentWords: 412,
   };
 
+  /** A wait that started `secAgo` seconds ago. */
+  const wait = (title: string, about: string | null, secAgo: number, usualSec: [number, number]): Pending => ({
+    title,
+    about,
+    startedAt: new Date(now.getTime() - secAgo * 1000).toISOString(),
+    usualSec,
+    steps: null,
+    canCancel: false,
+  });
   const base = {
     status: 'active' as const,
     sessionId: 7,
@@ -54,6 +64,9 @@ export function buildSessionFixtures(now: Date) {
     focus: { text: 'Compare your two sources', why: 'Your draft summarizes each source but does not compare them yet.', requirement: 'Compare the two sources' },
     handledHints: [{ id: 30, text: 'What does the EPA number show about your city?', at: ago(9) }],
     suggestion: null,
+    focusPending: null,
+    focusFailed: null,
+    hintPending: null,
     // What End shows: the planner's recap sentence, and the next step once asked for.
     recap: { text: 'You added 240 words and saved 2 sources in 35 minutes.', noun: 'this essay', minutes: 35, wordsDelta: 240, edits: 3, sourcesSaved: 2, topicsChecked: 0 },
     nextStep: { status: 'ready' as const, text: 'Compare your two sources', aiGenerated: true },
@@ -93,6 +106,17 @@ export function buildSessionFixtures(now: Date) {
         requirement: 'Compare the two sources',
       },
     },
+
+    // Round 45 waits: the focus being picked, a quiet hint read, and the next step at the end.
+    'focus-pending': {
+      ...base,
+      startedAt: ago(1),
+      focus: null,
+      handledHints: [],
+      focusPending: wait('Picking a focus', 'Your draft and the 4 things it asks for', 12, [10, 30]),
+    },
+    'hint-pending': { ...base, hintPending: wait('Looking for a hint', 'Your latest paragraph', 6, [10, 30]) },
+    'next-pending': { ...base, nextStep: { status: 'pending', pending: wait('Picking where to start next time', null, 3, [3, 10]) } },
 
     'help-pending': {
       ...base,
@@ -150,6 +174,8 @@ export function buildSessionFixtures(now: Date) {
           { text: 'Graphing by hand', quote: 'Sketch each parabola without a calculator.', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: true },
         ],
         next: { topic: 'Vertex form', reason: 'You missed 2 of 3 on the last check.', mode: 'check' },
+        pending: null,
+        retryAt: null,
       },
     },
     // One sheet read: a single line, flat topics, and the own-copy line.
@@ -173,6 +199,8 @@ export function buildSessionFixtures(now: Date) {
           { text: 'Projectile word problems', quote: 'A ball is thrown upward from a height of 6 feet…', sheet: 'Unit 6 Review: Quadratics', standing: 'unchecked', lastCheck: null, skipped: false },
         ],
         next: { topic: 'Vertex form', reason: 'You missed 2 of 3 on the last check.', mode: 'explain' },
+        pending: null,
+        retryAt: null,
       },
     },
     // Three sheets, three states: read, needs Google Docs, and Google refused.
@@ -190,7 +218,7 @@ export function buildSessionFixtures(now: Date) {
         { docId: '3gKey', url: 'https://docs.google.com/document/d/3gKey/edit', title: 'Answer key (teacher view)', state: 'no-access', topics: null },
       ],
       sourceNeed: null,
-      topics: { status: 'reading', items: [], next: null },
+      topics: { status: 'reading', items: [], next: null, pending: wait('Reading the sheet for topics', 'Unit 6 Review: Quadratics', 2, [5, 5]), retryAt: null },
     },
     'reading-work': {
       ...base,

@@ -19,6 +19,7 @@ import { AiServiceDown, SubjectTile } from './parts';
 import { PlanChangeCard } from './planChange';
 import { Sheet } from './sheet';
 import { useChatScroll } from './useChatScroll';
+import { WaitLine, WaitOutline, WaitSteps } from './wait';
 import { usePopover } from './usePopover';
 
 // The reply renderer (markdown, math, charts, quick checks) is the heaviest part of the panel, so it
@@ -131,7 +132,7 @@ export function AskView({ model, threadKey, onThread, threads, now, api, onOpenI
         {available && <AttachNote attach={attach} />}
         {model?.streaming ? (
           <div className="composer writing" role="status">
-            <span className="grow">Loomer is writing…</span>
+            <span className="grow">Loomer is writing a reply.</span>
             <button type="button" className="stop-btn" disabled={stop.busy} onClick={() => stop.run(() => api.send({ type: 'chat:stop', threadKey }))}>
               <Icon name="stop" size="sm" />
               Stop
@@ -756,7 +757,20 @@ function TurnView({
         {turn.blocks.map((block, i) => (
           <Block key={i} block={block} streaming={streaming} widgetUrl={widgetUrl} onOpenItem={onOpenItem} renderPlanChange={renderPlanChange} onQuizAnswer={onQuizAnswer} renderAddDraft={renderAddDraft} />
         ))}
-        {streaming && turn.blocks.length === 0 && <Thinking inline />}
+        {/* Before the first word, and while a draft check runs (with its steps), the turn says what Loomer is doing. */}
+        {streaming &&
+          (turn.pending ? (
+            turn.pending.steps ? (
+              <>
+                <WaitSteps pending={turn.pending} />
+                <WaitOutline shape="rows" />
+              </>
+            ) : (
+              turn.blocks.length === 0 && <WaitLine pending={turn.pending} />
+            )
+          ) : (
+            turn.blocks.length === 0 && <Thinking inline />
+          ))}
         {turn.status === 'stopped' && <p className="turn-note">Stopped</p>}
         {turn.status === 'error' && (
           <p className="turn-error" role="alert">

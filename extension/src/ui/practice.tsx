@@ -11,6 +11,8 @@ import { AiMark } from './aiBlock';
 import { SubjectTile } from './parts';
 import { TeachStep } from './teach';
 import type { Confidence, Outcome, Practice, PracticeAnswer, PracticeKind, PracticeQuestion, PracticeSkill, PracticeSummary, Standing } from '../model/prep';
+import type { Pending } from '../model/wait';
+import { WaitHold, WaitSlot } from './wait';
 
 /** What the student gave: a choice, written text, or a flashcard mark. */
 export type PracticeReply = { choice: number; confidence: Confidence } | { text: string } | { knew: boolean };
@@ -86,9 +88,14 @@ export function PracticeView({ practice, courseName, onAnswer, onLike, onNext, o
         </>
       ) : q ? (
         <Question key={q.id} practice={practice} courseName={courseName} q={q} answer={answer} onAnswer={onAnswer} onLike={onLike} onNext={onNext} />
+      ) : practice.pending ? (
+        // The question (or, after a miss, the lesson) holds its space; End stops the writing.
+        <div className="pv-body">
+          <WaitHold pending={practice.pending} shape={lastMiss.current ? 'table' : 'question'} onCancel={onEnd} />
+        </div>
       ) : (
         <p className="pv-wait" role="status">
-          {lastMiss.current ? 'Loomer is writing an explanation…' : practice.index === 0 ? 'Loomer is writing questions…' : 'Loomer is writing the next question…'}
+          {lastMiss.current ? 'Loomer is writing a short lesson.' : practice.index === 0 ? 'Loomer is writing your questions.' : 'Loomer is writing the next question.'}
         </p>
       )}
     </div>
@@ -142,7 +149,7 @@ function Question({ practice, courseName, q, answer, onAnswer, onLike, onNext }:
       <div className="pv-body">
         {q.kind === 'mcq' && <Choice q={q} answer={answer?.kind === 'mcq' ? answer : null} picked={picked} locked={checking} onPick={setPicked} />}
         {q.kind === 'vocab' && <Flashcard key={q.id} q={q} answered={answer?.kind === 'vocab'} onAnswer={onAnswer} />}
-        {(q.kind === 'short' || q.kind === 'explain' || q.kind === 'frq' || q.kind === 'math') && <Written q={q} answer={answer} onAnswer={onAnswer} />}
+        {(q.kind === 'short' || q.kind === 'explain' || q.kind === 'frq' || q.kind === 'math') && <Written q={q} answer={answer} onAnswer={onAnswer} pending={practice.pending} />}
       </div>
       <div className="pv-foot">
         {q.kind === 'mcq' && !answer ? (
@@ -298,7 +305,7 @@ const PLACEHOLDER: Record<'short' | 'explain' | 'frq' | 'math', string> = {
 };
 
 /** Short answer, Explain it back, free response, and math: write, check, then see the feedback. */
-function Written({ q, answer, onAnswer }: { q: PracticeQuestion; answer: PracticeAnswer | null; onAnswer: PracticeViewProps['onAnswer'] }) {
+function Written({ q, answer, onAnswer, pending }: { q: PracticeQuestion; answer: PracticeAnswer | null; onAnswer: PracticeViewProps['onAnswer']; pending: Pending | null }) {
   const kind = q.kind as 'short' | 'explain' | 'frq' | 'math';
   // What the student wrote: kept by the worker on the answer, so it survives a reload.
   const kept = answer && answer.kind !== 'mcq' && answer.kind !== 'vocab' ? answer.text : null;
@@ -339,17 +346,24 @@ function Written({ q, answer, onAnswer }: { q: PracticeQuestion; answer: Practic
       )}
       {!showBox &&
         (answer ? (
-          <Feedback answer={answer} onRevise={() => setEditing(true)} />
+          <Feedback answer={answer} onRevise={() => setEditing(true)} pending={pending} />
+        ) : pending ? (
+          <WaitSlot label={feedbackLabel(kind)} pending={pending} shape="rows" className="inset" />
         ) : (
           <p className="pv-wait" role="status">
-            {kind === 'math' ? 'Checking…' : 'Loomer is reading your answer…'}
+            {kind === 'math' ? 'Checking your answer.' : 'Loomer is checking your answer.'}
           </p>
         ))}
     </>
   );
 }
 
-function Feedback({ answer, onRevise }: { answer: PracticeAnswer; onRevise: () => void }) {
+/** The box a written answer's feedback fills. */
+function feedbackLabel(kind: PracticeAnswer['kind'] | PracticeQuestion['kind']): string {
+  return kind === 'frq' ? 'What a strong answer needs' : 'What Loomer noticed';
+}
+
+function Feedback({ answer, onRevise, pending }: { answer: PracticeAnswer; onRevise: () => void; pending: Pending | null }) {
   if (answer.kind === 'math')
     return (
       <>
@@ -376,9 +390,11 @@ function Feedback({ answer, onRevise }: { answer: PracticeAnswer; onRevise: () =
     );
   if (answer.kind === 'short' || answer.kind === 'explain' || answer.kind === 'frq') {
     if (answer.status === 'pending')
-      return (
+      return pending ? (
+        <WaitSlot label={feedbackLabel(answer.kind)} pending={pending} shape="rows" className="inset" />
+      ) : (
         <p className="pv-wait" role="status">
-          Loomer is reading your answer…
+          Loomer is checking your answer.
         </p>
       );
     const revise = answer.kind === 'frq' ? 'Revise my answer' : answer.kind === 'explain' ? 'Explain it again' : 'Add to my answer';

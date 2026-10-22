@@ -2,6 +2,17 @@
 // the practice view in every question kind and state. The example is a U.S.
 // History test on imperialism; every question is invented for the preview.
 import type { Practice, PracticeAnswer, PracticeQuestion, TeachBlock, TestPrep } from '../model/prep';
+import type { Pending, WaitStep } from '../model/wait';
+
+/** A wait that started `secAgo` seconds ago. */
+const wait = (title: string, about: string | null, secAgo: number, usualSec: [number, number], over: { steps?: WaitStep[]; canCancel?: boolean } = {}): Pending => ({
+  title,
+  about,
+  startedAt: new Date(Date.now() - secAgo * 1000).toISOString(),
+  usualSec,
+  steps: over.steps ?? null,
+  canCancel: over.canCancel ?? false,
+});
 
 const TOPICS: TestPrep['topics'] = [
   { id: 't-hawaii', text: 'Hawaii', standing: 'shaky', lastCheck: { correct: 2, total: 3 }, source: 'guide', new: false, mixup: true, progress: 0.3 },
@@ -28,6 +39,7 @@ export function buildPrepFixtures(now: Date) {
     testAt,
     status: 'ready',
     error: null,
+    pending: null,
     readiness: '4 of 8 topics on this test are ready, and the Hawaii mix-up is the first thing to fix.',
     counts: { solid: 4, shaky: 4, unchecked: 0 },
     topics: TOPICS,
@@ -95,6 +107,25 @@ export function buildPrepFixtures(now: Date) {
       plan: [],
       mistakes: [],
     },
+    // Round 45 waits: setup with its steps, and reading photos of notes.
+    'setup-reading': {
+      ...base,
+      ...fresh,
+      status: 'setup',
+      readiness: '',
+      counts: { solid: 0, shaky: 0, unchecked: 0 },
+      topics: [],
+      plan: [],
+      mistakes: [],
+      pending: wait('Setting up your test prep', null, 3, [10, 40], {
+        steps: [
+          { label: 'Read the instructions', detail: null, status: 'done' },
+          { label: 'Finding topics and key terms', detail: null, status: 'now' },
+          { label: 'Planning your sessions', detail: null, status: 'next' },
+        ],
+      }),
+    },
+    'notes-reading': { ...base, pending: wait('Reading your notes', '3 photos of your notes', 6, [10, 40]) },
     'setup-notes': {
       ...base,
       ...fresh,
@@ -165,6 +196,7 @@ const MATH: PracticeQuestion = { id: 'q-math', topic: 'Solving quadratics', kind
 const practice = (question: PracticeQuestion | null, answer: PracticeAnswer | null, index = 3, extra: Partial<Practice> = {}): Practice => ({
   id: 'p1',
   assignmentId: 'a-test',
+  pending: null,
   title: 'Unit 5 Test',
   index,
   total: 10,
@@ -179,13 +211,13 @@ const practice = (question: PracticeQuestion | null, answer: PracticeAnswer | nu
 
 export function buildPracticeFixtures() {
   return {
-    writing: practice(null, null, 0),
+    writing: practice(null, null, 0, { pending: wait('Writing 6 questions', 'Hawaii, the Congo, and Latin America', 4, [9, 9], { canCancel: true }) }),
     mcq: practice(MCQ, null),
     'mcq-right': practice(MCQ, { kind: 'mcq', picked: 1, correct: 1, right: true, confidence: 'sure', outcome: 'solid', why: 'Roosevelt said the United States could act as an “international police power” so European countries had no reason to step in.', next: '' }),
     'mcq-wrong': practice(CONGO, { kind: 'mcq', picked: 0, correct: 1, right: false, confidence: 'guessing', outcome: 'gap', why: 'Missionaries were among the people who reported the abuse, which turned opinion against Leopold.', next: 'Loomer explains this next, then asks one like it.' }, 1),
     'like-it': practice({ ...CONGO, id: 'q-like', prompt: 'What did the Congo Reform Association want?', options: ['More rubber from the Congo', 'An end to the abuse of Congolese workers under Leopold', 'A canal through the Congo', 'Belgian rule over Hawaii'], like: true }, null, 1),
     short: practice(SHORT, null, 4),
-    'short-pending': practice(SHORT, { kind: 'short', text: 'So ships could get from the Atlantic to the Pacific faster.', status: 'pending', met: [], missing: [] }, 4),
+    'short-pending': practice(SHORT, { kind: 'short', text: 'So ships could get from the Atlantic to the Pacific faster.', status: 'pending', met: [], missing: [] }, 4, { pending: wait('Checking your answer', 'The Panama Canal', 1, [2, 2]) }),
     'short-ready': practice(SHORT, {
       kind: 'short',
       text: 'So ships could get from the Atlantic to the Pacific faster.',

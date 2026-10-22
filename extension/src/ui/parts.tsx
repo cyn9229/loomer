@@ -6,6 +6,7 @@ import { calendarDaysUntil, checkProblem, evidenceKindLabel, monthDay, observedA
 import { Icon, type IconName } from './Icon';
 import { subjectIcon } from './subject';
 import { typeLabel } from './workType';
+import { RowRead } from './readState';
 
 type Tone = 'accent' | 'green' | 'red' | 'amber' | 'replay' | 'gray';
 
@@ -28,8 +29,9 @@ export function ReplayPill() {
 function itemFlags(item: WorkItem): string[] {
   const flags: string[] = [];
   if (item.dueConflict) flags.push('two due dates');
-  if (item.policy.state === 'blocked') flags.push('no AI');
-  if (item.requirements === 'unreadable') flags.push('can’t read it');
+  // The read words say these when Loomer tracks reading for the item, so the flags step aside.
+  if (item.policy.state === 'blocked' && item.read?.state !== 'blocked') flags.push('no AI');
+  if (item.requirements === 'unreadable' && !item.read) flags.push('can’t read it');
   if (item.correction === 'kept-active') flags.push('kept on your list');
   return flags;
 }
@@ -54,7 +56,7 @@ function dueShort(iso: string, now: Date): string {
  * it (the kind of work first), and the due date on the right (crimson when due today or tomorrow).
  * `note` replaces the class line, for example with the planner's reason.
  */
-export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date; note?: string | null; onOpen: (id: string) => void }) {
+export function WorkRow({ item, now, note, onOpen, inFold }: { item: WorkItem; now: Date; note?: string | null; onOpen: (id: string) => void; inFold?: boolean }) {
   const flags = itemFlags(item);
   const soon = item.due ? isSoon(item.due.at, now) : false;
   return (
@@ -71,7 +73,9 @@ export function WorkRow({ item, now, note, onOpen }: { item: WorkItem; now: Date
           <span className="wtype" title={typeLabel(item).word}>
             <Icon name={typeLabel(item).icon} size="xs" label={typeLabel(item).word} />
           </span>
-          {note ?? item.courseName ?? 'No class'}
+          {/* The class shrinks first, so the read words and flags never get cut off. */}
+          <span className="item-cls">{note ?? item.courseName ?? 'No class'}</span>
+          <RowRead item={item} inFold={inFold} />
           {flags.length > 0 && <span className="flag"> · {flags.join(' · ')}</span>}
         </span>
       </span>

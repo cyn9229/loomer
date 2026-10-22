@@ -155,7 +155,7 @@ export function ChatView({ session, chat, api, now, draft, setDraft, hint, sugge
         {suggestion}
         {chat?.streaming ? (
           <div className="composer writing" role="status">
-            <span className="grow">Loomer is writing…</span>
+            <span className="grow">Loomer is writing a reply.</span>
             <button type="button" className="stop-btn" disabled={stop.busy} onClick={() => stop.run(() => api.send({ type: 'chat:stop', threadKey }))}>
               <Icon name="stop" size="sm" />
               Stop

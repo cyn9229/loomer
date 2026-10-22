@@ -6,6 +6,7 @@
 // sheet never traps the student.
 import { useEffect, useId, useRef, useState } from 'react';
 import { AiBlock } from './aiBlock';
+import { FailedLine, WaitSlot } from './wait';
 import { Icon } from './Icon';
 import type { ActiveSession } from './session';
 import { Sheet } from './sheet';
@@ -38,7 +39,9 @@ export function EndSheet({ session, noun, requestNextStep, close, onKeepGoing }:
   const [sawPending, setSawPending] = useState(false);
   const quiz = session.assignment.quiz;
   const suggested = session.nextStep?.status === 'ready' ? session.nextStep : null;
-  const none = failed || (sawPending && session.nextStep === null);
+  const stepFailed = session.nextStep?.status === 'failed' ? session.nextStep.failed : null;
+  const stepPending = session.nextStep?.status === 'pending' ? session.nextStep.pending : null;
+  const none = failed || stepFailed !== null || (sawPending && session.nextStep === null);
   const waiting = stage === 'next' && !suggested && !none;
 
   useEffect(() => {
@@ -108,6 +111,7 @@ export function EndSheet({ session, noun, requestNextStep, close, onKeepGoing }:
       ) : (
         <>
           <p className="end-q">Here’s where to start next time.</p>
+          {stepFailed && draft === null && <FailedLine failed={stepFailed} />}
           {draft !== null || none ? (
             <textarea
               className="end-edit"
@@ -119,7 +123,12 @@ export function EndSheet({ session, noun, requestNextStep, close, onKeepGoing }:
               onChange={(e) => setDraft(e.target.value)}
             />
           ) : waiting || !suggested ? (
-            <p className="end-loading">Loomer is picking a next step…</p>
+            <>
+              {stepPending ? <WaitSlot label="Next time" pending={stepPending} className="end-next" /> : <p className="end-loading">Loomer is picking where to start next time.</p>}
+              <button type="button" className="link end-own" onClick={() => setDraft('')}>
+                Write my own
+              </button>
+            </>
           ) : suggested.aiGenerated ? (
             <AiBlock className="end-next" label="Next time" flashKey={`next:${session.sessionId}:${suggested.text}`} right={<EditButton onClick={() => setDraft(suggested.text)} />}>
               <p className="end-next-t">{suggested.text}</p>

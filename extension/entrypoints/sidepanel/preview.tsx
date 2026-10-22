@@ -172,7 +172,7 @@ function withSent(model: ChatModel, sent: Sent[], sample: ChatModel): ChatModel 
       ...(m.text ? [{ kind: 'markdown' as const, text: m.text }] : []),
     ];
     return [
-      { id: 900_000 + i * 2, role: 'student' as const, blocks, status: 'done' as const, createdAt: at },
+      { id: 900_000 + i * 2, role: 'student' as const, blocks, status: 'done' as const, pending: null, createdAt: at },
       { ...reply, id: 900_001 + i * 2 },
     ];
   });

@@ -23,6 +23,9 @@ import { NoTimeChoices, PlainWords, SlipQuestion, asksWhy, slipLabel } from './s
 import { PlanSection, type PlanMode } from './planView';
 import { SessionStrip, type ActiveSession, type SessionVerb } from './session';
 import { useElapsedSeconds } from './useNow';
+import type { ReadState } from '../model/wait';
+import { readWords } from './readState';
+import { WaitSub } from './wait';
 
 export type HomeActions = {
   openSettings: () => void;
@@ -133,23 +136,6 @@ export function HomeView({ model, now, actions, active, hintWaiting, onRefresh, 
     );
   if (resume && resume.assignment.assignmentId !== nextId) notices.push(<ResumeNotice key="resume" resume={resume} now={now} actions={actions} />);
   if (model.olderReview && model.olderReview.items.length > 0) notices.push(<OlderNotice key="older" review={model.olderReview} now={now} actions={actions} />);
-  if (model.status === 'checking' && model.pending.length > 0)
-    notices.push(
-      <details className="notice-fold" key="pending">
-        <summary className="notice">
-          <span className="dot accent" />
-          <span className="grow">Still reading {model.pending.length === 1 ? '1 assignment' : `${model.pending.length} assignments`}</span>
-          <Icon name="chevronRight" />
-        </summary>
-        <div className="notice-body">
-          {model.pending.map((p) => (
-            <p className="item-sub" key={p.title} style={{ padding: '3px 0' }}>
-              <b style={{ color: 'var(--ink)', fontWeight: 500 }}>{p.title}</b> · {p.detail}
-            </p>
-          ))}
-        </div>
-      </details>,
-    );
   if (model.status === 'cannot-compare' && model.limitations.length > 0)
     notices.push(
       <details className="notice-fold" key="limits">
@@ -316,6 +302,7 @@ function Focus({ model, now, actions, onMoved }: FocusProps) {
           <div className="progress" role="progressbar" aria-label="Assignments read" aria-valuemin={0} aria-valuemax={model.progress.total} aria-valuenow={model.progress.checked}>
             <span style={{ transform: `scaleX(${Math.min(1, model.progress.checked / model.progress.total)})` }} />
           </div>
+          <FirstRead items={model.rest} />
         </section>
       ) : (
         <Finding />
@@ -339,6 +326,44 @@ function Focus({ model, now, actions, onMoved }: FocusProps) {
     case 'ready':
       return <NextStep next={model.next} resume={model.resume} now={now} actions={actions} onMoved={onMoved} />;
   }
+}
+
+const READ_ORDER: Record<ReadState['state'], number> = { read: 0, reading: 1, changed: 1, failed: 2, blocked: 2, empty: 2, waiting: 3 };
+
+/**
+ * The first read, one row per assignment (round 45): what Loomer found in the
+ * ones it read (the last few), the one it's reading now with its usual time
+ * and seconds, any it couldn't read, and the next few in line.
+ */
+function FirstRead({ items }: { items: WorkItem[] }) {
+  const read = items.filter((i): i is WorkItem & { read: ReadState } => i.read !== null).sort((a, b) => READ_ORDER[a.read.state] - READ_ORDER[b.read.state]);
+  const done = read.filter((i) => i.read.state === 'read').slice(-3);
+  const waiting = read.filter((i) => i.read.state === 'waiting');
+  const rows = [...done, ...read.filter((i) => i.read.state !== 'read' && i.read.state !== 'waiting'), ...waiting.slice(0, 3)];
+  const more = waiting.length - Math.min(3, waiting.length);
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <ol className="wait-steps first-read" role="status">
+        {rows.map((i) => {
+          const r = i.read;
+          const status = r.state === 'read' ? 'done' : r.state === 'reading' || r.state === 'changed' ? 'now' : 'next';
+          return (
+            <li key={i.assignmentId} className={status}>
+              <span className="wait-m" aria-hidden="true">
+                {status === 'done' && <Icon name="check" />}
+              </span>
+              <span className="grow">
+                <b>{i.title}</b>
+                {r.pending ? <WaitSub pending={r.pending} /> : r.state === 'read' ? r.found && <span className="wait-s">{r.found}</span> : r.state !== 'waiting' && <span className={`wait-s read-w s-${r.state}`}>{readWords(r)}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {more > 0 && <p className="first-read-foot">{more === 1 ? 'And 1 more after these.' : `And ${more} more after these.`}</p>}
+    </>
+  );
 }
 
 /** First sync, before any assignment is known. Counts seconds so the wait is visible. */

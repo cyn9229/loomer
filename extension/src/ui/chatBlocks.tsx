@@ -13,6 +13,7 @@ import remarkMath from 'remark-math';
 import { sendWidgetHtml, WIDGET_MAX_HEIGHT, WIDGET_MIN_HEIGHT } from '../chat/widgetFrame';
 import type { ChartSpec, ChatBlock, Quiz, Visual } from '../model/chat';
 import { SentFiles } from './attach';
+import { WaitSlot } from './wait';
 import { Icon } from './Icon';
 
 export type BlockProps = {
@@ -46,6 +47,9 @@ export function Block({ block, streaming, widgetUrl, onOpenItem, renderPlanChang
       return renderAddDraft(block);
     case 'draft-check':
       return <DraftCheck block={block} />;
+    case 'pending':
+      // A chart or quick check still being made holds its space; Stop in the composer cancels it.
+      return block.shape === 'visual' ? <WaitSlot label="Visual" pending={block.pending} shape="chart" className="inset" /> : <WaitSlot label="Quick check" pending={block.pending} shape="question" className="inset" />;
     case 'attachment':
       return <SentFiles files={[block.file]} />;
     case 'practice-result':

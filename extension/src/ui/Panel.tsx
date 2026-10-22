@@ -25,6 +25,7 @@ import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
 import { HandledHints, HintCard, QuizNote, SessionControls, sessionClock, SessionTime, SourcesBody, SuggestionRow, verbMessage, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
+import { WaitSlot } from './wait';
 
 // Practice opens rarely, so it loads on first use (prep.tsx and chatBlocks.tsx too, from their screens).
 const PracticeView = lazy(() => import('./practice').then((m) => ({ default: m.PracticeView })));
@@ -388,7 +389,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
             setDraft={setChatDraft}
             hint={
               // Handled hints sit behind the focus's info button; without a focus they show here.
-              (shownHint.value || (!active.focus && active.handledHints.length > 0)) && (
+              (shownHint.value || active.hintPending || (!active.focus && active.handledHints.length > 0)) && (
                 <>
                   {shownHint.value && (
                     <HintCard
@@ -402,6 +403,8 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
                       api={api}
                     />
                   )}
+                  {/* Quiet: most reads end with no hint, and then this simply goes away. */}
+                  {!shownHint.value && active.hintPending && <WaitSlot label="Hint" pending={active.hintPending} />}
                   {!active.focus && <HandledHints hints={active.handledHints} now={now} />}
                 </>
               )

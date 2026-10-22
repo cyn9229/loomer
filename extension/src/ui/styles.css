@@ -703,6 +703,23 @@ details.notice-fold[open] > summary > .icon {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* In a plan row, the sub line is a flex row so the class can shrink alone. */
+.item .item-sub {
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
+/* The class shrinks with an ellipsis; the read words and flags after it keep their room. */
+.item-cls {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-sub .flag,
+.read-tail {
+  flex: none;
+  white-space: pre;
+}
 .item-sub .flag {
   color: var(--amber);
 }
@@ -2225,6 +2242,16 @@ details > summary .icon {
 .evi {
   display: inline-grid;
   color: var(--muted);
+}
+/* The title, and under it whether Loomer has read it (only when it isn't simply read). */
+.evtw {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.evr {
+  font-size: 12px;
 }
 .evt {
   flex: 1;
@@ -5518,6 +5545,13 @@ details > summary .icon {
   gap: 10px;
   padding: 6px 4px 8px;
 }
+/* Under the chips while a file is read: Send waits. */
+.attach-wait {
+  flex-basis: 100%;
+  order: 99;
+  font-size: 12px;
+  color: var(--muted);
+}
 .attach-img {
   position: relative;
   display: block;
@@ -7088,4 +7122,332 @@ details > summary .icon {
 }
 .wait-remind[aria-checked='true'] .prep-toggle::after {
   transform: translateX(12px);
+}
+
+/* ------------------------------------------------------------ Waits (wait.tsx, round 45, 1B)
+   The box a result will fill, drawn now: its label, a still outline, a short
+   title, what it's about and the usual time, and the seconds so far. Nothing
+   moves; only the seconds change, once a second. */
+.wait-slot {
+  margin: 14px 18px 0;
+}
+.wait-line {
+  margin-top: 6px;
+}
+.wait-t {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.wait-t .icon {
+  color: var(--acc);
+}
+.wait-s {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.wait-s .grow {
+  flex: 1;
+  min-width: 0;
+}
+.wait-sec {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+.wait-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.wait-sk {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 12px;
+}
+.wait-sk > i,
+.wait-opts i,
+.wait-rows i,
+.wait-table i {
+  display: block;
+  height: 9px;
+  border-radius: 5px;
+  background: var(--fill);
+}
+.wait-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.wait-opts b {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.wait-rows {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+.wait-rows b {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.wait-rows b:first-child {
+  border-top: 0;
+}
+.wait-rows b::before {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.wait-rows i {
+  flex: 1;
+}
+.wait-table {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+.wait-table b {
+  display: grid;
+  grid-template-columns: 26% 1fr 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.wait-table b:first-child {
+  border-top: 0;
+}
+.wait-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 110px;
+  margin-top: 12px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.wait-chart i {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  background: var(--fill);
+}
+.wait-hold {
+  display: flex;
+  flex-direction: column;
+}
+.wait-hold > .wait-line {
+  margin-top: 4px;
+}
+.wait-steps {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.wait-steps li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 10px;
+  padding: 7px 0;
+}
+.wait-steps li:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 28px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--line);
+}
+.wait-m {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--page);
+  box-shadow: inset 0 0 0 1.5px #d9d5cf;
+}
+.wait-m .icon {
+  width: 12px;
+  height: 12px;
+}
+.wait-steps li.done .wait-m {
+  background: var(--line);
+  box-shadow: none;
+  color: var(--text);
+}
+.wait-steps li.now .wait-m {
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+.wait-steps li.now .wait-m::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--acc);
+}
+.wait-steps .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 1px;
+}
+.wait-steps b {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.wait-steps li.done b {
+  font-weight: 400;
+  color: var(--text);
+}
+.wait-steps li.next b {
+  font-weight: 400;
+  color: var(--faint);
+}
+.wait-steps li.now b {
+  font-weight: 600;
+}
+.wait-steps .wait-s {
+  margin-top: 0;
+}
+.wait-failed {
+  margin: 14px 18px 0;
+}
+.wait-failed > p:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.wait-failed > p:first-child .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--red);
+}
+.wait-before {
+  margin: 14px 18px 0;
+  padding: 11px 13px 13px;
+  border-radius: 14px;
+  background: var(--fill);
+}
+.wait-before-k {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.wait-before-t {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.wait-before .btn {
+  margin-top: 10px;
+}
+
+/* Has Loomer read it? (readState.tsx, round 45, 6A): a few words on rows that
+   aren't simply read, and one line on the assignment's page. */
+.read-w {
+  font-weight: 500;
+  color: var(--text);
+}
+.read-w.s-reading,
+.read-w.s-changed {
+  color: var(--acc-text);
+}
+.read-w.s-failed {
+  color: var(--amber);
+}
+.read-line {
+  margin: 12px 18px 0;
+  padding: 11px 13px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+}
+.read-line p {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.read-line .btn {
+  margin-top: 10px;
+}
+.read-line.acc {
+  background: var(--acc-tint);
+}
+.read-line.amb {
+  background: var(--amber-tint);
+}
+
+/* Home's first read: one row per assignment. */
+.first-read {
+  margin-top: 14px;
+}
+.first-read-foot {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* A box that waits on other work says why it's empty. */
+.wait-note {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+}
+/* The checklist stays readable but quiet while the draft check runs. */
+.checklist.waiting {
+  opacity: 0.55;
+}
+.hint-line.flat {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* A slot inside something with its own padding: a reply in the chat, or practice feedback. */
+.wait-slot.inset {
+  margin: 12px 0 0;
+}
+.aib > .wait-line {
+  margin-top: 0;
+}
+.aib > .wait-steps {
+  margin-top: 0;
+}
+
+/* Test prep's setup steps or notes-photo wait, inside the test's page. */
+.prep-wait {
+  margin: 12px 18px 0;
 }

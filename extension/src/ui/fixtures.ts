@@ -10,6 +10,7 @@ import { LEAD_DAYS } from '../analysis/plan';
 import type { Checkpoint, CheckInfo, DayRoom, Evidence, HomeModel, NextAction, ResumeBriefing, SlipReason, WorkItem } from '../model/home';
 import type { PlanChangeView } from '../model/plan';
 import type { SourceItem } from '../model/session';
+import type { Pending, ReadState } from '../model/wait';
 import { dateTime, ymd } from './format';
 import { buildPrepFixtures } from './prepFixtures';
 
@@ -63,6 +64,25 @@ export function roomFixture(now: Date): DayRoom[] {
     repeating: d.getDay() === 2,
   }));
 }
+
+/** Loomer reading an assignment's instructions, `secAgo` seconds in. */
+export function analysisWait(now: Date, secAgo: number): Pending {
+  return {
+    title: 'Reading the instructions',
+    about: null,
+    startedAt: new Date(now.getTime() - secAgo * 1000).toISOString(),
+    usualSec: [14, 90],
+    steps: [
+      { label: 'Opened the instructions on Canvas', detail: null, status: 'done' },
+      { label: 'Finding what it asks for', detail: null, status: 'now' },
+      { label: 'Picking a day to start', detail: null, status: 'next' },
+    ],
+    canCancel: false,
+  };
+}
+
+/** A read state for the fixtures; `read` by default. */
+const readAs = (state: ReadState['state'], over: Partial<ReadState> = {}): ReadState => ({ state, at: null, retryAt: null, reason: null, found: null, pending: null, ...over });
 
 function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId' | 'title'>): WorkItem {
   const due = over.due ?? null;
@@ -124,6 +144,7 @@ export function buildFixtures(now: Date) {
     url: 'https://lincolnhs.instructure.com/courses/1841/assignments/88301',
     due: { at: at(now, 2, 8, 0), source: 'canvas' },
     effort: { label: 'Short', reason: 'Twenty terms, one short quiz.', source: 'ai' },
+    read: readAs('waiting'),
     rankReason: `This vocabulary check is due ${new Date(at(now, 2, 8, 0)).toLocaleDateString(undefined, { weekday: 'long' })}, so tomorrow is a good day to start.`,
   });
   const reflection = item(now, {
@@ -200,6 +221,7 @@ export function buildFixtures(now: Date) {
     due: { at: at(now, 3, 23, 59), source: 'canvas' },
     effort: { label: 'Moderate', reason: 'Twenty problems across five topics.', source: 'ai' },
     workType: { type: 'practice', source: 'ai' },
+    read: readAs('failed', { at: new Date(now.getTime() - 4 * 60_000).toISOString(), retryAt: new Date(now.getTime() + 6 * 60_000).toISOString() }),
   });
   const readingCh = item(now, {
     assignmentId: 'a-lectura',
@@ -208,6 +230,7 @@ export function buildFixtures(now: Date) {
     due: { at: at(now, 4, 15, 0), source: 'canvas' },
     effort: { label: 'Short', reason: 'Five short chapters.', source: 'ai' },
     workType: { type: 'reading', source: 'rule' },
+    read: readAs('changed', { pending: analysisWait(now, 8) }),
   });
   const quizItem = item(now, {
     assignmentId: 'a-quiz',
@@ -235,6 +258,7 @@ export function buildFixtures(now: Date) {
     due: { at: at(now, 3, 23, 59), source: 'canvas' },
     effort: { label: 'Short', reason: 'Fill one data table.', source: 'ai' },
     replay: true,
+    read: readAs('reading', { pending: analysisWait(now, 22) }),
   });
 
   const lastCheck: CheckInfo = { at: checkedAt, outcome: 'ok', courses: 4, partial: false, replay: false };
@@ -354,15 +378,15 @@ export function buildFixtures(now: Date) {
     checking: {
       status: 'checking',
       ...noResume,
-      progress: { checked: 4, total: 6 },
+      progress: { checked: 3, total: 6 },
       pending: [{ title: vocab.title, detail: 'Reading description' }],
       rest: [
-        essay,
-        reflection,
-        proposal,
-        { ...vocab, requirements: 'checking' },
-        lab,
-        { ...reading, requirements: 'not-checked' },
+        { ...essay, read: readAs('read', { at: checkedAt, found: 'Found 2 things to hand in and 1 checkpoint' }) },
+        { ...reflection, read: readAs('blocked', { reason: 'rule-no-ai' }) },
+        { ...proposal, read: readAs('read', { at: checkedAt, found: 'Found 1 thing to hand in' }) },
+        { ...vocab, requirements: 'checking', read: readAs('reading', { pending: analysisWait(now, 22) }) },
+        { ...lab, read: readAs('waiting') },
+        { ...reading, requirements: 'not-checked', read: readAs('waiting') },
       ],
       lastCheck,
     },
@@ -854,12 +878,14 @@ export function essaySources(now: Date): SourceItem[] {
  */
 export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
   const checked = item.assignmentId === 'a-essay';
+  // While Loomer reads it for the first time, there's nothing to list yet.
+  const unread = item.read?.state === 'reading' || item.read?.state === 'waiting' || item.read?.state === 'failed';
   return {
     status: 'ok',
     item,
     prep: item.assignmentId === 'a-test' ? buildPrepFixtures(now).ready : null,
     descriptionExcerpt: 'Compare how two sources explain urban heat islands. Use at least three sources and cite them in MLA format.',
-    requirements: [
+    requirements: unread ? [] : [
       {
         text: 'Compare the two sources',
         source: { quote: 'Compare how two sources explain urban heat islands.', label: 'Assignment instructions' },
@@ -892,7 +918,8 @@ export function buildDetail(item: WorkItem, now: Date): AssignmentDetailModel {
     ],
     check: checked ? { at: new Date(now.getTime() - 0.3 * HOUR).toISOString(), scope: 'full', stale: false } : null,
     checkAvailability: checked ? 'available' : item.policy.state === 'blocked' ? 'blocked' : 'no-doc',
-    checkPending: false,
+    checkPending: null,
+    checkFailed: null,
     effort: { label: item.effort.label, reason: item.effort.reason, quote: null },
     plainWords: checked
       ? 'Read two sources about city heat. Explain what each one says and where they agree or disagree. Then argue which explanation is stronger, using both sources.'

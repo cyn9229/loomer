@@ -17,6 +17,7 @@ import { Sheet } from './sheet';
 import { TeachBlockView } from './teach';
 import { TopicLine } from './practice';
 import { START_WORDS } from './prepWords';
+import { WaitLine, WaitOutline, WaitSteps } from './wait';
 
 type PrepActions = {
   /** Starts today's practice (prep:start). */
@@ -93,6 +94,12 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
       <section className="prep setup" aria-label="Set up test prep">
         {prep.error ? (
           <p className="status-line error">{prep.error}</p>
+        ) : prep.pending ? (
+          // Setup shows its real steps; reading notes photos is one line.
+          <div className="prep-wait">
+            {prep.pending.steps ? <WaitSteps pending={prep.pending} /> : <WaitLine pending={prep.pending} />}
+            {prep.topics.length === 0 && <WaitOutline shape="rows" />}
+          </div>
         ) : (
           prep.topics.length === 0 && (
             <p className="prep-k" role="status">
@@ -124,6 +131,11 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
   return (
     <section className="prep" aria-label="Test prep">
       <ReadyBar counts={prep.counts} />
+      {prep.pending && (
+        <div className="prep-wait">
+          <WaitLine pending={prep.pending} />
+        </div>
+      )}
       {!prep.today.asked && <TimeAsk onSet={actions.onSetTime} busy={actions.busy} />}
       {now && (
         <button type="button" className="btn-primary" disabled={actions.busy} aria-busy={actions.busy} onClick={actions.onStart}>
