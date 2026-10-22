@@ -15,14 +15,14 @@ const wait = (title: string, about: string | null, secAgo: number, usualSec: [nu
 });
 
 const TOPICS: TestPrep['topics'] = [
-  { id: 't-hawaii', text: 'Hawaii', standing: 'shaky', lastCheck: { correct: 2, total: 3 }, source: 'guide', new: false, mixup: true, progress: 0.3 },
-  { id: 't-war', text: 'The Spanish-American War', standing: 'solid', lastCheck: { correct: 3, total: 3 }, source: 'guide', new: false, mixup: false, progress: 1 },
-  { id: 't-phil', text: 'The Philippines', standing: 'solid', lastCheck: { correct: 2, total: 2 }, source: 'guide', new: false, mixup: false, progress: 1 },
-  { id: 't-canal', text: 'The Panama Canal', standing: 'solid', lastCheck: { correct: 2, total: 2 }, source: 'guide', new: false, mixup: false, progress: 1 },
-  { id: 't-africa', text: 'The Scramble for Africa', standing: 'solid', lastCheck: { correct: 3, total: 3 }, source: 'guide', new: false, mixup: false, progress: 1 },
-  { id: 't-china', text: 'China and the Open Door', standing: 'shaky', lastCheck: { correct: 2, total: 3 }, source: 'guide', new: false, mixup: false, progress: 0.65 },
-  { id: 't-congo', text: 'The Congo under Leopold II', standing: 'shaky', lastCheck: { correct: 1, total: 3 }, source: 'guide', new: false, mixup: false, progress: 0.4 },
-  { id: 't-latam', text: 'Latin America and the Roosevelt Corollary', standing: 'shaky', lastCheck: { correct: 1, total: 3 }, source: 'guide', new: false, mixup: false, progress: 0.35 },
+  { id: 't-hawaii', text: 'Hawaii', standing: 'shaky', lastCheck: { correct: 2, total: 3 }, source: 'guide', new: false, mixup: true, progress: 0.3, elsewhere: null },
+  { id: 't-war', text: 'The Spanish-American War', standing: 'solid', lastCheck: { correct: 3, total: 3 }, source: 'guide', new: false, mixup: false, progress: 1, elsewhere: null },
+  { id: 't-phil', text: 'The Philippines', standing: 'solid', lastCheck: { correct: 2, total: 2 }, source: 'guide', new: false, mixup: false, progress: 1, elsewhere: null },
+  { id: 't-canal', text: 'The Panama Canal', standing: 'solid', lastCheck: { correct: 2, total: 2 }, source: 'guide', new: false, mixup: false, progress: 1, elsewhere: null },
+  { id: 't-africa', text: 'The Scramble for Africa', standing: 'solid', lastCheck: { correct: 3, total: 3 }, source: 'guide', new: false, mixup: false, progress: 1, elsewhere: null },
+  { id: 't-china', text: 'China and the Open Door', standing: 'shaky', lastCheck: { correct: 2, total: 3 }, source: 'guide', new: false, mixup: false, progress: 0.65, elsewhere: null },
+  { id: 't-congo', text: 'The Congo under Leopold II', standing: 'shaky', lastCheck: { correct: 1, total: 3 }, source: 'guide', new: false, mixup: false, progress: 0.4, elsewhere: null },
+  { id: 't-latam', text: 'Latin America and the Roosevelt Corollary', standing: 'shaky', lastCheck: { correct: 1, total: 3 }, source: 'guide', new: false, mixup: false, progress: 0.35, elsewhere: null },
 ];
 
 const day = (now: Date, offset: number) => {
@@ -126,6 +126,17 @@ export function buildPrepFixtures(now: Date) {
       }),
     },
     'notes-reading': { ...base, pending: wait('Reading your notes', '3 photos of your notes', 6, [10, 40]) },
+    // Round 47: topics studied on other sites get one line each, and their bars don't move.
+    'studied-elsewhere': {
+      ...base,
+      topics: TOPICS.map((t) =>
+        t.id === 't-congo'
+          ? { ...t, elsewhere: { kind: 'site' as const, text: 'Studied on Quizlet · next: one quick check' } }
+          : t.id === 't-latam'
+            ? { ...t, elsewhere: { kind: 'asked' as const, text: 'Asked ChatGPT 3 times, so it’s checked first' } }
+            : t,
+      ),
+    },
     'setup-notes': {
       ...base,
       ...fresh,
@@ -133,9 +144,9 @@ export function buildPrepFixtures(now: Date) {
       readiness: '',
       counts: { solid: 0, shaky: 0, unchecked: 10 },
       topics: [
-        ...TOPICS.map((t) => ({ ...t, standing: 'unchecked' as const, lastCheck: null, progress: 0 })),
-        { id: 'n1', text: 'The Boxer Rebellion', standing: 'unchecked', lastCheck: null, source: 'notes', new: true, mixup: false, progress: 0 },
-        { id: 'n2', text: 'Dollar diplomacy', standing: 'unchecked', lastCheck: null, source: 'notes', new: true, mixup: false, progress: 0 },
+        ...TOPICS.map((t) => ({ ...t, standing: 'unchecked' as const, lastCheck: null, progress: 0, elsewhere: null })),
+        { id: 'n1', text: 'The Boxer Rebellion', standing: 'unchecked', lastCheck: null, source: 'notes', new: true, mixup: false, progress: 0, elsewhere: null },
+        { id: 'n2', text: 'Dollar diplomacy', standing: 'unchecked', lastCheck: null, source: 'notes', new: true, mixup: false, progress: 0, elsewhere: null },
       ],
       plan: [],
       mistakes: [],

@@ -88,9 +88,11 @@ export function EndSheet({ session, noun, requestNextStep, close, onKeepGoing }:
           <Icon name="x" size="sm" />
         </button>
       </div>
+      {/* Round 47, 3A: when the student studied on their picked sites, the recap is one sentence about that. */}
       <p id={titleId} className="end-recap">
-        {session.recap.text}
+        {session.recap.trail ?? session.recap.text}
       </p>
+      {session.recap.trailNext && <p className="end-trail-next">{session.recap.trailNext}</p>}
 
       {stage === 'ask' ? (
         <>

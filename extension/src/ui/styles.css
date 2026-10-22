@@ -7690,3 +7690,17 @@ details > summary .icon {
   flex-direction: column;
   gap: 2px;
 }
+.end-trail-next {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+/* The trail's buttons sit side by side, compact. */
+.trail-acts .btn-primary {
+  width: auto;
+  height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  font-size: 13.5px;
+}

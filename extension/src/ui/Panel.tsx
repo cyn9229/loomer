@@ -26,6 +26,7 @@ import { ScreenshotView } from './screenshot';
 import { HandledHints, HintCard, QuizNote, SessionControls, sessionClock, SessionTime, SourcesBody, SuggestionRow, verbMessage, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
 import { WaitSlot } from './wait';
+import { StudyTrail } from './trail';
 
 // Practice opens rarely, so it loads on first use (prep.tsx and chatBlocks.tsx too, from their screens).
 const PracticeView = lazy(() => import('./practice').then((m) => ({ default: m.PracticeView })));
@@ -409,6 +410,7 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
                 </>
               )
             }
+            trail={active.trail && <StudyTrail trail={active.trail} api={api} />}
             suggestion={
               <>
                 {nudgeLine}

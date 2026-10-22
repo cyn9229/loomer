@@ -194,7 +194,7 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
         ) : (
           <div className="prep-topics flat">
             {topics.map((t) => (
-              <TopicLine key={t.id} text={t.text} standing={t.standing} lastCheck={t.lastCheck} mixup={t.mixup} progress={t.progress} />
+              <TopicLine key={t.id} text={t.text} standing={t.standing} lastCheck={t.lastCheck} mixup={t.mixup} progress={t.progress} elsewhere={t.elsewhere?.text ?? null} />
             ))}
           </div>
         )}

@@ -31,6 +31,8 @@ type ChatViewProps = {
   now: Date;
   draft: string;
   setDraft: (text: string) => void;
+  /** The study trail (round 47): the ask, the site picker, and what Loomer noticed, rendered by the panel. */
+  trail: ReactNode;
   /** The proactive hint, rendered by the panel. */
   hint: ReactNode;
   /** The research suggestion line, rendered by the panel. */
@@ -44,7 +46,7 @@ type ChatViewProps = {
   onOpenAsk: () => void;
 };
 
-export function ChatView({ session, chat, api, now, draft, setDraft, hint, suggestion, items, room, onOpenItem, onEditDraft, onOpenAsk }: ChatViewProps) {
+export function ChatView({ session, chat, api, now, draft, setDraft, trail, hint, suggestion, items, room, onOpenItem, onEditDraft, onOpenAsk }: ChatViewProps) {
   const { help, assignment, doc } = session;
   const threadKey = assignment.assignmentId;
   const ask = useAction();
@@ -89,6 +91,7 @@ export function ChatView({ session, chat, api, now, draft, setDraft, hint, sugge
         </p>
       )}
 
+      {trail}
       {hint}
       <Unavailable help={help} api={api} />
 

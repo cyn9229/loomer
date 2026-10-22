@@ -6,6 +6,7 @@
 // grouped topics, one sheet, and sheets Loomer couldn't read), reading, and a quiz.
 import type { SessionModel } from '../model/session';
 import type { Pending } from '../model/wait';
+import type { TrailView } from '../model/trail';
 import { buildFixtures, essaySources } from './fixtures';
 
 const MIN = 60_000;
@@ -38,6 +39,9 @@ export function buildSessionFixtures(now: Date) {
     studentWords: 412,
   };
 
+  /** The study trail with nothing asked, picked, or noticed yet. */
+  const noTrail: TrailView = { ask: null, setup: false, other: null, picked: [], noticed: [] };
+
   /** A wait that started `secAgo` seconds ago. */
   const wait = (title: string, about: string | null, secAgo: number, usualSec: [number, number]): Pending => ({
     title,
@@ -67,8 +71,9 @@ export function buildSessionFixtures(now: Date) {
     focusPending: null,
     focusFailed: null,
     hintPending: null,
+    trail: null,
     // What End shows: the planner's recap sentence, and the next step once asked for.
-    recap: { text: 'You added 240 words and saved 2 sources in 35 minutes.', noun: 'this essay', minutes: 35, wordsDelta: 240, edits: 3, sourcesSaved: 2, topicsChecked: 0 },
+    recap: { text: 'You added 240 words and saved 2 sources in 35 minutes.', noun: 'this essay', minutes: 35, wordsDelta: 240, edits: 3, sourcesSaved: 2, topicsChecked: 0, trail: null, trailNext: null },
     nextStep: { status: 'ready' as const, text: 'Compare your two sources', aiGenerated: true },
   };
 
@@ -117,6 +122,28 @@ export function buildSessionFixtures(now: Date) {
     },
     'hint-pending': { ...base, hintPending: wait('Looking for a hint', 'Your latest paragraph', 6, [10, 30]) },
     'next-pending': { ...base, nextStep: { status: 'pending', pending: wait('Picking where to start next time', null, 3, [3, 10]) } },
+
+    // Round 47, the study trail: the ask, the general ask without tab access, an unknown site, and what Loomer noticed.
+    'trail-ask': { ...base, trail: { ...noTrail, ask: { origin: 'https://quizlet.com', name: 'Quizlet' } } },
+    'trail-setup': { ...base, trail: { ...noTrail, setup: true } },
+    'trail-other': { ...base, trail: { ...noTrail, picked: [{ origin: 'https://quizlet.com', name: 'Quizlet', paused: false }], other: { origin: 'https://brainscape.com', matched: 'the Monroe Doctrine' } } },
+    'trail-noticed': {
+      ...base,
+      trail: {
+        ...noTrail,
+        picked: [
+          { origin: 'https://chatgpt.com', name: 'ChatGPT', paused: false },
+          { origin: 'https://quizlet.com', name: 'Quizlet', paused: false },
+          { origin: 'https://www.khanacademy.org', name: 'Khan Academy', paused: true },
+        ],
+        noticed: [
+          { origin: 'https://chatgpt.com', name: 'ChatGPT', minutes: 15, took: 'You asked about the thesis twice and the EPA numbers once.', paused: false },
+          { origin: 'https://quizlet.com', name: 'Quizlet', minutes: 10, took: '14 key terms from this essay came up.', paused: false },
+          { origin: 'https://www.khanacademy.org', name: 'Khan Academy', minutes: 4, took: 'Urban heat islands came up.', paused: true },
+        ],
+      },
+      recap: { ...base.recap, trail: 'You studied 25 minutes on ChatGPT and Quizlet, mostly the thesis and the EPA numbers.', trailNext: null },
+    },
 
     'help-pending': {
       ...base,

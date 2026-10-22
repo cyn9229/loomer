@@ -9,45 +9,16 @@
 // each site, with Pause and Remove (TrailFold). The end card's recap and the
 // test's topic lines come from the model as finished sentences.
 import { useState } from 'react';
+import { hostOf, parseSite, STUDY_SITES, trailPatterns, type TrailView } from '../model/trail';
 import { useAction, type PanelApi } from './api';
 import { Icon } from './Icon';
 
-/** A study site: its domain and the name students know it by. */
-export type StudySite = { origin: string; name: string };
-
-/**
- * SessionModel.trail, mirrored from the contract sent to the logic session;
- * the model's own type replaces it when it lands.
- */
-export type Trail = {
-  /** A known study site in front that isn't picked yet: shows the row. */
-  ask: StudySite | null;
-  /** An unknown site that matches the assignment, with what matched. */
-  other: { origin: string; matched: string } | null;
-  /** The student's own list. */
-  picked: (StudySite & { paused: boolean })[];
-  /** What Loomer took from each site this session. `took` is one sentence. */
-  noticed: (StudySite & { minutes: number; took: string; paused: boolean })[];
-};
+/** A study site: its origin and the name students know it by. */
+type StudySite = { origin: string; name: string };
 
 /** What a message to the worker resolves to; the panel maps each callback to its trail: message. */
 type Reply = ReturnType<PanelApi['send']>;
 type RequestOrigins = PanelApi['requestOrigins'];
-
-/** Chrome match patterns for a site and its subdomains. */
-const patternsOf = (origin: string) => [`https://${origin}/*`, `https://*.${origin}/*`];
-
-/** "brainscape.com" from what the student typed ("https://www.brainscape.com/flashcards"), or null when it isn't a site. */
-export function siteOf(typed: string): string | null {
-  const t = typed.trim().toLowerCase();
-  if (!t) return null;
-  try {
-    const host = new URL(/^[a-z]+:\/\//.test(t) ? t : `https://${t}`).hostname.replace(/^www\./, '');
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
-  } catch {
-    return null;
-  }
-}
 
 /** The site's first letter in a quiet square. Never a brand logo. */
 function SiteMark({ name }: { name: string }) {
@@ -60,15 +31,25 @@ function SiteMark({ name }: { name: string }) {
 
 const PRIVACY = 'Page text never leaves this computer, and Loomer keeps only the topics that came up.';
 
-/** The first time a known study site is in front during a session: one quiet row that asks. */
-export function TrailAsk({ ask, onPick, onDismiss }: { ask: StudySite; onPick: () => void; onDismiss: () => Reply }) {
+/**
+ * The first time a known study site is in front during a session: one quiet
+ * row that asks. Without tab access Loomer can't see which site is in front,
+ * so `ask` is null and the row asks once without naming a site.
+ */
+export function TrailAsk({ ask, onPick, onDismiss }: { ask: StudySite | null; onPick: () => void; onDismiss: () => Reply }) {
   const dismiss = useAction();
   return (
     <section className="trail-row" aria-label="Study sites">
       <p className="trail-row-t">
-        <SiteMark name={ask.name} />
+        {ask ? (
+          <SiteMark name={ask.name} />
+        ) : (
+          <span className="site-mark" aria-hidden="true">
+            <Icon name="globe" size="xs" />
+          </span>
+        )}
         <span className="grow">
-          <b>You’re on {ask.name}</b>
+          <b>{ask ? `You’re on ${ask.name}` : 'Studying on other sites too?'}</b>
           <span>Pick the study sites Loomer can notice during your sessions.</span>
         </span>
       </p>
@@ -92,14 +73,12 @@ export function TrailAsk({ ask, onPick, onDismiss }: { ask: StudySite; onPick: (
  * the click, then saves the list.
  */
 export function SitePicker({
-  sites,
   picked,
   current,
   requestOrigins,
   onSave,
   onDone,
 }: {
-  sites: StudySite[];
   picked: StudySite[];
   current: StudySite | null;
   requestOrigins: RequestOrigins;
@@ -108,6 +87,7 @@ export function SitePicker({
   onDone: () => void;
 }) {
   const save = useAction();
+  const sites: readonly StudySite[] = STUDY_SITES;
   const known = new Set(sites.map((s) => s.origin));
   const [added, setAdded] = useState<StudySite[]>(() => picked.filter((p) => !known.has(p.origin)));
   const [ticked, setTicked] = useState<Set<string>>(() => new Set([...picked.map((p) => p.origin), ...(current ? [current.origin] : [])]));
@@ -121,17 +101,17 @@ export function SitePicker({
       return next;
     });
   const add = () => {
-    const origin = siteOf(typed);
-    if (!origin) return setBad(true);
+    const parsed = parseSite(typed);
+    if (!parsed) return setBad(true);
     setBad(false);
     setTyped('');
-    if (!known.has(origin) && !added.some((a) => a.origin === origin)) setAdded((a) => [...a, { origin, name: origin }]);
-    setTicked((t) => new Set(t).add(origin));
+    if (!known.has(parsed.origin) && !added.some((a) => a.origin === parsed.origin)) setAdded((a) => [...a, parsed]);
+    setTicked((t) => new Set(t).add(parsed.origin));
   };
   const origins = [...ticked];
   const allow = () => {
     // Chrome shows its prompt only for a request made inside the click, before any await.
-    const granted = origins.length > 0 ? requestOrigins(origins.flatMap(patternsOf)) : Promise.resolve(true);
+    const granted = origins.length > 0 ? requestOrigins(origins.flatMap(trailPatterns)) : Promise.resolve(true);
     save.run(async () => {
       if (!(await granted)) return { ok: false, error: 'Chrome didn’t allow these sites, so Loomer won’t notice them.' };
       const reply = await onSave(origins);
@@ -163,7 +143,7 @@ export function SitePicker({
           <Icon name="x" size="xs" />
         </button>
       ) : (
-        <i>{current?.origin === s.origin ? 'Open now' : s.origin}</i>
+        <i>{current?.origin === s.origin ? 'Open now' : hostOf(s.origin)}</i>
       )}
     </label>
   );
@@ -205,20 +185,22 @@ export function SitePicker({
 }
 
 /** An unknown site that matches the assignment: asked once. Chrome then asks for that one site. */
-export function OtherSiteAsk({ other, requestOrigins, onAnswer }: { other: NonNullable<Trail['other']>; requestOrigins: RequestOrigins; onAnswer: (read: boolean) => Reply }) {
+export function OtherSiteAsk({ other, requestOrigins, onAnswer }: { other: NonNullable<TrailView['other']>; requestOrigins: RequestOrigins; onAnswer: (read: boolean) => Reply }) {
   const act = useAction();
   const answer = (read: boolean) => {
     // Inside the click, before any await, so Chrome shows its prompt.
-    const granted = read ? requestOrigins(patternsOf(other.origin)) : Promise.resolve(false);
+    const granted = read ? requestOrigins(trailPatterns(other.origin)) : Promise.resolve(false);
     act.run(async () => onAnswer(read && (await granted)));
   };
   return (
     <section className="trail-row" aria-label="Another study site">
       <p className="trail-row-t">
-        <SiteMark name={other.origin} />
+        <SiteMark name={hostOf(other.origin)} />
         <span className="grow">
           <b>Read this site too?</b>
-          <span>{other.matched}</span>
+          <span>
+            {hostOf(other.origin)} mentions {other.matched}, which is part of what you’re studying.
+          </span>
         </span>
       </p>
       <p className="trail-acts">
@@ -241,11 +223,14 @@ export function OtherSiteAsk({ other, requestOrigins, onAnswer }: { other: NonNu
  */
 export function TrailFold({
   noticed,
+  picked,
   onPause,
   onRemove,
   onChange,
 }: {
-  noticed: Trail['noticed'];
+  noticed: TrailView['noticed'];
+  /** Before anything is noticed, the line lists the picked sites, so they can still be paused or changed. */
+  picked: TrailView['picked'];
   onPause: (origin: string, paused: boolean) => Reply;
   /** Removes what Loomer took from that site. */
   onRemove: (origin: string) => Reply;
@@ -253,23 +238,28 @@ export function TrailFold({
 }) {
   const [open, setOpen] = useState(false);
   const act = useAction();
-  if (noticed.length === 0) return null;
+  const sites = noticed.length > 0 ? noticed : picked.map((p) => ({ ...p, minutes: 0, took: 'Nothing has come up there yet.' }));
+  if (sites.length === 0) return null;
+  const line =
+    noticed.length > 0
+      ? `Loomer noticed ${noticed.length === 1 ? '1 study site' : `${noticed.length} study sites`}`
+      : `Loomer can notice ${picked.length === 1 ? '1 study site' : `${picked.length} study sites`} this session`;
   return (
     <section className="trail-fold" aria-label="What Loomer noticed">
       <button type="button" className="trail-fold-row" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <Icon name="globe" size="sm" />
-        <span className="grow">Loomer noticed {noticed.length === 1 ? '1 study site' : `${noticed.length} study sites`}</span>
+        <span className="grow">{line}</span>
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size="sm" />
       </button>
       {open && (
         <div className="trail-list">
-          {noticed.map((s) => (
+          {sites.map((s) => (
             <div className={s.paused ? 'trail-site paused' : 'trail-site'} key={s.origin}>
               <SiteMark name={s.name} />
               <span className="grow">
                 <span className="trail-site-h">
                   <b>{s.name}</b>
-                  <i>{s.minutes} min</i>
+                  {s.minutes > 0 && <i>{s.minutes} min</i>}
                 </span>
                 <span className="trail-site-s">{s.paused ? 'Paused, so Loomer isn’t noticing this site right now.' : s.took}</span>
                 <span className="trail-site-a">
@@ -277,10 +267,12 @@ export function TrailFold({
                     <Icon name={s.paused ? 'play' : 'pause'} size="xs" />
                     {s.paused ? 'Resume' : 'Pause'}
                   </button>
-                  <button type="button" className="link muted" disabled={act.busy} onClick={() => act.run(() => onRemove(s.origin))}>
-                    <Icon name="trash" size="xs" />
-                    Remove
-                  </button>
+                  {noticed.length > 0 && (
+                    <button type="button" className="link muted" disabled={act.busy} onClick={() => act.run(() => onRemove(s.origin))}>
+                      <Icon name="trash" size="xs" />
+                      Remove
+                    </button>
+                  )}
                 </span>
               </span>
             </div>
@@ -293,5 +285,56 @@ export function TrailFold({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The study trail in Help: the ask (or, without tab access, a general ask
+ * once), the picker it opens, Read this site too?, and what Loomer noticed.
+ * Maps each piece to its trail: message.
+ */
+export function StudyTrail({ trail, api }: { trail: TrailView; api: PanelApi }) {
+  const [picking, setPicking] = useState(false);
+  // Not now on the general ask hides it until the panel reloads.
+  const [setupHidden, setSetupHidden] = useState(false);
+  const { send } = api;
+  const ask = trail.ask;
+  const other = trail.other;
+  if (picking)
+    return (
+      <SitePicker
+        picked={trail.picked}
+        current={ask}
+        requestOrigins={api.requestOrigins}
+        onSave={(origins) => send({ type: 'trail:sites-set', origins })}
+        onDone={() => setPicking(false)}
+      />
+    );
+  return (
+    <>
+      {ask ? (
+        <TrailAsk ask={ask} onPick={() => setPicking(true)} onDismiss={() => send({ type: 'trail:ask-dismiss', origin: ask.origin })} />
+      ) : (
+        trail.setup &&
+        !setupHidden && (
+          <TrailAsk
+            ask={null}
+            onPick={() => setPicking(true)}
+            onDismiss={() => {
+              setSetupHidden(true);
+              return Promise.resolve({ ok: true as const });
+            }}
+          />
+        )
+      )}
+      {other && <OtherSiteAsk other={other} requestOrigins={api.requestOrigins} onAnswer={(read) => send({ type: 'trail:other', origin: other.origin, read })} />}
+      <TrailFold
+        noticed={trail.noticed}
+        picked={trail.picked}
+        onPause={(origin, paused) => send({ type: 'trail:pause', origin, paused })}
+        onRemove={(origin) => send({ type: 'trail:remove', origin })}
+        onChange={() => setPicking(true)}
+      />
+    </>
   );
 }
