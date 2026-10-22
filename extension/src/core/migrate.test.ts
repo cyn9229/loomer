@@ -20,6 +20,8 @@ it('moves old session help messages into the assignment chat thread', async () =
     ['loomer', [{ kind: 'markdown', text: 'Look at your first claim.\n\n> Victor is cruel' }]],
   ]);
   expect(await db.chat.count()).toBe(0);
+  // The thread summary is built from the moved messages.
+  expect(await db.chatThreads.get('a')).toMatchObject({ lastText: 'Look at your first claim. Victor is cruel', pending: null });
 });
 
 it('gives practices saved before sessions and teaching blocks the new fields', async () => {

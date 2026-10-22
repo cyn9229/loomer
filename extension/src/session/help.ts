@@ -11,6 +11,7 @@ import {
 import { studentText, wordCount } from '../adapters/docs/reader';
 import { instructionText, type LoomerDb } from '../core/db';
 import { checkAiDispatch, type AiDenyReason } from '../core/gate';
+import { noteThread } from '../chat/threads';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, policyAnswer } from '../analysis/facts';
 import type { PolicyResult } from '../analysis/policy';
@@ -101,7 +102,11 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
   const at = () => new Date().toISOString();
   await db.chatTurns.add({ threadKey: assignmentId, role: 'student', blocks: [{ kind: 'markdown', text: 'Review my draft.' }], status: 'done', createdAt: at() });
   const turnId = await db.chatTurns.add({ threadKey: assignmentId, role: 'loomer', blocks: [], status: 'streaming', createdAt: at() });
-  const notice = (text: string) => db.chatTurns.update(turnId, { blocks: [{ kind: 'markdown', text }], status: 'error', error: 'notice' });
+  await noteThread(db, assignmentId, 'review');
+  const notice = async (text: string) => {
+    await db.chatTurns.update(turnId, { blocks: [{ kind: 'markdown', text }], status: 'error', error: 'notice' });
+    await noteThread(db, assignmentId);
+  };
 
   if (!(await workHelpDecision(db, settings, assignmentId)).allowed) return notice("Loomer can't review this one right now, so check the note above.");
   const ctx = await workContext(db, assignmentId);
@@ -120,4 +125,5 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
     .map(({ issue, criterion, question, quote }) => ({ issue, criterion, question, quote }));
   const summary = findings.length === 0 ? `${parsed.data.summary} Loomer didn't find anything to point to in your draft.` : parsed.data.summary;
   await db.chatTurns.update(turnId, { blocks: [{ kind: 'draft-check', summary, findings, scope: ctx.workScope === 'partial' ? 'partial' : 'full' }], status: 'done' });
+  await noteThread(db, assignmentId);
 }

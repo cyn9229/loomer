@@ -31,6 +31,7 @@ import { covered, loadNudgeState, muted, nudgeAfter, nudgesItem, saveNudgeState,
 import { closeStaleSessions, currentSession, endSession, setPlannedTime, setState, startSession, tickSession, touch } from '../src/session/session';
 import { closeSession, nextStepStep } from '../src/session/close';
 import { imageAttachment, MAX_ATTACHMENTS } from '../src/chat/attachments';
+import { noteThread } from '../src/chat/threads';
 import type { Attachment } from '../src/model/chat';
 import { addAssignment, deleteAddedAssignment, editAssignment } from '../src/session/added';
 import { typingAtFor, typingItem } from '../src/session/typing';
@@ -863,17 +864,21 @@ async function handle(message: Message): Promise<Reply> {
       if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
       const id = crypto.randomUUID();
       await db.chatTurns.where('threadKey').equals(message.threadKey).filter((t) => !t.setAsideId).modify({ setAsideId: id });
+      await noteThread(db, message.threadKey);
       return { ok: true };
     }
     case 'chat:restore':
-      await db.chatTurns.filter((t) => t.setAsideId === message.id).modify((t) => {
+      const back = await db.chatTurns.where('setAsideId').equals(message.id).toArray();
+      await db.chatTurns.where('setAsideId').equals(message.id).modify((t) => {
         delete t.setAsideId;
       });
+      if (back[0]) await noteThread(db, back[0].threadKey);
       return { ok: true };
     case 'chat:clear':
       if (isStreaming(message.threadKey)) return { ok: false, error: 'Stop the reply first.' };
       await db.chatTurns.where('threadKey').equals(message.threadKey).delete();
       await db.chatFiles.where('threadKey').equals(message.threadKey).delete();
+      await db.chatThreads.delete(message.threadKey);
       return { ok: true };
     case 'ai:check':
       await checkAiService();

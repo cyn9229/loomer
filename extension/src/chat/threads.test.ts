@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { LoomerDb, type Assignment } from '../core/db';
 import { loadChatModel } from './model';
 import { runTool } from './tools';
+import { capAttachments, noteThread } from './threads';
 
 const now = new Date('2026-10-19T12:00:00Z');
 const inDays = (d: number) => new Date(now.getTime() + d * 86_400_000).toISOString();
@@ -40,6 +41,8 @@ beforeEach(async () => {
   await say('old', 'student', 'Is my poem reading right?', 300);
   await say('essay', 'student', 'My thesis is that **Victor** is the real monster.', 20);
   await say('essay', 'loomer', 'Which chapter shows that best?', 19);
+  await noteThread(db, 'old');
+  await noteThread(db, 'essay');
 });
 
 describe('chat switcher', () => {
@@ -56,6 +59,7 @@ describe('chat switcher', () => {
   it('sets a conversation aside out of the thread and the list, and brings it back', async () => {
     const id = 'aside-1';
     await db.chatTurns.where('threadKey').equals('essay').modify({ setAsideId: id });
+    await noteThread(db, 'essay');
     let m = await loadChatModel(db, ai, 'essay', now);
     expect(m.turns).toEqual([]);
     expect(m.setAside).toEqual([{ id, threadKey: 'essay', title: 'Frankenstein essay', startedAt: expect.any(String), endedAt: expect.any(String), count: 2, preview: 'Which chapter shows that best?' }]);
@@ -64,6 +68,7 @@ describe('chat switcher', () => {
     await db.chatTurns.filter((t) => t.setAsideId === id).modify((t) => {
       delete t.setAsideId;
     });
+    await noteThread(db, 'essay');
     m = await loadChatModel(db, ai, 'essay', now);
     expect(m.turns.map((t) => t.role)).toEqual(['student', 'loomer']);
     expect(m.setAside).toEqual([]);
@@ -82,5 +87,14 @@ describe('read_my_draft', () => {
 
     await db.studentContext.put({ key: 'essay', policyAnswer: { value: 'teacher-forbids-ai', answeredAt: now.toISOString() } });
     expect((await read()).forModel).toContain('Help on this assignment is off');
+  });
+});
+
+describe('stored attachments', () => {
+  it('keeps the newest files up to the cap and removes the oldest, reading only dates and sizes', async () => {
+    const file = (n: number, bytes: number) => ({ threadKey: 'essay', attachment: { kind: 'text' as const, name: `f${n}`, text: 'x', truncated: false }, at: new Date(now.getTime() + n * 1000).toISOString(), bytes });
+    await db.chatFiles.bulkAdd([file(1, 60), file(2, 60), file(3, 60)]);
+    expect(await capAttachments(db, 130)).toBe(1);
+    expect((await db.chatFiles.toArray()).map((f) => f.attachment.name).sort()).toEqual(['f2', 'f3']);
   });
 });

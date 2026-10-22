@@ -4,6 +4,8 @@
 import { brokerEnvelopeSchema } from '../../../shared/ai-contract';
 import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent, type UserPart } from '../../../shared/chat-contract';
 import { instructionText, type ChatTurnRecord, type LoomerDb } from '../core/db';
+import { attachmentBytes } from './lines';
+import { capAttachments, noteThread } from './threads';
 import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type Attachment, type AttachmentView, type ChatBlock, type ThreadKey } from '../model/chat';
 import { isQuiz, storedWorkType } from '../analysis/workType';
@@ -12,7 +14,8 @@ import { runTool, type ToolSettings } from './tools';
 
 const MAX_ROUNDS = 4;
 const HISTORY_TURNS = 12;
-const FLUSH_MS = 120;
+/** How often a streaming reply is saved. Each save re-runs the screens that show it, so about 3 a second is enough to read along. */
+const FLUSH_MS = 300;
 const SERVICE_DOWN = "Loomer's AI isn't running right now, so try again in a bit.";
 const CUT_OFF = 'The reply got cut off, so try again.';
 const QUIZ_PAUSE = 'Ask Loomer is paused during your quiz and comes back when you end it.';
@@ -119,21 +122,25 @@ export async function sendChat(
   const now = deps.now ?? (() => new Date());
   if (running.has(threadKey)) return;
   const prior = (await db.chatTurns.where('threadKey').equals(threadKey).sortBy('id')).filter((t) => !t.setAsideId);
-  const fileIds = await db.chatFiles.bulkAdd(attachments.map((attachment) => ({ threadKey, attachment })), { allKeys: true });
+  const fileIds = await db.chatFiles.bulkAdd(attachments.map((attachment) => ({ threadKey, attachment, at: now().toISOString(), bytes: attachmentBytes(attachment) })), { allKeys: true });
+  if (attachments.length) await capAttachments(db);
   const studentBlocks: ChatBlock[] = [
     ...(text.trim() ? [{ kind: 'markdown' as const, text }] : []),
     ...attachments.map((a, i) => ({ kind: 'attachment' as const, fileId: fileIds[i]!, file: attachmentView(a) })),
   ];
   await db.chatTurns.add({ threadKey, role: 'student', blocks: studentBlocks, status: 'done', createdAt: now().toISOString() });
+  await noteThread(db, threadKey);
 
   const settings = await deps.ai();
   const allowed = await chatAllowed(db, settings, threadKey);
   if (!allowed.ok) {
     await db.chatTurns.add({ threadKey, role: 'loomer', blocks: [{ kind: 'markdown', text: allowed.reason }], status: 'error', error: 'not-allowed', createdAt: now().toISOString() });
+    await noteThread(db, threadKey);
     return;
   }
 
   const turnId = await db.chatTurns.add({ threadKey, role: 'loomer', blocks: [], status: 'streaming', createdAt: now().toISOString() });
+  await noteThread(db, threadKey, 'reply');
   const controller = new AbortController();
   running.set(threadKey, controller);
   const blocks: ChatBlock[] = [];
@@ -193,6 +200,7 @@ export async function sendChat(
     await db.chatTurns.update(turnId, { blocks, status: stopped ? 'stopped' : 'error', error: stopped ? undefined : message });
   } finally {
     running.delete(threadKey);
+    await noteThread(db, threadKey);
   }
 }
 

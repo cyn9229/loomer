@@ -21,6 +21,7 @@ import {
 } from '../../../shared/ai-contract';
 import { instructionText, type Assignment, type LoomerDb, type PracticeQuestionRecord, type PracticeRecord, type PrepRecord, type TeachRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
+import { noteThread } from '../chat/threads';
 import type { AiSettings } from '../core/settings';
 import type { Confidence, Practice, PracticeAnswer, PracticeSummary, PrepFormat, PrepSession, PrepSessionKind, PrepStep, TeachBlock, TestPrep } from '../model/prep';
 import { assignmentPolicy, courseKey, effectiveDue, isOpen, policyAnswer } from '../analysis/facts';
@@ -488,6 +489,7 @@ export async function endPractice(db: LoomerDb, practiceId: string, now: Date): 
   const summary = await summaryOf(db, (await db.practices.get(practiceId))!, now);
   if (!summary) return;
   await db.chatTurns.add({ threadKey: p.assignmentId, role: 'loomer', blocks: [{ kind: 'practice-result', practiceId, line: summary.line, detail: summary.detail, mistakes: summary.mistakes }], status: 'done', createdAt: now.toISOString() });
+  await noteThread(db, p.assignmentId);
 }
 
 const capFirst = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);

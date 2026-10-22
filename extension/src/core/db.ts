@@ -8,6 +8,7 @@ import type { PracticeAnswer, PracticeKind, PracticeSkill, PrepFormat, PrepSessi
 import type { EffortLabel, RoomLevel, WorkType } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import type { PolicyAnswer } from './gate';
+import { attachmentBytes, lineOf } from '../chat/lines';
 
 export type PlannableKind = 'assignment' | 'quiz' | 'discussion_topic';
 
@@ -421,8 +422,15 @@ export type ChatTurnRecord = {
   setAsideId?: string;
 };
 
-/** A file attached to a chat message, kept whole on this computer. The chat shows its AttachmentView. */
-export type ChatFileRecord = { id: number; threadKey: string; attachment: Attachment };
+/** A file attached to a chat message, kept whole on this computer. The chat shows its AttachmentView. `at` and `bytes` let the size cap find the oldest without loading files. */
+export type ChatFileRecord = { id: number; threadKey: string; attachment: Attachment; at: string; bytes: number };
+
+/**
+ * One row per chat thread: its last line and whether a reply is being written.
+ * Updated when a turn starts or finishes (never on each streamed save), so the
+ * chat list and the session screen don't re-read every message while Loomer writes.
+ */
+export type ChatThreadRecord = { threadKey: string; lastText: string | null; lastAt: string; pending: 'reply' | 'review' | null };
 
 /** Test prep for one test: its topics, key terms, and formats. Plan days and standings are computed, not stored. */
 export type PrepRecord = {
@@ -510,6 +518,7 @@ export class LoomerDb extends Dexie {
   requirementChecks!: EntityTable<RequirementCheck, 'assignmentId'>;
   chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
   chatFiles!: EntityTable<ChatFileRecord, 'id'>;
+  chatThreads!: EntityTable<ChatThreadRecord, 'threadKey'>;
   preps!: EntityTable<PrepRecord, 'assignmentId'>;
   practices!: EntityTable<PracticeRecord, 'id'>;
   dayRoom!: EntityTable<DayRoomRecord, 'key'>;
@@ -579,6 +588,19 @@ export class LoomerDb extends Dexie {
         }
       }),
     );
+    // Thread summaries, set-aside lookups by index, and attachment sizes for the storage cap.
+    this.version(14)
+      .stores({ chatTurns: '++id, threadKey, setAsideId', chatFiles: '++id, threadKey, [at+bytes]', chatThreads: 'threadKey' })
+      .upgrade(async (tx) => {
+        const turns = (await tx.table<ChatTurnRecord>('chatTurns').toArray()).filter((t) => !t.setAsideId).sort((x, y) => x.id - y.id);
+        const last = new Map(turns.map((t) => [t.threadKey, t]));
+        await tx.table('chatThreads').bulkPut([...last.values()].map((t) => ({ threadKey: t.threadKey, lastText: lineOf(t.blocks), lastAt: t.createdAt, pending: null })));
+        const now = new Date().toISOString();
+        await tx.table<ChatFileRecord>('chatFiles').toCollection().modify((f) => {
+          f.at ??= now;
+          f.bytes ??= attachmentBytes(f.attachment);
+        });
+      });
   }
 }
 

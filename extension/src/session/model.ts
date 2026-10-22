@@ -13,6 +13,8 @@ import { workHelpDecision, type HelpDecision } from './help';
 
 /** A student message without a reply for this long is no longer shown as pending. */
 const PENDING_MS = 90_000;
+/** A review still marked pending after this long was cut off (the worker stopped). */
+const REVIEW_STALE_MS = 3 * 60_000;
 const ACTIVITY_LIMIT = 10;
 
 export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date): Promise<SessionModel> {
@@ -28,7 +30,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     db.docLinks.get(a.id),
     db.sessionEvents.where('sessionId').equals(session.id).toArray(),
     db.sources.where('assignmentId').equals(a.id).toArray(),
-    db.chatTurns.where('threadKey').equals(a.id).filter((t) => !t.setAsideId).toArray(),
+    db.chatThreads.get(a.id),
     workHelpDecision(db, ai, a.id),
     db.topicChecks.where('assignmentId').equals(a.id).toArray(),
   ]);
@@ -55,7 +57,8 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     activity: activity(events),
     help: {
       ...availability(decision),
-      reviewPending: thread.some((t) => t.status === 'streaming' && t.role === 'loomer' && now.getTime() - Date.parse(t.createdAt) < PENDING_MS),
+      // From the thread summary, which changes only when the review starts or ends, not on each streamed save.
+      reviewPending: thread?.pending === 'review' && now.getTime() - Date.parse(thread.lastAt) < REVIEW_STALE_MS,
     },
     // Never show AI guidance once help is no longer allowed (AI off, new restriction).
     suggestion: null,

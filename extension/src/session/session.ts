@@ -100,7 +100,12 @@ export async function setPlannedTime(db: LoomerDb, minutes: number | null, now: 
   return true;
 }
 
+/** Activity stamps closer than this are skipped. Home re-reads sessions, so each stamp would rebuild it; idle rules work in minutes anyway. */
+const TOUCH_EVERY_MS = 60_000;
+
+/** Marks the session active now, at most once a minute. */
 export async function touch(db: LoomerDb, s: WorkSession, now: Date) {
+  if (now.getTime() - Date.parse(s.lastActivityAt) < TOUCH_EVERY_MS) return;
   await db.sessions.update(s.id, { lastActivityAt: now.toISOString() });
 }
 
