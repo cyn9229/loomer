@@ -7,7 +7,7 @@
 // the student's time guess, checkpoint quotes, sources, Did it already?, Hide,
 // and Delete fold into More options (round 46). Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';
 import type { NextAction, StudentCorrection, WorkItem } from '../model/home';
 import type { TestPrep } from '../model/prep';
@@ -17,10 +17,12 @@ import { type HomeActions, startControl } from './home';
 import { AiBlock } from './aiBlock';
 import { Icon } from './Icon';
 import { EvidenceList, PolicyNote, SizeMeter, SubjectTile } from './parts';
-import { PrepSection } from './prep';
 import { DeleteAssignmentData } from './privacy';
 import { SheetList } from './sheets';
 import { TypeMenu } from './workType';
+
+// Test prep shows only on a test's page, so its screens load when one opens.
+const PrepSection = lazy(() => import('./prep').then((m) => ({ default: m.PrepSection })));
 
 type Detail = Extract<AssignmentDetailModel, { status: 'ok' }>;
 
@@ -68,7 +70,11 @@ export function DetailView({ item, detail, now, actions, nudge, next = null }: D
       )}
       {item.sameAsCanvas && <SameAsCanvas item={item} same={item.sameAsCanvas} actions={actions} />}
       {ok?.plainWords && <PlainWordsBlock id={item.assignmentId} full={ok.plainWords} short={ok.plainShort} />}
-      {ok?.prep && <TestPrepBlock prep={ok.prep} actions={actions} />}
+      {ok?.prep && (
+        <Suspense fallback={<p className="lazy-wait">Opening your test prep…</p>}>
+          <TestPrepBlock prep={ok.prep} actions={actions} />
+        </Suspense>
+      )}
       <div className="facts">
         <StartTile item={item} now={now} />
         {checkpoint ? <CheckpointTile at={checkpoint.at} label={checkpoint.label} now={now} /> : <WorkloadTile item={item} />}

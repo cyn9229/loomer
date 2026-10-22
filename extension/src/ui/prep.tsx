@@ -12,10 +12,11 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 import { readAttachment } from '../chat/attachments';
 import type { Attachment } from '../model/chat';
 import { Icon, type IconName } from './Icon';
-import type { PrepFormat, PrepSession, PrepSessionKind, TeachBlock, TestPrep } from '../model/prep';
+import type { PrepFormat, PrepSession, TeachBlock, TestPrep } from '../model/prep';
 import { Sheet } from './sheet';
 import { TeachBlockView } from './teach';
 import { TopicLine } from './practice';
+import { START_WORDS } from './prepWords';
 
 type PrepActions = {
   /** Starts today's practice (prep:start). */
@@ -126,7 +127,7 @@ export function PrepSection({ prep, actions }: { prep: TestPrep; actions: PrepAc
       {!prep.today.asked && <TimeAsk onSet={actions.onSetTime} busy={actions.busy} />}
       {now && (
         <button type="button" className="btn-primary" disabled={actions.busy} aria-busy={actions.busy} onClick={actions.onStart}>
-          {SESSION[now.kind].button}
+          {START_WORDS[now.kind]}
           <Icon name="play" />
         </button>
       )}
@@ -354,16 +355,6 @@ function PrepEditor({ prep, actions }: { prep: TestPrep; actions: PrepActions })
   );
 }
 
-/** Each kind of session: its label on Home and the words on its Start button. */
-export const SESSION: Record<PrepSessionKind, { icon: IconName; text: string; button: string }> = {
-  diagnostic: { icon: 'target', text: 'Starting your test prep', button: 'Start the diagnostic' },
-  focus: { icon: 'target', text: 'From your diagnostic', button: 'Start practice' },
-  'mixed-check': { icon: 'clock', text: 'Later today', button: 'Start the mixed check' },
-  'practice-test': { icon: 'calendar', text: 'Practice test', button: 'Start the practice test' },
-  review: { icon: 'calendar', text: 'The day before', button: 'Start review' },
-  'warm-up': { icon: 'sun', text: 'Test day', button: 'Start warm-up' },
-  rescue: { icon: 'sun', text: 'Test today', button: 'Start the rescue' },
-};
 
 
 const TIME_CHOICES = [

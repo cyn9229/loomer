@@ -3,7 +3,7 @@
 // Ask bar opens Ask Loomer, and a waiting screenshot takes over until it is
 // saved or discarded. Each screen has a slim top bar. Takes the models from outside (live hooks or fixtures) and
 // acts only through PanelApi, so it renders the same in both modes.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ScreenshotDraft } from '../capture/screenshot';
 import { GENERAL_THREAD, type AddDraft, type ChatModel } from '../model/chat';
 import { DOCS_ORIGINS } from '../core/messages';
@@ -16,7 +16,6 @@ import { AddSheet } from './addAssignment';
 import { AskView, SetAsideSheet, shortTitle, ThreadMenu, type ChatInbox } from './ask';
 import { ChatView } from './chat';
 import { DetailView } from './detail';
-import { PracticeView } from './practice';
 import { EndSheet } from './endSheet';
 import { type HomeActions, HomeView } from './home';
 import { Icon } from './Icon';
@@ -26,6 +25,9 @@ import type { PlanMode } from './planView';
 import { ScreenshotView } from './screenshot';
 import { HandledHints, HintCard, QuizNote, SessionControls, sessionClock, SessionTime, SourcesBody, SuggestionRow, verbMessage, WorkHeader, type ActiveSession, type WorkTab } from './session';
 import { useLingering } from './useLingering';
+
+// Practice opens rarely, so it loads on first use (prep.tsx and chatBlocks.tsx too, from their screens).
+const PracticeView = lazy(() => import('./practice').then((m) => ({ default: m.PracticeView })));
 
 export type PanelProps = {
   home: HomeModel | undefined;
@@ -65,6 +67,18 @@ type ChatNotice = { kind: 'topic' | 'set-aside'; threadKey: string };
 export function Panel({ home, session, useDetail, useChat, screenshot, now, api, onRefresh, previewLabel, paused, aiService, nudge, nudgesEnabled, lastThread, chatInbox, practice }: PanelProps) {
   const [view, setView] = useState<'home' | 'work' | 'ask'>('home');
   const [askThread, setAskThread] = useState<string>(GENERAL_THREAD);
+  useEffect(() => {
+    // After Home paints, fetch the lazy screens in idle time, so opening one rarely shows its placeholder.
+    const id = requestIdleCallback(
+      () => {
+        void import('./chatBlocks');
+        void import('./practice');
+        void import('./prep');
+      },
+      { timeout: 4000 },
+    );
+    return () => cancelIdleCallback(id);
+  }, []);
   const [chatNotice, setChatNotice] = useState<ChatNotice | null>(null);
   const [showSetAside, setShowSetAside] = useState(false);
   const [planMode, setPlanMode] = useState<PlanMode>('list');
@@ -487,15 +501,17 @@ export function Panel({ home, session, useDetail, useChat, screenshot, now, api,
             {practiceAct.error}
           </p>
         )}
-        <PracticeView
-          practice={practice}
-          courseName={testItem?.courseName ?? null}
-          onAnswer={(reply) => practice.question && send({ type: 'prep:answer', practiceId: practice.id, questionId: practice.question.id, ...reply })}
-          onLike={() => practice.question && send({ type: 'prep:like', practiceId: practice.id, questionId: practice.question.id })}
-          onNext={() => send({ type: 'prep:next', practiceId: practice.id })}
-          onEnd={() => (practice.done || practice.error ? close(() => setView('home')) : send({ type: 'prep:end', practiceId: practice.id }))}
-          onReviewMistakes={() => close(() => setOpenId(practice.assignmentId))}
-        />
+        <Suspense fallback={<p className="lazy-wait">Opening your practice…</p>}>
+          <PracticeView
+            practice={practice}
+            courseName={testItem?.courseName ?? null}
+            onAnswer={(reply) => practice.question && send({ type: 'prep:answer', practiceId: practice.id, questionId: practice.question.id, ...reply })}
+            onLike={() => practice.question && send({ type: 'prep:like', practiceId: practice.id, questionId: practice.question.id })}
+            onNext={() => send({ type: 'prep:next', practiceId: practice.id })}
+            onEnd={() => (practice.done || practice.error ? close(() => setView('home')) : send({ type: 'prep:end', practiceId: practice.id }))}
+            onReviewMistakes={() => close(() => setOpenId(practice.assignmentId))}
+          />
+        </Suspense>
       </div>
     );
   }

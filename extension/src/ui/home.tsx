@@ -12,7 +12,7 @@ import type { EditableFields } from '../model/detail';
 import type { HomeModel, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
 import type { PrepStep } from '../model/prep';
 import { shortTitle } from './ask';
-import { SESSION } from './prep';
+import { START_WORDS } from './prepWords';
 import { useAction, type PanelApi } from './api';
 import { checkProblem, dueWhen, minutesText, observedAt } from './format';
 import { Icon } from './Icon';
@@ -386,7 +386,7 @@ function NextStep({ next, resume, now, actions, onMoved }: { next: NextAction; r
   const talkFirst = answer === 'not-sure' && !start.current;
   // Test prep: today's practice step leads with one Start button; readiness and the plan live on the test's page.
   const prep = next.prep;
-  const prepStep = prep ? SESSION[prep.kind] : null;
+  const prepStep = prep ? START_WORDS[prep.kind] : null;
   // Between today's sessions: the next one waits for later, with an optional reminder.
   const waiting = prep?.waiting ?? null;
   // A time limit is a second decision, so it opens only from Set a time.
@@ -439,7 +439,7 @@ function NextStep({ next, resume, now, actions, onMoved }: { next: NextAction; r
         <WaitingReminder prep={prep} waiting={waiting} actions={actions} />
       ) : prep && prepStep ? (
         <button type="button" className="btn-primary" onClick={() => actions.startPractice(prep.assignmentId)} disabled={actions.startingId !== null}>
-          {prepStep.button}
+          {prepStep}
           <Icon name="play" />
         </button>
       ) : talkFirst ? (

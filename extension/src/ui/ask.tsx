@@ -3,7 +3,7 @@
 // in as blocks (Markdown, tool lines, visuals, quizzes, assignment links). An
 // assignment thread follows that assignment's AI rule: blocked shows the rule
 // and offers General instead; an unknown rule asks the one-time question first.
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { lazy, memo, Suspense, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { GENERAL_THREAD, type AddDraft, type Attachment, type ChatModel, type ChatTurn, type SetAsideChat, type ThreadSummary } from '../model/chat';
 import type { HelpAvailability } from '../model/session';
 import type { DayRoom, WorkItem } from '../model/home';
@@ -11,7 +11,7 @@ import { AddDraftCard } from './addAssignment';
 import { AttachButton, AttachChips, AttachNote, DropOverlay, SentFiles, markAttachNoteSeen, useAttachments, useFileDrop } from './attach';
 import { useAction, type PanelApi } from './api';
 import { PolicyStep, Thinking } from './chat';
-import { Block, type BlockProps } from './chatBlocks';
+import type { BlockProps } from './chatBlocks';
 import { monthDay, observedAt } from './format';
 import { Icon } from './Icon';
 import { LogoMark } from './Logo';
@@ -20,6 +20,10 @@ import { PlanChangeCard } from './planChange';
 import { Sheet } from './sheet';
 import { useChatScroll } from './useChatScroll';
 import { usePopover } from './usePopover';
+
+// The reply renderer (markdown, math, charts, quick checks) is the heaviest part of the panel, so it
+// loads when a chat first shows; the panel also fetches it in idle time after Home paints.
+const Block = lazy(() => import('./chatBlocks').then((m) => ({ default: m.Block })));
 
 type AskProps = {
   model: ChatModel | undefined;
@@ -672,7 +676,7 @@ type ThreadTurnsProps = {
  */
 export function ThreadTurns({ model, turns = model.turns, now, api, items, room, onOpenItem, onEditDraft }: ThreadTurnsProps) {
   return (
-    <>
+    <Suspense fallback={<p className="lazy-wait">Opening your chat…</p>}>
       {turns.map((turn) => (
         <Turn
           key={turn.id}
@@ -697,25 +701,37 @@ export function ThreadTurns({ model, turns = model.turns, now, api, items, room,
           )}
         />
       ))}
-    </>
+    </Suspense>
   );
 }
 
-function Turn({
-  turn,
-  widgetUrl,
-  onOpenItem,
-  renderPlanChange,
-  onQuizAnswer,
-  renderAddDraft,
-}: {
+type TurnProps = {
   turn: ChatTurn;
   widgetUrl: string;
   onOpenItem: (id: string) => void;
   renderPlanChange: (id: string) => ReactNode;
   onQuizAnswer: (quizId: string, questionIndex: number, correct: boolean) => void;
   renderAddDraft: BlockProps['renderAddDraft'];
-}) {
+};
+
+/**
+ * A finished turn never changes, so it re-renders only when its status does,
+ * and only the streaming turn re-renders as a reply arrives. Plan changes and
+ * add cards follow live state, so a turn with one always re-renders.
+ */
+const Turn = memo(TurnView, (prev, next) => {
+  const live = next.turn.status === 'streaming' || next.turn.blocks.some((b) => b.kind === 'plan-change' || b.kind === 'add-assignment');
+  return !live && prev.turn.id === next.turn.id && prev.turn.status === next.turn.status && prev.widgetUrl === next.widgetUrl;
+});
+
+function TurnView({
+  turn,
+  widgetUrl,
+  onOpenItem,
+  renderPlanChange,
+  onQuizAnswer,
+  renderAddDraft,
+}: TurnProps) {
   if (turn.role === 'student') {
     const text = turn.blocks.flatMap((b) => (b.kind === 'markdown' ? [b.text] : [])).join('\n');
     const files = turn.blocks.flatMap((b) => (b.kind === 'attachment' ? [b.file] : []));

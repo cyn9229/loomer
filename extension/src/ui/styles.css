@@ -353,6 +353,13 @@ button.focus-sub:hover {
   margin-right: 5px;
   vertical-align: -3px;
 }
+/* While a screen that loads on first use (chat replies, practice, test prep) arrives: one still line, no motion. */
+.lazy-wait {
+  padding: 16px 18px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
 /* Round 46, 1A: Home's step is a short title (one line at 320px when it is
    about 24 characters), one line of why, the button, and one quiet line that
    opens the item's page. */
