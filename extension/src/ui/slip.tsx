@@ -100,7 +100,7 @@ export function NoTimeChoices({ next, now, send, onPickDay, onMoved }: { next: N
         type: 'plan:set',
         changes: [
           { kind: 'room', date: ymd(now), weekday: null, repeat: false, level: 'busy', minutes: null },
-          { kind: 'start_on', assignment_id: id, date: tomorrow },
+          { kind: 'start_on', assignment_id: id, date: tomorrow, during: null },
         ],
       });
       if (reply.ok) onMoved(id);

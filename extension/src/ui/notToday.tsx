@@ -72,7 +72,7 @@ export function DayPicker({ item, now, send, onMoved, onCancel }: DayPickerProps
   const pick = (key: string) => {
     setPending(key);
     move.run(async () => {
-      const reply = await send({ type: 'plan:set', changes: [{ kind: 'start_on', assignment_id: item.assignmentId, date: key }] });
+      const reply = await send({ type: 'plan:set', changes: [{ kind: 'start_on', assignment_id: item.assignmentId, date: key, during: null }] });
       setPending(null);
       if (reply.ok) onMoved(item.assignmentId);
       return reply;

@@ -6,14 +6,19 @@
 //
 // 1. Checkpoints from the instructions become earlier targets.
 // 2. Start-by = earliest upcoming checkpoint (or due date) minus lead time by
-//    workload. A start day the student picked (startOn) is used as given. With
+//    workload. When the instructions spread the work over N days ("one step
+//    each night"), start-by is at least N days before the due date. A start day
+//    the student picked (startOn) is used as given. With
 //    the student's own time guess, start-by counts back from the target through
 //    each day's free minutes until the guess is covered.
 // 3. Placement: each day holds starts up to the room the student gave it
 //    (workload dots). Too many: the start with the latest due date moves one
 //    day earlier, repeated. Never later, never before today.
 // 4. Items sort into start-by buckets: today, tomorrow, within 3 days, later.
-//    Inside a bucket: earlier due first, then bigger work, then earlier start-by.
+//    Inside a bucket: what the student said counts a lot first and counts a
+//    little last, then earlier due, then bigger work, then earlier start-by.
+//    The student's progress counts: done checkpoints and done steps are not
+//    planned again, and mostly-done work needs only a day's lead.
 // 5. Every ranked item carries a one-sentence reason with the concrete fact; the top stays put unless
 //    the evidence moves it out of its bucket (calm re-ranking).
 import type { Milestone } from '../core/db';
@@ -57,6 +62,17 @@ export type PlanEntry = {
   startOn: string | null;
   /** The student's own guess for the whole task, in minutes. */
   guessMinutes: number | null;
+  /** Days the instructions spread the work over ("one step each night"), from the analysis. */
+  paceDays: number | null;
+  /** What the student said about it. All null or empty when they said nothing. */
+  said: {
+    /** A time or place in the start day ("study hall"). */
+    during: string | null;
+    stakes: 'high' | 'low' | null;
+    progress: 'started' | 'mostly-done' | null;
+    checkpointsDone: string[];
+    stepsDone: number;
+  };
 };
 
 /** Why a start is not on the day the lead-time rule gave it. */
@@ -66,7 +82,9 @@ export type Placement =
   /** The student picked the day; `daysLeft` is set only when it is later than Loomer's start-by. */
   | { kind: 'student'; daysLeft: number | null }
   /** Counted back from the student's guess. `short`: the days before the target have less time than the guess. */
-  | { kind: 'guess'; minutes: number; short: boolean };
+  | { kind: 'guess'; minutes: number; short: boolean }
+  /** Earlier than the lead-time rule because the instructions spread the work over `days` days. */
+  | { kind: 'pace'; days: number; done: number };
 
 export type Planned = PlanEntry & {
   checkpoints: Checkpoint[];
@@ -118,6 +136,7 @@ export function checkpointsFor(e: PlanEntry): Checkpoint[] {
   const due = e.due ? Date.parse(e.due) : null;
   return e.milestones
     .flatMap((m) => {
+      if (e.said.checkpointsDone.includes(m.text)) return [];
       const at = m.date ? endOfLocalDay(m.date) : due !== null && m.daysBeforeDue != null ? due - m.daysBeforeDue * DAY_MS : null;
       if (at === null || (due !== null && at > due)) return [];
       return [{ text: m.text, label: m.label ?? checkpointLabel(m.text), at: new Date(at).toISOString(), quote: m.quote, derived: !m.date }];
@@ -139,7 +158,10 @@ export function plan(entries: PlanEntry[], now: Date, roomFor: RoomFor = freeRoo
 
   const planned = entries.map((e): Planned => {
     const { checkpoints, nextCheckpoint, target } = targets.get(e.id)!;
-    const leadAt = target === null ? null : target - LEAD_DAYS[e.effort] * DAY_MS;
+    const pacedAt = paceStart(e);
+    const ruleAt = target === null ? null : target - LEAD_DAYS[e.said.progress === 'mostly-done' ? 'Short' : e.effort] * DAY_MS;
+    const paced = pacedAt !== null && (ruleAt === null || dayIndex(pacedAt) < dayIndex(ruleAt));
+    const leadAt = paced ? pacedAt : ruleAt;
     const base = { ...e, checkpoints, nextCheckpoint, overFull: null };
     if (e.startOn) {
       const day = dayOfDate(e.startOn);
@@ -151,9 +173,15 @@ export function plan(entries: PlanEntry[], now: Date, roomFor: RoomFor = freeRoo
     const basis = nextCheckpoint ? 'checkpoint' : 'due';
     const guess = guessed.get(e.id);
     if (guess) return { ...base, startBy: { at: new Date(noonOf(guess.day)).toISOString(), basis }, bucket: bucketOf(guess.day - today), placement: guess.placement };
-    return { ...base, startBy: { at: new Date(leadAt).toISOString(), basis }, bucket: bucketOf(dayIndex(leadAt) - today), placement: null };
+    return { ...base, startBy: { at: new Date(leadAt).toISOString(), basis: paced ? 'due' : basis }, bucket: bucketOf(dayIndex(leadAt) - today), placement: paced ? { kind: 'pace', days: e.paceDays!, done: e.said.stepsDone } : null };
   });
   return place(planned, today, roomFor).sort(comparePlanned);
+}
+
+/** The latest start that leaves the instructions' days ("one step each night"): that many days before the due day. */
+function paceStart(e: PlanEntry): number | null {
+  const left = (e.paceDays ?? 0) - e.said.stepsDone;
+  return left > 0 && e.due ? noonOf(dayIndex(Date.parse(e.due)) - left) : null;
 }
 
 /** A day's minutes for guessed work: the student's own number, else the level's time. */
@@ -193,7 +221,10 @@ function guessStarts(
       need -= take;
       day = d;
     }
-    out.set(e.id, { day: Math.max(day, today), placement: { kind: 'guess', minutes: guess, short: need > 0 } });
+    // The instructions' days win when they ask for an earlier start than the guess does.
+    const paced = paceStart(e);
+    if (paced !== null && dayIndex(paced) < day) out.set(e.id, { day: Math.max(dayIndex(paced), today), placement: { kind: 'pace', days: e.paceDays!, done: e.said.stepsDone } });
+    else out.set(e.id, { day: Math.max(day, today), placement: { kind: 'guess', minutes: guess, short: need > 0 } });
   }
   return out;
 }
@@ -212,7 +243,7 @@ function place(planned: Planned[], today: number, roomFor: RoomFor): Planned[] {
   const moved = new Map<string, Placement>();
   const overFull = new Map<string, Planned['overFull']>();
   // The student's own start day and their guess-based start are never moved.
-  const movable = (p: Planned) => p.placement === null || p.placement.kind === 'moved';
+  const movable = (p: Planned) => p.placement === null || p.placement.kind === 'moved' || p.placement.kind === 'pace';
 
   for (let d = Math.max(...startDay.values()); d >= today; d--) {
     const room = roomFor(dateOfDay(d));
@@ -240,10 +271,13 @@ function place(planned: Planned[], today: number, roomFor: RoomFor): Planned[] {
   });
 }
 
-/** Bucket, then earlier due, then bigger work, then earlier start-by. */
+const STAKES_ORDER = { high: 0, normal: 1, low: 2 } as const;
+
+/** Bucket, then what the student said counts, then earlier due, then bigger work, then earlier start-by. */
 export function comparePlanned(a: Planned, b: Planned): number {
   return (
     BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket] ||
+    STAKES_ORDER[a.said.stakes ?? 'normal'] - STAKES_ORDER[b.said.stakes ?? 'normal'] ||
     time(a.due) - time(b.due) ||
     SIZE[b.effort] - SIZE[a.effort] ||
     time(a.startBy?.at) - time(b.startBy?.at) ||
@@ -333,11 +367,15 @@ export function startClause(p: Planned): string {
 export function startReason(p: Planned, now: Date): string {
   const pl = p.placement;
   if (pl?.kind === 'student' && p.startBy) {
-    const picked = `You picked ${weekdayLong(p.startBy.at)} to start ${p.noun}`;
+    const picked = `You picked ${weekdayLong(p.startBy.at)}${p.said.during ? ` (${p.said.during})` : ''} to start ${p.noun}`;
     if (pl.daysLeft === null) return `${picked}.`;
     return pl.daysLeft <= 0 ? `${picked}, which is the day it's due.` : `${picked}, which leaves ${pl.daysLeft} ${pl.daysLeft === 1 ? 'day' : 'days'} before it's due.`;
   }
   if (pl?.kind === 'moved' && p.startBy) return `${cap(p.noun)} starts ${dayWords(p.startBy.at, now)} because you said ${dayName(pl.from)} ${roomWords[pl.level]}.`;
+  if (pl?.kind === 'pace' && p.startBy) {
+    if (pl.done > 0) return `You did ${pl.done} of the ${pl.days} steps for ${p.noun}, and the rest need a day each, ${startClause(p)}.`;
+    return `The instructions spread ${p.noun} over ${pl.days} days, ${startClause(p)}.`;
+  }
   if (pl?.kind === 'guess') {
     const starting = `Starting ${p.noun} ${startWhen(p)}`;
     return pl.short
@@ -345,6 +383,7 @@ export function startReason(p: Planned, now: Date): string {
       : `${starting} leaves time for your guess of about ${minutesLong(pl.minutes)}.`;
   }
   if (!p.startBy || !p.due) return p.keptActive ? `You kept ${p.noun} active, so it stays on your plan.` : `Loomer didn't find a due date for ${p.noun}.`;
+  if (p.said.progress === 'mostly-done' && p.due && daysFrom(p.due, now) > 0) return `You said ${p.noun} is mostly done, and it's due ${dayWords(p.due, now)}, ${startClause(p).replace(/start/, 'finish')}.`;
   if (p.nextCheckpoint) return `The next step for ${p.noun}, ${lowerFirst(p.nextCheckpoint.text)}, is due ${dayWords(p.nextCheckpoint.at, now)}, ${startClause(p)}.`;
   const n = daysFrom(p.due, now);
   if (n < 0) return `${cap(p.noun)} was due ${dayWords(p.due, now)}, so it's worth finishing soon.`;

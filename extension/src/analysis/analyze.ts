@@ -18,8 +18,8 @@ import { assignmentPolicy, courseKey, effectiveDue, inDecisionSet, policyAnswer 
 /** Provider failures are usually transient (timeouts, rate limits). */
 const RETRY_FAILED_AFTER_MS = 10 * 60 * 1000;
 const CONCURRENCY = 4;
-/** Raise when the analysis prompt changes in a way older results should pick up. 2: a specific 3-to-6-word first step. */
-export const ANALYSIS_VERSION = 2;
+/** Raise when the analysis prompt changes in a way older results should pick up. 2: a specific 3-to-6-word first step. 3: pace (work spread over days). */
+export const ANALYSIS_VERSION = 3;
 
 export type AnalyzeOptions = { db: LoomerDb; ai: () => Promise<AiSettings>; now?: Date; fetch?: typeof fetch };
 
@@ -45,8 +45,7 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
       continue;
     }
     const prior = analysisById.get(a.id);
-    // An ok analysis from before work types existed is read again once, to learn the type.
-    // An analysis from an older prompt (before work types, short fields, or specific first steps) is read again once.
+    // An analysis from an older prompt (before work types, short fields, specific first steps, or pace) is read again once.
     const current = prior?.status === 'ok' && (prior.version ?? 1) >= ANALYSIS_VERSION;
     if (prior?.detailHash === a.detail.hash && (current || (prior.status === 'failed' && now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS))) continue;
     const decision = checkAiDispatch({ aiEnabled: settings.enabled, policy, answer: policyAnswer(a, contextByKey), purpose: 'requirements-analysis' });
@@ -118,6 +117,7 @@ export function groundInSource(r: RequirementsResponse, req: RequirementsRequest
       date: m.date && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : null,
       daysBeforeDue: m.daysBeforeDue !== null && m.daysBeforeDue >= 0 && m.daysBeforeDue <= 90 ? m.daysBeforeDue : null,
     })),
+    pace: r.pace && r.pace.days >= 2 && r.pace.days <= 30 && supported({ text: '', quote: r.pace.quote }) ? r.pace : null,
     plainWords: r.plainWords.trim().slice(0, 600),
     plainShort: r.plainShort.trim().slice(0, 140),
     firstStep: headline(r.firstStep),

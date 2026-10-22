@@ -281,6 +281,17 @@ type Ranking = {
 };
 
 /** Plans every open item, ranks the decision set, and applies calm re-ranking. */
+/** What the student said about an item, in the planner's terms. */
+function saidOf(ctx: StudentContext | undefined): PlanEntry['said'] {
+  return {
+    during: ctx?.startOn ? (ctx.startDuring ?? null) : null,
+    stakes: ctx?.stakes ?? null,
+    progress: ctx?.progress ?? null,
+    checkpointsDone: ctx?.checkpointsDone ?? [],
+    stepsDone: ctx?.stepsDone ?? 0,
+  };
+}
+
 function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
   const { lastRun, now } = input;
   const courseById = new Map(input.courses.map((c) => [c.id, c]));
@@ -308,6 +319,8 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
     keptActive: c.item.correction === 'kept-active',
     startOn: contextByKey.get(c.a.id)?.startOn ?? null,
     guessMinutes: c.item.guessMinutes,
+    paceDays: c.analysis?.pace?.days ?? null,
+    said: saidOf(contextByKey.get(c.a.id)),
   });
   // Room is shared by every visible start, so place them together.
   const plannedById = new Map(plan(base.filter((c) => !c.item.hidden && !offPlan(c.item.correction)).map(entry), now, roomFor, input.levelMinutes).map((p) => [p.id, p]));

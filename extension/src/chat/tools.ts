@@ -1,5 +1,5 @@
 // Ask Loomer tools. They run in the extension over the student's local data and
-// never change anything. Each returns text for the model and, for display
+// never change anything by themselves (plan changes wait for the student's Apply). Each returns text for the model and, for display
 // tools, one validated block for the panel. Arguments are untrusted model output.
 import { chatTools, type ChatToolName } from '../../../shared/chat-contract';
 import { editFromItem, proposeChange, type PlanSettings } from '../analysis/changes';
@@ -10,7 +10,7 @@ import { roomDays, roomKey, roomLookup } from '../analysis/room';
 import { checkAiDispatch } from '../core/gate';
 import { findTopic, loadSheetTopics, reusedFromSheet, sheetTextFor } from '../session/topics';
 import { ownDraft, workHelpDecision } from '../session/help';
-import { instructionText, type LoomerDb, type PlanEdit } from '../core/db';
+import { instructionText, type LoomerDb, type PlanEdit, type StudentContext } from '../core/db';
 import type { ChatBlock } from '../model/chat';
 import type { WorkItem } from '../model/home';
 import { loadHomeData } from '../model/homeData';
@@ -41,8 +41,21 @@ const isTool = (name: string): name is ChatToolName => Object.hasOwn(chatTools, 
 const day = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : null;
 
-/** What the model may see about one item: dates, size, class, and whether AI help is off. */
-function itemSummary(i: WorkItem) {
+/** What the student already told Loomer about an item, and the instructions' pace, so the model doesn't ask again. */
+type Said = { ctx: StudentContext | undefined; paceDays: number | null };
+
+async function saidFor(db: LoomerDb, items: WorkItem[]): Promise<Map<string, Said>> {
+  const ids = items.map((i) => i.assignmentId);
+  const [contexts, analyses] = await Promise.all([db.studentContext.bulkGet(ids), db.analyses.bulkGet(ids)]);
+  return new Map(ids.map((id, n) => {
+    const a = analyses[n];
+    return [id, { ctx: contexts[n], paceDays: a?.status === 'ok' ? (a.pace?.days ?? null) : null }];
+  }));
+}
+
+/** What the model may see about one item: dates, size, class, what the student said, and whether AI help is off. */
+function itemSummary(i: WorkItem, said?: Said) {
+  const ctx = said?.ctx;
   return {
     id: i.assignmentId,
     title: i.title,
@@ -53,7 +66,14 @@ function itemSummary(i: WorkItem) {
     workload_set_by: i.effort.source === 'student' ? 'student' : 'loomer',
     start_day_picked_by_student: i.startBy?.basis === 'student',
     student_guess: i.guessMinutes ? minutesWords(i.guessMinutes) : null,
-    checkpoints: i.checkpoints.map((c) => `${c.text}: ${day(c.at)}`),
+    checkpoints: i.checkpoints.map((c) => ({ text: c.text, due: day(c.at) })),
+    checkpoints_done: ctx?.checkpointsDone ?? [],
+    spread_over_days: said?.paceDays ?? null,
+    steps_done: said?.paceDays ? (ctx?.stepsDone ?? 0) : null,
+    start_during: ctx?.startOn ? (ctx.startDuring ?? null) : null,
+    counts: ctx?.stakes === 'high' ? 'a lot (student)' : ctx?.stakes === 'low' ? 'a little (student)' : 'not said',
+    progress: ctx?.progress ?? 'not said',
+    student_note: ctx?.note ?? null,
     work_type: i.workType.type,
     ai_help: i.quiz ? 'off (quiz or test)' : i.policy.state === 'blocked' ? 'off (teacher rule)' : 'allowed',
     plan_note: i.rankReason,
@@ -105,7 +125,8 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
         return t <= now.getTime() + 7 * DAY_MS;
       };
       const chosen = (args.success && args.data.range === 'all' ? items : items.filter(inWeek)).slice(0, 25);
-      return { forModel: JSON.stringify({ items: chosen.map(itemSummary), shown: chosen.length, total_open: items.length, ...(await roomSummary(db, now)) }), label };
+      const said = await saidFor(db, chosen);
+      return { forModel: JSON.stringify({ items: chosen.map((i) => itemSummary(i, said.get(i.assignmentId))), shown: chosen.length, total_open: items.length, ...(await roomSummary(db, now)) }), label };
     }
     case 'get_assignment': {
       const args = chatTools.get_assignment.schema.safeParse(json);
@@ -113,20 +134,21 @@ export async function runTool(db: LoomerDb, settings: ToolSettings, name: string
       const item = (await allItems(db, settings, now)).find((i) => i.assignmentId === args.data.assignment_id);
       const a = await db.assignments.get(args.data.assignment_id);
       if (!item || !a) return { forModel: 'No assignment with that id. Use list_work first.', label };
+      const said = (await saidFor(db, [item])).get(item.assignmentId);
       // A teacher's no-AI rule: share only that help is off, never the content.
       if (item.policy.state === 'blocked') {
-        return { forModel: JSON.stringify({ ...itemSummary(item), blocked: true, rule: item.policy.quote ?? 'The teacher does not allow AI help.' }), label };
+        return { forModel: JSON.stringify({ ...itemSummary(item, said), blocked: true, rule: item.policy.quote ?? 'The teacher does not allow AI help.' }), label };
       }
       // Instructions go to AI under the same rule as requirement analysis (not when the policy is unclear or unreadable).
       const context = new Map((await db.studentContext.bulkGet([a.id, courseKey(a)])).filter((c) => c !== undefined).map((c) => [c.key, c]));
       const policy = assignmentPolicy(a, await db.courses.get(courseKey(a)));
       if (!checkAiDispatch({ aiEnabled: true, policy, answer: policyAnswer(a, context), purpose: 'requirements-analysis' }).allowed) {
-        return { forModel: JSON.stringify({ ...itemSummary(item), paused: true, note: 'Loomer is not sure AI help is allowed here, so the instructions are not shared.' }), label };
+        return { forModel: JSON.stringify({ ...itemSummary(item, said), paused: true, note: 'Loomer is not sure AI help is allowed here, so the instructions are not shared.' }), label };
       }
       const analysis = await db.analyses.get(a.id);
       return {
         forModel: JSON.stringify({
-          ...itemSummary(item),
+          ...itemSummary(item, said),
           instructions: (a.detail ? instructionText(a.detail) : '(not readable)').slice(0, MAX_INSTRUCTIONS),
           rubric: (a.detail?.rubric ?? []).map((r) => r.description),
           plain_words: analysis?.status === 'ok' ? (analysis.plainWords ?? null) : null,

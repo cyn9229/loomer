@@ -16,6 +16,8 @@ const entry = (id: string, dueDays: number | null, effort: PlanEntry['effort'], 
   keptActive: false,
   startOn: null,
   guessMinutes: null,
+  paceDays: null,
+  said: { during: null, stakes: null, progress: null, checkpointsDone: [], stepsDone: 0 },
   ...over,
 });
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
@@ -180,5 +182,26 @@ describe('student guesses', () => {
     const [p] = plan([entry('Lab', 2, 'Unknown', { guessMinutes: 600 })], now, rooms({}, 60));
     expect(dayOf(p!)).toBe(0);
     expect(rankReasons([p!], now).get('Lab')).toBe('Starting this lab today helps, though your guess of about 10 hours is more than the days before it have.');
+  });
+});
+
+describe('paced work', () => {
+  const dayOf = (p: { startBy: { at: string } | null }) => dayOfDate(localDay(new Date(p.startBy!.at))) - dayOfDate(localDay(now));
+
+  it('starts as many days before the due date as the instructions spread the work over, and says why', () => {
+    // Due in 8 days, Moderate (2-day lead), but "one step each night" over 5 steps: start day 3.
+    const [p] = plan([entry('Project', 8, 'Moderate', { paceDays: 5 })], now);
+    expect([dayOf(p!), p!.placement]).toEqual([3, { kind: 'pace', days: 5, done: 0 }]);
+    expect(rankReasons([p!], now).get('Project')).toBe('The instructions spread this project over 5 days, so start by Tuesday.');
+  });
+
+  it('keeps the lead-time rule when it already starts earlier', () => {
+    const [p] = plan([entry('Paper', 8, 'Substantial', { paceDays: 2 })], now);
+    expect([dayOf(p!), p!.placement]).toEqual([4, null]);
+  });
+
+  it('beats a guess that would start later', () => {
+    const [p] = plan([entry('Project', 8, 'Unknown', { paceDays: 5, guessMinutes: 60 })], now);
+    expect([dayOf(p!), p!.placement]).toEqual([3, { kind: 'pace', days: 5, done: 0 }]);
   });
 });

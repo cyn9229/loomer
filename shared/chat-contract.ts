@@ -79,12 +79,25 @@ export const planChangeItemSchema = z.discriminatedUnion('kind', [
     minutes: z.number().int().min(0).max(1_440).nullable(),
   }),
   z.strictObject({ kind: z.literal('workload'), assignment_id: z.string().max(300), label: z.enum(['Light', 'Medium', 'Heavy']) }),
-  z.strictObject({ kind: z.literal('start_on'), assignment_id: z.string().max(300), date: ymd }),
+  /** during: a time or place in that day the student named, such as "study hall" or "after practice". */
+  z.strictObject({ kind: z.literal('start_on'), assignment_id: z.string().max(300), date: ymd, during: z.string().max(40).nullable() }),
   z.strictObject({ kind: z.literal('guess'), assignment_id: z.string().max(300), minutes: z.number().int().min(5).max(10_000) }),
   z.strictObject({ kind: z.literal('work_type'), assignment_id: z.string().max(300), type: z.enum(['writing', 'practice', 'study', 'reading']) }),
   z.strictObject({ kind: z.literal('normal_day'), minutes: z.number().int().min(0).max(1_440) }),
   z.strictObject({ kind: z.literal('time_left'), minutes: z.number().int().min(5).max(600) }),
-  z.strictObject({ kind: z.literal('mark'), assignment_id: z.string().max(300), as: z.enum(['hidden', 'done_offline', 'keep_active']) }),
+  z.strictObject({ kind: z.literal('mark'), assignment_id: z.string().max(300), as: z.enum(['hidden', 'done_offline', 'turned_in', 'keep_active', 'restore']) }),
+  /** How much it counts, in the student's words. normal clears it. */
+  z.strictObject({ kind: z.literal('stakes'), assignment_id: z.string().max(300), level: z.enum(['high', 'normal', 'low']) }),
+  /** How far along it is, in the student's words. not_started clears it. */
+  z.strictObject({ kind: z.literal('progress'), assignment_id: z.string().max(300), status: z.enum(['not_started', 'started', 'mostly_done']) }),
+  /** A checkpoint the student already did, by its text from list_work. */
+  z.strictObject({ kind: z.literal('checkpoint_done'), assignment_id: z.string().max(300), checkpoint: z.string().max(300) }),
+  /** For work the instructions spread over days: how many of those days' steps the student did. */
+  z.strictObject({ kind: z.literal('steps_done'), assignment_id: z.string().max(300), count: z.number().int().min(0).max(30) }),
+  /** The student's own words about it, kept on the assignment ("the teacher said this one is optional"). */
+  z.strictObject({ kind: z.literal('note'), assignment_id: z.string().max(300), text: z.string().min(1).max(200) }),
+  /** Go back to Loomer's own value for one thing the student set before. */
+  z.strictObject({ kind: z.literal('clear'), assignment_id: z.string().max(300), what: z.enum(['start_day', 'guess', 'workload', 'work_type']) }),
 ]);
 export type PlanChangeItem = z.infer<typeof planChangeItemSchema>;
 
@@ -120,7 +133,7 @@ export const chatTools = {
   },
   propose_plan_change: {
     description:
-      "Propose changes to the student's plan from what THEY said: how much room a day has (free, some about 2 h, little about 30 min, busy means no starts; for one date, or a weekday with repeat true for every week), their own workload label for an assignment, a day they want to start it, their own time guess for it, what kind of work it is (writing, practice, study, reading), their normal day's free time, the time they have in this work session, or hiding / done offline / keep active. Never invent numbers; use only the student's. Nothing changes until the student taps Apply on the card. Due dates and the teacher's AI rule can't be changed.",
+      "Propose changes to the student's plan from what THEY said, whenever they say how their plan really is: how much room a day has (free, some about 2 h, little about 30 min, busy means no starts; for one date, or a weekday with repeat true for every week), their own workload label for an assignment, a day they want to start it (with during for a time or place they named, like study hall), their own time guess for it, what kind of work it is (writing, practice, study, reading), how much it counts (stakes), how far along it is (progress, a checkpoint already done, or steps done for work spread over days), their normal day's free time, the time they have in this work session, hiding (it doesn't matter), done offline (did it on paper), turned in, keep active, restore (back on the plan), or clearing something they set before. Put several changes in one call. Keep their reason with a note when it matters (\"teacher said it's optional\"). If part of what they said fits none of these, add a note with their words and tell them which part Loomer can't plan around yet. Never invent numbers or dates; use only the student's. Nothing changes until the student taps Apply on the card. Due dates and the teacher's AI rule can't be changed; keep a new due date they mention as a note and say Canvas still shows the old one.",
     schema: z.strictObject({ changes: z.array(planChangeItemSchema).min(1).max(10) }),
   },
   read_my_draft: {

@@ -1,5 +1,6 @@
 // Plan changes: the student's own facts about their time and their work ("Thu
-// is busy", "the essay is Heavy", "I have 40 min"). The AI or a panel control
+// is busy", "the essay is Heavy", "I have 40 min", "I already did the outline",
+// "the vocab sheet doesn't count"). The AI or a panel control
 // proposes edits; this module checks them, previews them with the real planner,
 // and writes them only on apply. Every write keeps the value it replaced, so
 // undo puts it back. Due dates and the teacher's AI rule are never editable.
@@ -9,7 +10,7 @@ import type { DayRoom, RoomLevel, WorkItem } from '../model/home';
 import type { PlanPreview } from '../model/plan';
 import { loadHomeData, type HomeData } from '../model/homeData';
 import { isOpen, offPlan } from './facts';
-import { dayOfDate, localDay, minutesWords, WORKLOAD_WORDS } from './plan';
+import { dayOfDate, localDay, lowerFirst, minutesWords, WORKLOAD_WORDS } from './plan';
 import { buildHomeModel, type RecommendInput } from './recommend';
 import { roomDays, roomKey, roomLookup, weekdayOf } from './room';
 import { WORK_TYPE_WORDS } from './workType';
@@ -23,6 +24,10 @@ const LEVEL_WORDS: Record<RoomLevel, string> = { free: 'free', some: 'some room'
 
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as const;
 const STUDENT_WORKLOAD = { Light: 'Short', Medium: 'Moderate', Heavy: 'Substantial' } as const satisfies Record<string, StudentWorkload>;
+const MARKS = { hidden: 'hide', done_offline: 'done-offline', turned_in: 'turned-in', keep_active: 'keep-active', restore: 'restore' } as const;
+const CLEARS = { start_day: 'startOn', guess: 'guessMinutes', workload: 'workload', work_type: 'workType' } as const;
+const CLEAR_WORDS = { startOn: 'start day', guessMinutes: 'time guess', workload: 'workload', workType: 'kind of work' } as const;
+const PROGRESS_WORDS = { started: 'started', 'mostly-done': 'mostly done' } as const;
 
 /** The tool's change, in the store's terms. Room by weekday without repeat means its next date. */
 export function editFromItem(c: PlanChangeItem, now: Date): PlanEdit | string {
@@ -42,7 +47,7 @@ export function editFromItem(c: PlanChangeItem, now: Date): PlanEdit | string {
     case 'workload':
       return { kind: 'workload', assignmentId: c.assignment_id, label: STUDENT_WORKLOAD[c.label] };
     case 'start_on':
-      return { kind: 'start-on', assignmentId: c.assignment_id, date: c.date };
+      return { kind: 'start-on', assignmentId: c.assignment_id, date: c.date, during: c.during?.trim() || null };
     case 'guess':
       return { kind: 'guess', assignmentId: c.assignment_id, minutes: c.minutes };
     case 'work_type':
@@ -52,7 +57,19 @@ export function editFromItem(c: PlanChangeItem, now: Date): PlanEdit | string {
     case 'time_left':
       return { kind: 'time-left', minutes: c.minutes };
     case 'mark':
-      return { kind: c.as === 'hidden' ? 'hide' : c.as === 'done_offline' ? 'done-offline' : 'keep-active', assignmentId: c.assignment_id };
+      return { kind: MARKS[c.as], assignmentId: c.assignment_id };
+    case 'stakes':
+      return { kind: 'stakes', assignmentId: c.assignment_id, level: c.level === 'normal' ? null : c.level };
+    case 'progress':
+      return { kind: 'progress', assignmentId: c.assignment_id, status: c.status === 'not_started' ? null : c.status === 'started' ? 'started' : 'mostly-done' };
+    case 'checkpoint_done':
+      return { kind: 'checkpoint-done', assignmentId: c.assignment_id, text: c.checkpoint };
+    case 'steps_done':
+      return { kind: 'steps-done', assignmentId: c.assignment_id, count: c.count };
+    case 'note':
+      return { kind: 'note', assignmentId: c.assignment_id, text: c.text.trim() };
+    case 'clear':
+      return { kind: 'clear', assignmentId: c.assignment_id, field: CLEARS[c.what] };
   }
 }
 
@@ -83,12 +100,20 @@ export async function checkEdits(db: LoomerDb, edits: PlanEdit[], now: Date): Pr
     if ('assignmentId' in e) {
       const a = await db.assignments.get(e.assignmentId);
       if (!a || a.sourceKey !== lastRun?.sourceKey) return { ok: false, error: "Loomer couldn't find that assignment." };
-      if (e.kind !== 'hide' && !isOpen(a)) return { ok: false, error: `${a.title} is already turned in, so there's nothing to change.` };
+      if (e.kind !== 'hide' && e.kind !== 'restore' && e.kind !== 'note' && !isOpen(a)) return { ok: false, error: `${a.title} is already turned in, so there's nothing to change.` };
       if (e.kind === 'start-on') {
         if (!isRealDate(e.date)) return { ok: false, error: "That date doesn't exist." };
         if (e.date < today) return { ok: false, error: `${dateWords(e.date)} has already passed.` };
         if (a.dueAt && e.date > localDay(new Date(a.dueAt))) return { ok: false, error: `${a.title} is due before ${dateWords(e.date)}, so pick an earlier day.` };
       }
+      if (e.kind === 'checkpoint-done' || e.kind === 'steps-done') {
+        const analysis = await db.analyses.get(a.id);
+        const ok = analysis?.status === 'ok' ? analysis : null;
+        if (e.kind === 'checkpoint-done' && !ok?.milestones.some((m) => m.text === e.text)) return { ok: false, error: `${a.title} has no checkpoint called "${e.text}".` };
+        if (e.kind === 'steps-done' && !ok?.pace) return { ok: false, error: `${a.title}'s instructions don't spread it over days.` };
+        if (e.kind === 'steps-done' && e.count > ok!.pace!.days) return { ok: false, error: `${a.title} has only ${ok!.pace!.days} steps.` };
+      }
+      if (e.kind === 'note' && !e.text) return { ok: false, error: 'The note was empty.' };
     }
     if (e.kind === 'room' && e.key.startsWith('date:')) {
       const date = e.key.slice('date:'.length);
@@ -135,6 +160,28 @@ async function writesFor(db: LoomerDb, edits: PlanEdit[], now: Date): Promise<Pl
         break;
       case 'start-on':
         await context(e.assignmentId, 'startOn', e.date);
+        await context(e.assignmentId, 'startDuring', e.during);
+        break;
+      case 'stakes':
+        await context(e.assignmentId, 'stakes', e.level);
+        break;
+      case 'progress':
+        await context(e.assignmentId, 'progress', e.status);
+        break;
+      case 'checkpoint-done': {
+        const done = overlay.context.get(e.assignmentId)?.checkpointsDone ?? (await db.studentContext.get(e.assignmentId))?.checkpointsDone ?? [];
+        if (!done.includes(e.text)) await context(e.assignmentId, 'checkpointsDone', [...done, e.text]);
+        break;
+      }
+      case 'steps-done':
+        await context(e.assignmentId, 'stepsDone', e.count || null);
+        break;
+      case 'note':
+        await context(e.assignmentId, 'note', e.text);
+        break;
+      case 'clear':
+        await context(e.assignmentId, e.field, null);
+        if (e.field === 'startOn') await context(e.assignmentId, 'startDuring', null);
         break;
       case 'guess':
         await context(e.assignmentId, 'guessMinutes', e.minutes);
@@ -146,8 +193,15 @@ async function writesFor(db: LoomerDb, edits: PlanEdit[], now: Date): Promise<Pl
         await context(e.assignmentId, 'hidden', true);
         break;
       case 'done-offline':
+      case 'turned-in':
+        await context(e.assignmentId, 'correction', e.kind);
+        break;
       case 'keep-active':
-        await context(e.assignmentId, 'correction', e.kind === 'done-offline' ? 'done-offline' : 'kept-active');
+        await context(e.assignmentId, 'correction', 'kept-active');
+        break;
+      case 'restore':
+        await context(e.assignmentId, 'hidden', null);
+        await context(e.assignmentId, 'correction', null);
         break;
       case 'time-left': {
         const s = await db.sessions.where('state').equals('active').last();
@@ -218,7 +272,19 @@ async function previewFor(db: LoomerDb, edits: PlanEdit[], writes: PlanWrite[], 
         return `${title(e.assignmentId)} workload: ${WORKLOAD_WORDS[e.label]}${was && was !== 'Unknown' && was !== e.label ? ` (was ${WORKLOAD_WORDS[was]})` : ''}`;
       }
       case 'start-on':
-        return `Start ${title(e.assignmentId)} on ${dateWords(e.date)}`;
+        return `Start ${title(e.assignmentId)} on ${dateWords(e.date)}${e.during ? ` (${e.during})` : ''}`;
+      case 'stakes':
+        return e.level === null ? `${title(e.assignmentId)} counts the usual amount` : `${title(e.assignmentId)} counts ${e.level === 'high' ? 'a lot' : 'only a little'}`;
+      case 'progress':
+        return e.status === null ? `${title(e.assignmentId)}: not started yet` : `${title(e.assignmentId)}: ${PROGRESS_WORDS[e.status]}`;
+      case 'checkpoint-done':
+        return `${title(e.assignmentId)}: ${lowerFirst(e.text)} is done`;
+      case 'steps-done':
+        return `${title(e.assignmentId)}: ${e.count} ${e.count === 1 ? 'step' : 'steps'} done`;
+      case 'note':
+        return `Note on ${title(e.assignmentId)}: “${e.text}”`;
+      case 'clear':
+        return `${title(e.assignmentId)}: use Loomer's ${CLEAR_WORDS[e.field]} again`;
       case 'guess':
         return `Your guess for ${title(e.assignmentId)}: about ${minutesWords(e.minutes)}`;
       case 'work-type': {
@@ -231,6 +297,10 @@ async function previewFor(db: LoomerDb, edits: PlanEdit[], writes: PlanWrite[], 
         return `Hide ${title(e.assignmentId)}`;
       case 'done-offline':
         return `Mark ${title(e.assignmentId)} done offline`;
+      case 'turned-in':
+        return `Mark ${title(e.assignmentId)} turned in`;
+      case 'restore':
+        return `Put ${title(e.assignmentId)} back on your plan`;
       case 'keep-active':
         return `Keep ${title(e.assignmentId)} active`;
     }

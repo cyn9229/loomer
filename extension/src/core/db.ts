@@ -165,6 +165,8 @@ export type Analysis =
       effortReason: Quoted;
       deliverables: Quoted[];
       milestones: Milestone[];
+      /** The instructions ask for the work spread over this many days ("one step each night"); absent on older analyses. */
+      pace?: { days: number; quote: string } | null;
       firstStep: string;
       /** Instructions in plain words; absent on older analyses. */
       plainWords?: string;
@@ -194,6 +196,16 @@ export type StudentContext = {
   workload?: StudentWorkload;
   /** Local date (YYYY-MM-DD) the student picked to start. Used as given. */
   startOn?: string;
+  /** A time or place in the start day the student named ("study hall"). Only with startOn. */
+  startDuring?: string;
+  /** How much it counts, in the student's words: high ranks first inside its start bucket, low last. */
+  stakes?: 'high' | 'low';
+  /** How far along it is, in the student's words. Mostly done needs only a day's lead. */
+  progress?: 'started' | 'mostly-done';
+  /** Checkpoint texts (from the analysis) the student says are done; the plan aims at the next one. */
+  checkpointsDone?: string[];
+  /** For work the instructions spread over days: steps the student says are done. Fewer days are left to plan. */
+  stepsDone?: number;
   /** The student's own guess for the whole task, in minutes. */
   guessMinutes?: number;
   /** The student's own work type. Beats the AI's and the rules'. */
@@ -234,15 +246,33 @@ export type DayRoomRecord = { key: string; level: RoomLevel; minutes: number | n
 export type PlanEdit =
   | { kind: 'room'; key: string; level: RoomLevel; minutes: number | null }
   | { kind: 'workload'; assignmentId: string; label: StudentWorkload }
-  | { kind: 'start-on'; assignmentId: string; date: string }
+  | { kind: 'start-on'; assignmentId: string; date: string; during: string | null }
+  | { kind: 'stakes'; assignmentId: string; level: 'high' | 'low' | null }
+  | { kind: 'progress'; assignmentId: string; status: 'started' | 'mostly-done' | null }
+  | { kind: 'checkpoint-done'; assignmentId: string; text: string }
+  | { kind: 'steps-done'; assignmentId: string; count: number }
+  | { kind: 'note'; assignmentId: string; text: string }
+  | { kind: 'clear'; assignmentId: string; field: 'startOn' | 'guessMinutes' | 'workload' | 'workType' }
   | { kind: 'guess'; assignmentId: string; minutes: number }
   | { kind: 'work-type'; assignmentId: string; type: WorkType }
   | { kind: 'normal-day'; minutes: number }
   | { kind: 'time-left'; minutes: number }
-  | { kind: 'hide' | 'done-offline' | 'keep-active'; assignmentId: string };
+  | { kind: 'hide' | 'done-offline' | 'turned-in' | 'keep-active' | 'restore'; assignmentId: string };
 
 /** StudentContext fields a plan change may write. */
-export type PlanContextField = 'workload' | 'startOn' | 'guessMinutes' | 'hidden' | 'correction' | 'workType';
+export type PlanContextField =
+  | 'workload'
+  | 'startOn'
+  | 'startDuring'
+  | 'guessMinutes'
+  | 'hidden'
+  | 'correction'
+  | 'workType'
+  | 'stakes'
+  | 'progress'
+  | 'checkpointsDone'
+  | 'stepsDone'
+  | 'note';
 
 /** One stored value a change replaced, so undo can put it back. */
 export type PlanWrite =

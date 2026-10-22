@@ -20,6 +20,7 @@ describe('groundInSource', () => {
           { text: 'A slideshow', quote: 'Present a slideshow to the class.' },
         ],
         milestones: [],
+        pace: { days: 5, quote: 'Not in the instructions at all.' },
         plainWords: 'Compare two sources.',
         plainShort: 'Compare two sources.',
         firstStep: 'Read both sources and note each main claim', workType: 'writing',
@@ -28,11 +29,12 @@ describe('groundInSource', () => {
     );
     expect(r.effort).toBe('Substantial');
     expect(r.deliverables.map((d) => d.text)).toEqual(['An essay with MLA citations']);
+    expect(r.pace).toBeNull();
   });
 
   it('turns an unsupported effort reason into Unknown', () => {
     const r = groundInSource(
-      { effort: 'Short', effortReason: { text: 'Quick', quote: 'This takes ten minutes.' }, deliverables: [], milestones: [], plainWords: '', plainShort: '', firstStep: 'Begin', workType: 'writing' },
+      { effort: 'Short', effortReason: { text: 'Quick', quote: 'This takes ten minutes.' }, deliverables: [], milestones: [], pace: null, plainWords: '', plainShort: '', firstStep: 'Begin', workType: 'writing' },
       request,
     );
     expect(r.effort).toBe('Unknown');

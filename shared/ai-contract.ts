@@ -43,6 +43,8 @@ export const requirementsResponseSchema = z.strictObject({
   effortReason: quoted,
   deliverables: z.array(quoted),
   milestones: z.array(milestone),
+  /** The text asks for the work to be spread over separate days ("complete one step each night"). Null when it doesn't. */
+  pace: z.strictObject({ days: z.number().int(), quote: z.string() }).nullable(),
   /** What the assignment asks, in 2 or 3 plain sentences. Explains the task; never starts it. */
   plainWords: z.string(),
   /** The same in one short sentence, about 12 words. */
