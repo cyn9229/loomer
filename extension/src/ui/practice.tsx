@@ -514,18 +514,29 @@ export function TopicLine({
   lastCheck,
   mixup = false,
   progress,
+  elsewhere = null,
 }: {
   text: string;
   standing: Standing;
   lastCheck: { correct: number; total: number } | null;
   mixup?: boolean;
   progress?: number;
+  /** Studied on another site (round 47): one line under the name, "Studied on Quizlet · next: one quick check". */
+  elsewhere?: string | null;
 }) {
   if (progress !== undefined)
     return (
       <div className="prep-topic">
         {mixup && <OutcomeMark outcome="mixup" />}
-        <span className="grow">{text}</span>
+        <span className="grow topic-name">
+          {text}
+          {elsewhere && (
+            <span className="topic-else">
+              <Icon name="external" size="xs" />
+              {elsewhere}
+            </span>
+          )}
+        </span>
         <span className={progress >= 1 ? 'tbar full' : 'tbar'} role="img" aria-label={progress >= 1 ? 'Ready' : mixup ? 'A mix-up to fix' : 'Not ready yet'}>
           <i style={{ transform: `scaleX(${Math.min(1, Math.max(0, progress))})` }} />
         </span>
