@@ -64,7 +64,7 @@ const home = async (now: Date, over: Partial<RecommendInput> = {}) =>
     topicChecks: [],
     workedDays: new Map(),
     preps: [],
-    practices: [], waits: [], waitTimes: new Map(),
+    practices: [], waits: [], waitTimes: new Map(), trailNotes: [],
     ...over,
   });
 

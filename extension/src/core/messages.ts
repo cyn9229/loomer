@@ -86,6 +86,15 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('data:delete-assignment'), assignmentId: z.string() }),
   /** Remove everything Loomer stored and the access it was granted, then return to setup. */
   z.object({ type: z.literal('data:clear-all') }),
+  /** Study trail: the whole picked list of site origins, sent after Chrome granted them (permissions.request inside the click). */
+  z.object({ type: z.literal('trail:sites-set'), origins: z.array(z.string().max(200)).max(40) }),
+  /** "Not now" on the ask row: don't ask about this site again. */
+  z.object({ type: z.literal('trail:ask-dismiss'), origin: z.string().max(200) }),
+  z.object({ type: z.literal('trail:pause'), origin: z.string().max(200), paused: z.boolean() }),
+  /** Removes what Loomer took from that site, for the session's assignment. */
+  z.object({ type: z.literal('trail:remove'), origin: z.string().max(200) }),
+  /** The "Read this site too?" answer. read: true only after Chrome granted the site. */
+  z.object({ type: z.literal('trail:other'), origin: z.string().max(200), read: z.boolean() }),
   /** "Read it now" or "Try now": read one assignment's instructions now, even outside the 14-day window or the retry wait. Returns at once; the row shows the wait. */
   z.object({ type: z.literal('read:now'), assignmentId: z.string() }),
   /** Check the linked draft against the requirements (AI on the student's work; needs work-help permission). */

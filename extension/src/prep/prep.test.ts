@@ -62,7 +62,7 @@ describe('sessions by the time left', () => {
   it('fits today to the time given, opens the evening check at 7 PM, and plans nothing late', () => {
     const prep: PrepRecord = { assignmentId: 't', startDay: '2026-10-20', status: 'ready', topics: [{ id: 'a', text: 'Hawaii', source: 'guide', new: false, removed: false }], terms: [], formats: { selected: ['mcq'], found: {}, asked: false }, notes: { photos: 0, found: null }, today: { day: '2026-10-20', minutes: 30 } };
     const tomorrow = new Date(2026, 9, 21, 9).toISOString();
-    const topics = topicStandings(prep, [], [], strictnessFor(tomorrow, now));
+    const topics = topicStandings(prep, [], [], strictnessFor(tomorrow, now), new Map());
     const plan = planSessions(prep, tomorrow, topics, [], [], now);
     expect(plan.sessions.map((s) => [s.kind, s.minutes, s.status])).toEqual([['diagnostic', 15, 'today'], ['focus', 15, 'later'], ['warm-up', 5, 'later']]);
     expect([plan.fits, plan.note?.startsWith("Loomer won't plan anything late tonight")]).toEqual(['Fits your 30 minutes', true]);

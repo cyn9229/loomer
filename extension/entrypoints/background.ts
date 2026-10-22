@@ -11,6 +11,9 @@ import { checkRequirements } from '../src/session/requirements';
 import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
+import { readStudyPage, trailStep } from '../src/trail/reader';
+import { dismissSite, pauseSite, removeSite, setSites } from '../src/trail/trail';
+import { trailPatterns } from '../src/model/trail';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
 import { aiServiceItem, aiSettingsItem, askThreadItem, briefDismissedItem, chatInboxItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
 import { applyChange, dismissChange, editFromItem, proposeChange, undoChange, type PlanSettings } from '../src/analysis/changes';
@@ -66,6 +69,7 @@ function runSessionLoop() {
     });
     if (more) await Promise.all([runProactive(now), runTopics(now), runFocus(now)]);
     await runDiscovery();
+    await runTrail(now);
     sessionLoop = more ? setTimeout(step, SESSION_LOOP_MS) : null;
     if (!more) await browser.alarms.clear(SESSION_ALARM);
   };
@@ -144,6 +148,32 @@ async function runProactive(now: Date) {
 async function ownHosts(): Promise<string[]> {
   const [{ canvasOrigin }, ai] = await Promise.all([settingsItem.getValue(), aiSettingsItem.getValue()]);
   return ['docs.google.com', canvasOrigin, ai.brokerOrigin].flatMap((o) => (o ? [o.includes('://') ? new URL(o).hostname : o] : []));
+}
+
+const trailGranted = (origin: string) => browser.permissions.contains({ origins: trailPatterns(origin) });
+
+/** Last study trail read per site, so a site is read at most every 15 s. */
+const trailReads = new Map<string, number>();
+
+/** One study trail step: which site is in front, and a read of a picked one. Never throws into the session loop. */
+async function runTrail(now: Date) {
+  try {
+    const [tab] = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+    const focused = (await browser.windows.getLastFocused().catch(() => undefined))?.focused ?? false;
+    await trailStep({
+      db,
+      gate: await loadGateState(),
+      ownHosts: await ownHosts(),
+      tab,
+      focused,
+      granted: trailGranted,
+      read: async (tabId) => (await browser.scripting.executeScript({ target: { tabId }, func: readStudyPage }))[0]?.result ?? null,
+      lastRead: trailReads,
+      now,
+    });
+  } catch (error) {
+    console.warn('loomer: study trail step failed', error);
+  }
 }
 
 /** Re-evaluates the foreground tab for research discovery. Cheap no-op when discovery is off. */
@@ -574,6 +604,31 @@ async function handle(message: Message): Promise<Reply> {
     case 'canvas:refresh':
       await refresh();
       return { ok: true };
+    case 'trail:sites-set':
+      await setSites(db, message.origins, trailGranted);
+      return { ok: true };
+    case 'trail:ask-dismiss':
+      await dismissSite(db, message.origin);
+      return { ok: true };
+    case 'trail:pause':
+      await pauseSite(db, message.origin, message.paused);
+      return { ok: true };
+    case 'trail:remove': {
+      const s = await currentSession(db);
+      if (!s) return { ok: false, error: 'No session is running.' };
+      await removeSite(db, s.assignmentId, message.origin);
+      return { ok: true };
+    }
+    case 'trail:other': {
+      if (!message.read) {
+        await dismissSite(db, message.origin);
+        return { ok: true };
+      }
+      // Adds the site to the student's list, keeping the ones already picked.
+      const picked = (await db.trailSites.toArray()).filter((x) => x.picked).map((x) => x.origin);
+      await setSites(db, [...picked, message.origin], trailGranted);
+      return (await trailGranted(message.origin)) ? { ok: true } : { ok: false, error: "Chrome didn't allow that site." };
+    }
     case 'read:now':
       void analyzeRequirements({ db, ai: () => aiSettingsItem.getValue(), only: message.assignmentId });
       return { ok: true };

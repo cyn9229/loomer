@@ -41,6 +41,7 @@ export function recapFor(
   sourcesSaved: number,
   checks: Pick<TopicCheckRecord, 'topic' | 'at'>[],
   now: Date,
+  trail: Pick<SessionRecap, 'trail' | 'trailNext'> = { trail: null, trailNext: null },
 ): SessionRecap {
   const edits = events.filter((e) => e.kind === 'doc-changed');
   const wordsDelta = edits.reduce((sum, e) => sum + (e.wordsDelta ?? 0), 0);
@@ -58,7 +59,7 @@ export function recapFor(
   else if (topicsChecked > 0) text = `You did quick checks on ${count(topicsChecked, 'topic')} in ${time}.`;
   else if (edits.length > 0) text = `You worked on ${noun} for ${time} and made ${count(edits.length, 'edit')}.`;
   else text = `You spent ${time} on ${noun}, and reading and planning count even when the word count doesn't move.`;
-  return { text, noun, minutes, wordsDelta, edits: edits.length, sourcesSaved, topicsChecked };
+  return { text, noun, minutes, wordsDelta, edits: edits.length, sourcesSaved, topicsChecked, ...trail };
 }
 
 export type NextStepDeps = { db: LoomerDb; ai: () => Promise<AiSettings>; fetch?: typeof fetch };

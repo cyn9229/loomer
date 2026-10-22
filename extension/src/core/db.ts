@@ -481,6 +481,32 @@ export type WaitRecord = {
 /** Recent durations of one kind of AI call, in seconds, oldest first. */
 export type WaitTimeRecord = { task: WaitTask; samples: number[] };
 
+/** A site the student may let Loomer notice. Key: origin. `picked` and not `paused`: read during sessions. `dismissed`: never ask about it again. */
+export type TrailSiteRecord = { origin: string; name: string; picked: boolean; paused: boolean; dismissed: boolean };
+
+/**
+ * What Loomer took from one site in one session: only matches, never page text.
+ * `topics` and `terms` are the assignment's own topic texts and key terms that
+ * came up; `asked` counts the student's own messages (ChatGPT) per topic text;
+ * `askedSeen` holds short hashes of messages already counted.
+ */
+export type TrailNoteRecord = {
+  id: string;
+  sessionId: number;
+  assignmentId: string;
+  origin: string;
+  name: string;
+  ms: number;
+  lastAt: string;
+  topics: string[];
+  terms: string[];
+  asked: Record<string, number>;
+  askedSeen: string[];
+};
+
+/** The front tab during a session, as the trail sees it. One row, key 'front'. `blind`: Loomer can't see the tab's address. */
+export type TrailFrontRecord = { key: 'front'; sessionId: number; origin: string | null; blind: boolean; matched: string | null };
+
 export type ChatThreadRecord = { threadKey: string; lastText: string | null; lastAt: string; pending: 'reply' | 'review' | null };
 
 /** Test prep for one test: its topics, key terms, and formats. Plan days and standings are computed, not stored. */
@@ -572,6 +598,9 @@ export class LoomerDb extends Dexie {
   chatThreads!: EntityTable<ChatThreadRecord, 'threadKey'>;
   waits!: EntityTable<WaitRecord, 'key'>;
   waitTimes!: EntityTable<WaitTimeRecord, 'task'>;
+  trailSites!: EntityTable<TrailSiteRecord, 'origin'>;
+  trailNotes!: EntityTable<TrailNoteRecord, 'id'>;
+  trailFront!: EntityTable<TrailFrontRecord, 'key'>;
   preps!: EntityTable<PrepRecord, 'assignmentId'>;
   practices!: EntityTable<PracticeRecord, 'id'>;
   dayRoom!: EntityTable<DayRoomRecord, 'key'>;
@@ -655,6 +684,7 @@ export class LoomerDb extends Dexie {
         });
       });
     this.version(15).stores({ waits: 'key', waitTimes: 'task' });
+    this.version(16).stores({ trailSites: 'origin', trailNotes: 'id, sessionId, assignmentId', trailFront: 'key' });
   }
 }
 

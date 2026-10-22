@@ -1,6 +1,7 @@
 // Data contract for test prep: the plan on the test's page, Home's step,
 // the practice view, the diagnosis, and teaching blocks. Logic owns this file;
 // the UI reads it.
+import type { Elsewhere } from './trail';
 import type { Pending } from './wait';
 import type { PRACTICE_KINDS, PRACTICE_SKILLS, PREP_FORMATS, TEACH_KINDS } from '../../../shared/ai-contract';
 
@@ -53,7 +54,18 @@ export type TestPrep = {
  * for one simple bar. Solid means ready for the test; Loomer keeps the steps
  * behind it (the skill ladder) out of sight.
  */
-export type PrepTopic = { id: string; text: string; standing: Standing; lastCheck: { correct: number; total: number } | null; source: 'guide' | 'notes' | 'student'; new: boolean; mixup: boolean; progress: number };
+export type PrepTopic = {
+  id: string;
+  text: string;
+  standing: Standing;
+  lastCheck: { correct: number; total: number } | null;
+  source: 'guide' | 'notes' | 'student';
+  new: boolean;
+  mixup: boolean;
+  progress: number;
+  /** Studied outside Loomer since its last check (study trail): one line under the topic. Never changes standing or progress. */
+  elsewhere: Elsewhere | null;
+};
 
 /**
  * What a session does. diagnostic: 2 or 3 questions per topic with Sure or

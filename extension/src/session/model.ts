@@ -1,4 +1,5 @@
 // Builds the SessionModel for the work-session screen from stored state.
+import { loadTrailView, trailRecap } from '../trail/trail';
 import { loadWaitTimes, overdue, pendingOf, waitKey, waitView, type WaitTimes } from '../core/waits';
 import { parseDocId, studentText, wordCount } from '../adapters/docs/reader';
 import { instructionText, type AssignmentDetail, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source, type WorkSession } from '../core/db';
@@ -43,6 +44,7 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
   const saved = await sourceView(db, a, sources);
   const item = workItemFor(a, { course, analysis, context: contextMap, read: await loadReadInputs(db, ai.enabled, a.id) }, now);
   const step = session.nextStep;
+  const [trailNotes, prep] = await Promise.all([db.trailNotes.where('sessionId').equals(session.id).toArray(), db.preps.get(a.id)]);
   const [times, focusWait, hintWait] = await Promise.all([loadWaitTimes(db), db.waits.get(waitKey('focus', session.id)), db.waits.get(waitKey('hint', session.id))]);
   const focusView = waitView(focusWait, times, { title: 'Picking a focus', about: item.title }, "Loomer stopped before it picked a focus, so hints work without one.", now);
   const hintView = waitView(hintWait, times, { title: 'Reading your latest change' }, '', now);
@@ -71,7 +73,8 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
         : null,
     focus: session.focus ? { text: session.focus.text, why: session.focus.why, requirement: session.focus.requirement } : null,
     handledHints: handled.slice(-3).reverse().map((h) => ({ id: h.id, text: h.text, at: h.settledAt ?? h.createdAt })),
-    recap: recapFor({ ...a, quiz: item.quiz }, session, events, sources.filter((src) => src.sessionId === session.id).length, checks, now),
+    recap: recapFor({ ...a, quiz: item.quiz }, session, events, sources.filter((src) => src.sessionId === session.id).length, checks, now, trailRecap(trailNotes, Boolean(prep))),
+    trail: item.quiz ? null : await loadTrailView(db, session.id, a.title),
     nextStep: nextStepView(step, item.title, times, now),
     focusPending: session.focus ? null : focusView.pending,
     focusFailed: session.focus ? null : focusView.failed,

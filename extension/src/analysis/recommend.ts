@@ -1,7 +1,7 @@
 // Builds the HomeModel from stored evidence. The order comes from the planner
 // (plan.ts); AI output only supplies effort labels, checkpoints read from the
 // instructions, and first-step wording.
-import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, PracticeRecord, PrepRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord, WaitRecord } from '../core/db';
+import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, PracticeRecord, PrepRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord, TrailNoteRecord, WaitRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, Insight, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
@@ -66,6 +66,8 @@ export type RecommendInput = {
   /** AI calls running or failed, and how long each kind usually takes. */
   waits: WaitRecord[];
   waitTimes: WaitTimes;
+  /** What the study trail took from each site, per session. Orders prep checks; never changes standing. */
+  trailNotes: TrailNoteRecord[];
   /** Topics read from sheets, and the student's quick-check answers on them. */
   sheetTopics: SheetTopicsRecord[];
   topicChecks: TopicCheckRecord[];
@@ -229,7 +231,7 @@ function withPrep(input: RecommendInput, core: CoreModel): CoreModel {
   const prep = input.preps.find((p) => p.assignmentId === id);
   const a = input.assignments.find((x) => x.id === id);
   if (!prep || !a) return core;
-  const today = prepStep(prep, a, input.topicChecks.filter((c) => c.assignmentId === id), input.practices.filter((p) => p.assignmentId === id), input.now);
+  const today = prepStep(prep, a, input.topicChecks.filter((c) => c.assignmentId === id), input.practices.filter((p) => p.assignmentId === id), input.trailNotes.filter((n) => n.assignmentId === id), input.now);
   if (!today) return core;
   return { ...core, next: { ...core.next, prep: today.step, action: today.action, detail: today.detail, aiGenerated: false, insight: { kind: 'prep', text: today.insight, aiFound: false }, slip: null, quickStart: null, plainWords: null } };
 }

@@ -1,5 +1,6 @@
 // Data contract for the work-session screen (pick 3B). Logic owns this file; the
 // UI renders a SessionModel from useSessionModel() and acts only via messages.
+import type { TrailView } from './trail';
 import type { Failed, Pending } from './wait';
 import type { NextStep } from '../core/db';
 import type { WorkItem } from './home';
@@ -218,6 +219,8 @@ export type SessionModel =
       focusFailed: Failed | null;
       /** Loomer is reading the latest change for a possible hint. Quiet: most reads end with no hint. */
       hintPending: Pending | null;
+      /** Study trail: the ask rows, the student's sites, and what Loomer noticed this session. Null for a quiz (Loomer doesn't watch during one). */
+      trail: TrailView | null;
     };
 
 export type SessionNextStep = { status: 'pending'; pending: Pending } | { status: 'failed'; failed: Failed } | ({ status: 'ready' } & NextStep) | null;
@@ -235,4 +238,8 @@ export type SessionRecap = {
   edits: number;
   sourcesSaved: number;
   topicsChecked: number;
+  /** Study trail: "You studied 25 minutes on ChatGPT and Quizlet, mostly Hawaii and the Congo." Null when no picked site was used for a minute. */
+  trail: string | null;
+  /** "Next time starts with one quick check on both." Only for a test with prep. */
+  trailNext: string | null;
 };

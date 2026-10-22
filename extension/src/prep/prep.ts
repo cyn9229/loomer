@@ -3,6 +3,7 @@
 // it", end), and the views the UI reads. AI calls go through the local service;
 // multiple choice, flashcards, and math are checked here, written answers by
 // the AI with quotes from the student's text.
+import { elsewhereFor } from '../trail/trail';
 import { loadWaitTimes, quietWait, runningWait, waitKey } from '../core/waits';
 import type { WaitStep } from '../model/wait';
 import {
@@ -21,7 +22,7 @@ import {
   type PrepTopicsRequest,
   type TeachRequest,
 } from '../../../shared/ai-contract';
-import { instructionText, type Assignment, type LoomerDb, type PracticeQuestionRecord, type PracticeRecord, type PrepRecord, type TeachRecord } from '../core/db';
+import { instructionText, type Assignment, type LoomerDb, type PracticeQuestionRecord, type PracticeRecord, type PrepRecord, type TeachRecord, type TrailNoteRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import { noteThread } from '../chat/threads';
 import type { AiSettings } from '../core/settings';
@@ -182,8 +183,8 @@ export async function setReminder(db: LoomerDb, assignmentId: string, sessionId:
 async function sessionsFor(db: LoomerDb, prep: PrepRecord, a: Assignment, now: Date) {
   const testAt = effectiveDue(a, now).at;
   if (!testAt) return null;
-  const [checks, practices] = await Promise.all([db.topicChecks.where('assignmentId').equals(prep.assignmentId).toArray(), db.practices.where('assignmentId').equals(prep.assignmentId).toArray()]);
-  const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now));
+  const [checks, practices, notes] = await Promise.all([db.topicChecks.where('assignmentId').equals(prep.assignmentId).toArray(), db.practices.where('assignmentId').equals(prep.assignmentId).toArray(), db.trailNotes.where('assignmentId').equals(prep.assignmentId).toArray()]);
+  const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now), elsewhereFor(prep, notes, checks, practices));
   return { topics, checks, practices, testAt, ...planSessions(prep, testAt, topics, practices, checks, now) };
 }
 
@@ -203,9 +204,10 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, sessio
   if (!a || prep?.status !== 'ready' || activeTopics(prep).length === 0) return null;
   const settings = await ai();
   if (!(await prepAllowed(db, settings, a))) return null;
-  const [checks, practices] = await Promise.all([db.topicChecks.where('assignmentId').equals(assignmentId).toArray(), db.practices.where('assignmentId').equals(assignmentId).toArray()]);
+  const [checks, practices, notes] = await Promise.all([db.topicChecks.where('assignmentId').equals(assignmentId).toArray(), db.practices.where('assignmentId').equals(assignmentId).toArray(), db.trailNotes.where('assignmentId').equals(assignmentId).toArray()]);
   const strict = strictnessFor(effectiveDue(a, now()).at ?? now().toISOString(), now());
-  const topics = topicStandings(prep, checks, practices, strict);
+  // Topics studied elsewhere come first: asked about means checked first, studied means one quick check.
+  const topics = topicStandings(prep, checks, practices, strict, elsewhereFor(prep, notes, checks, practices));
   // Each topic is asked at its own rung on the ladder; the student never sees the rungs.
   const climbed = ladders(prep, practices, strict);
   const kind: PrepSessionKind | 'mistake' = mistake ? 'mistake' : (session?.kind ?? 'review');
@@ -519,7 +521,8 @@ async function summaryOf(db: LoomerDb, p: PracticeRecord, now: Date): Promise<Pr
   if (!a || !prep) return null;
   const answered = p.questions.filter((q) => p.answers[q.id]);
   const ids = new Set(answered.map((q) => q.topicId));
-  const all = topicStandings(prep, checks, practices, strictnessFor(effectiveDue(a, now).at ?? now.toISOString(), now));
+  // The summary shows standing only, so outside study doesn't matter here.
+  const all = topicStandings(prep, checks, practices, strictnessFor(effectiveDue(a, now).at ?? now.toISOString(), now), new Map());
   const topics = all.filter((t) => ids.has(t.id));
   const wrong = answered.filter((q) => answerRight(p.answers[q.id]!) === false).length;
   const noun = assignmentNoun(a);
@@ -592,10 +595,10 @@ export async function loadPrep(db: LoomerDb, a: Assignment, now: Date): Promise<
 }
 
 /** Home's step for a test with prep: the current session, or the later-today one it waits for. Null when today's sessions are done. */
-export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typeof topicStandings>[1], practices: PracticeRecord[], now: Date): { step: PrepStep; action: string; detail: string; insight: string } | null {
+export function prepStep(prep: PrepRecord, a: Assignment, checks: Parameters<typeof topicStandings>[1], practices: PracticeRecord[], notes: TrailNoteRecord[], now: Date): { step: PrepStep; action: string; detail: string; insight: string } | null {
   const testAt = effectiveDue(a, now).at;
   if (prep.status !== 'ready' || !testAt) return null;
-  const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now));
+  const topics = topicStandings(prep, checks, practices, strictnessFor(testAt, now), elsewhereFor(prep, notes, checks, practices));
   if (topics.length === 0) return null;
   const session = planSessions(prep, testAt, topics, practices, checks, now).sessions.find((s) => s.status === 'today');
   if (!session) return null;

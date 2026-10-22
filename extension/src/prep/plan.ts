@@ -2,6 +2,7 @@
 // practice answers, study sessions that fit the time left before the test,
 // the readiness line, the diagnosis, the mistakes list, and what each session
 // asks. Never a grade, and never a guess at how long the student needs.
+import type { Elsewhere } from '../model/trail';
 import type { PracticeRecord, PrepRecord, TopicCheckRecord } from '../core/db';
 import type { Confidence, Outcome, PracticeKind, PrepMistake, PrepSession, PrepSessionKind, PrepTopic, Standing } from '../model/prep';
 import { lastCheck, topicKey } from '../analysis/topicStanding';
@@ -48,13 +49,14 @@ export function ladders(prep: PrepRecord, practices: PracticeRecord[], strict: S
  * (the right rung held, no open mix-up, and a later sitting), shown only as a
  * simple bar (`progress`) and the standing, never as rungs.
  */
-export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[], practices: PracticeRecord[], strict: Strictness): PrepTopic[] {
+/** `elsewhere`: topics studied outside Loomer, by id (from elsewhereFor). It orders checks, never standing. */
+export function topicStandings(prep: PrepRecord, checks: TopicCheckRecord[], practices: PracticeRecord[], strict: Strictness, elsewhere: Map<string, Elsewhere>): PrepTopic[] {
   const climbed = ladders(prep, practices, strict);
   return activeTopics(prep).map((t) => {
     const ladder = climbed.get(t.id)!;
     const check = recentCheck(checks.filter((c) => c.topic === topicKey(t.text)));
     const standing: Standing = !ladder.seen ? 'unchecked' : ladder.ready ? 'solid' : 'shaky';
-    return { id: t.id, text: t.text, standing, lastCheck: check, source: t.source, new: t.new, mixup: ladder.mixupOpen, progress: Math.round(ladder.progress * 100) / 100 };
+    return { id: t.id, text: t.text, standing, lastCheck: check, source: t.source, new: t.new, mixup: ladder.mixupOpen, progress: Math.round(ladder.progress * 100) / 100, elsewhere: elsewhere.get(t.id) ?? null };
   });
 }
 
@@ -64,13 +66,21 @@ export function counts(topics: PrepTopic[]): Record<Standing, number> {
 
 const lastAt = (t: PrepTopic, checks: TopicCheckRecord[]) => checks.filter((c) => c.topic === topicKey(t.text)).reduce((max, c) => (c.at > max ? c.at : max), '');
 
-/** Mix-ups first, then the shakiest (least progress on the ladder), then unchecked, then the oldest solid. */
+/**
+ * Mix-ups first, then topics the student kept asking about elsewhere, then the
+ * shakiest (least progress on the ladder), then topics studied elsewhere (one
+ * quick check to see if it stuck), then unchecked, then the oldest solid.
+ */
 export function weakest(topics: PrepTopic[], checks: TopicCheckRecord[], n: number): PrepTopic[] {
   const mixups = topics.filter((t) => t.mixup);
-  const shaky = topics.filter((t) => !t.mixup && t.standing === 'shaky').sort((a, b) => a.progress - b.progress);
-  const unchecked = topics.filter((t) => !t.mixup && t.standing === 'unchecked');
-  const solid = topics.filter((t) => !t.mixup && t.standing === 'solid').sort((a, b) => lastAt(a, checks).localeCompare(lastAt(b, checks)));
-  return [...mixups, ...shaky, ...unchecked, ...solid].slice(0, n);
+  const rest = topics.filter((t) => !t.mixup);
+  const asked = rest.filter((t) => t.elsewhere?.kind === 'asked');
+  const plain = rest.filter((t) => t.elsewhere?.kind !== 'asked');
+  const shaky = plain.filter((t) => t.standing === 'shaky').sort((a, b) => a.progress - b.progress);
+  const studied = plain.filter((t) => t.standing !== 'shaky' && t.elsewhere?.kind === 'site');
+  const unchecked = plain.filter((t) => t.standing === 'unchecked' && !t.elsewhere);
+  const solid = plain.filter((t) => t.standing === 'solid' && !t.elsewhere).sort((a, b) => lastAt(a, checks).localeCompare(lastAt(b, checks)));
+  return [...mixups, ...asked, ...shaky, ...studied, ...unchecked, ...solid].slice(0, n);
 }
 
 /** Solid topics last checked at least `days` days ago: a quick check helps them stick. */

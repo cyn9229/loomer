@@ -44,7 +44,7 @@ describe('Home after a missed start', () => {
       packets: [], sources: [], docUrls: new Map(), activeSession: false, choice: null, snapshot: null, briefDismissedOn: null, room: [], planChanges: [],
       levelMinutes: DEFAULT_LEVEL_MINUTES, sheetTopics: [], topicChecks: [], workedDays: new Map(),
     preps: [],
-    practices: [], waits: [], waitTimes: new Map(),
+    practices: [], waits: [], waitTimes: new Map(), trailNotes: [],
     });
 
   it('names the miss once, then makes the step smaller after a second miss', () => {

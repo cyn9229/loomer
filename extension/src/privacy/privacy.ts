@@ -46,13 +46,15 @@ export function pageRuleFor(url: string): Exclusion {
 export async function deleteAssignmentData(db: LoomerDb, assignmentId: string) {
   const link = await db.docLinks.get(assignmentId);
   const sessions = await db.sessions.where('assignmentId').equals(assignmentId).toArray();
-  await db.transaction('rw', [db.analyses, db.chat, db.hints, db.sources, db.resumePackets, db.docLinks, db.docReads, db.sessions, db.sessionEvents, db.studentContext, db.requirementChecks, db.chatTurns, db.chatFiles, db.chatThreads, db.planChanges, db.sheetTopics, db.preps, db.practices, db.topicChecks], async () => {
+  await db.transaction('rw', [db.analyses, db.chat, db.hints, db.sources, db.resumePackets, db.docLinks, db.docReads, db.sessions, db.sessionEvents, db.studentContext, db.requirementChecks, db.chatTurns, db.chatFiles, db.chatThreads, db.planChanges, db.sheetTopics, db.preps, db.practices, db.topicChecks, db.trailNotes, db.waits], async () => {
     await db.analyses.delete(assignmentId);
     await db.requirementChecks.delete(assignmentId);
     await db.sheetTopics.delete(assignmentId);
     await db.preps.delete(assignmentId);
     await db.practices.where('assignmentId').equals(assignmentId).delete();
     await db.topicChecks.where('assignmentId').equals(assignmentId).delete();
+    await db.trailNotes.where('assignmentId').equals(assignmentId).delete();
+    await db.waits.filter((w) => w.key.endsWith(`:${assignmentId}`)).delete();
     await db.chatTurns.where('threadKey').equals(assignmentId).delete();
     await db.chatFiles.where('threadKey').equals(assignmentId).delete();
     await db.chatThreads.delete(assignmentId);
