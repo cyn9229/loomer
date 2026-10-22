@@ -90,6 +90,8 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('trail:sites-set'), origins: z.array(z.string().max(200)).max(40) }),
   /** "Not now" on the ask row: don't ask about this site again. */
   z.object({ type: z.literal('trail:ask-dismiss'), origin: z.string().max(200) }),
+  /** "Not now" on the setup row (when Loomer can't name the site): turns setup off for good. */
+  z.object({ type: z.literal('trail:setup-dismiss') }),
   z.object({ type: z.literal('trail:pause'), origin: z.string().max(200), paused: z.boolean() }),
   /** Removes what Loomer took from that site, for the session's assignment. */
   z.object({ type: z.literal('trail:remove'), origin: z.string().max(200) }),

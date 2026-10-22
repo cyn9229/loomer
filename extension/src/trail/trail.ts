@@ -184,6 +184,12 @@ export async function dismissSite(db: LoomerDb, origin: string): Promise<void> {
   await db.trailSites.put({ origin, name, picked: prev?.picked ?? false, paused: prev?.paused ?? false, dismissed: true });
 }
 
+/** "Not now" on the setup row: don't ask about any of the listed study sites again. The picker stays under Change your study sites. */
+export async function dismissSetup(db: LoomerDb): Promise<void> {
+  const sites = new Map((await db.trailSites.toArray()).map((s) => [s.origin, s]));
+  for (const s of STUDY_SITES) if (!sites.get(s.origin)?.picked) await dismissSite(db, s.origin);
+}
+
 export async function pauseSite(db: LoomerDb, origin: string, paused: boolean): Promise<void> {
   await db.trailSites.update(origin, { paused });
 }

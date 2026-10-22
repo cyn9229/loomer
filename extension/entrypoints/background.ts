@@ -12,7 +12,7 @@ import { isStreaming, sendChat, stopChat } from '../src/chat/engine';
 import { db } from '../src/core/db';
 import { discoveryStateItem, evaluateForeground } from '../src/discovery/discovery';
 import { readStudyPage, trailStep } from '../src/trail/reader';
-import { dismissSite, pauseSite, removeSite, setSites } from '../src/trail/trail';
+import { dismissSetup, dismissSite, pauseSite, removeSite, setSites } from '../src/trail/trail';
 import { trailPatterns } from '../src/model/trail';
 import { DOCS_ORIGINS, messageSchema, type Message, type Reply } from '../src/core/messages';
 import { aiServiceItem, aiSettingsItem, askThreadItem, briefDismissedItem, chatInboxItem, choiceItem, discoveryItem, levelMinutesItem, loadGateState, notifyItem, planSnapshotItem, proactiveItem, settingsItem } from '../src/core/settings';
@@ -609,6 +609,9 @@ async function handle(message: Message): Promise<Reply> {
       return { ok: true };
     case 'trail:ask-dismiss':
       await dismissSite(db, message.origin);
+      return { ok: true };
+    case 'trail:setup-dismiss':
+      await dismissSetup(db);
       return { ok: true };
     case 'trail:pause':
       await pauseSite(db, message.origin, message.paused);

@@ -5,7 +5,7 @@ import { parseSite } from '../model/trail';
 import { strictnessFor } from '../prep/ladder';
 import { topicStandings, weakest } from '../prep/plan';
 import { matchPage } from './match';
-import { elsewhereFor, loadTrailView, recordRead, trailRecap } from './trail';
+import { dismissSetup, elsewhereFor, loadTrailView, recordRead, trailRecap } from './trail';
 
 const prep: PrepRecord = {
   assignmentId: 't', startDay: '2026-10-20', status: 'ready',
@@ -49,6 +49,12 @@ describe('study trail', () => {
 
     const view = await loadTrailView(db, 1, 'Unit 5 Test');
     expect(view.noticed).toEqual([{ origin: 'https://chatgpt.com', name: 'ChatGPT', minutes: 2, took: 'You asked about Monroe Doctrine twice and Annexation of Hawaii once.', paused: false }]);
+    // Setup shows only while Loomer can't see the tab and nothing is picked or dismissed; Not now turns it off.
+    await db.trailFront.put({ key: 'front', sessionId: 1, origin: null, blind: true, matched: null });
+    await db.trailSites.clear();
+    expect((await loadTrailView(db, 1, 'Unit 5 Test')).setup).toBe(true);
+    await dismissSetup(db);
+    expect((await loadTrailView(db, 1, 'Unit 5 Test')).setup).toBe(false);
     expect(trailRecap(await db.trailNotes.toArray(), true)).toEqual({
       trail: 'You studied 2 minutes on ChatGPT, mostly Monroe Doctrine and Annexation of Hawaii.',
       trailNext: 'Next time starts with one quick check on both.',
