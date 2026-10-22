@@ -92,6 +92,7 @@ export function ReadLine({ item, read, actions }: { item: WorkItem; read: ReadSt
     case 'waiting':
       if (read.reason === 'later') return line(`Loomer will read ${noun} closer to its due date.`, '', { label: 'Read it now', onClick: actions.onReadNow });
       if (read.reason === 'past-due') return line(`${noun.charAt(0).toUpperCase()}${noun.slice(1)} is past due, so Loomer reads it only if you ask.`, '', { label: 'Read it now', onClick: actions.onReadNow });
+      if (read.reason === 'no-date') return line(`${noun.charAt(0).toUpperCase()}${noun.slice(1)} has no due date, so Loomer reads it only if you ask.`, '', { label: 'Read it now', onClick: actions.onReadNow });
       return line(`Loomer hasn’t read ${noun} yet, and it will on the next Canvas check.`, '', { label: 'Read it now', onClick: actions.onReadNow });
     case 'reading':
       return (
