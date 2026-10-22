@@ -295,8 +295,6 @@ export function TrailFold({
  */
 export function StudyTrail({ trail, api }: { trail: TrailView; api: PanelApi }) {
   const [picking, setPicking] = useState(false);
-  // Not now on the general ask hides it until the panel reloads.
-  const [setupHidden, setSetupHidden] = useState(false);
   const { send } = api;
   const ask = trail.ask;
   const other = trail.other;
@@ -315,17 +313,8 @@ export function StudyTrail({ trail, api }: { trail: TrailView; api: PanelApi }) 
       {ask ? (
         <TrailAsk ask={ask} onPick={() => setPicking(true)} onDismiss={() => send({ type: 'trail:ask-dismiss', origin: ask.origin })} />
       ) : (
-        trail.setup &&
-        !setupHidden && (
-          <TrailAsk
-            ask={null}
-            onPick={() => setPicking(true)}
-            onDismiss={() => {
-              setSetupHidden(true);
-              return Promise.resolve({ ok: true as const });
-            }}
-          />
-        )
+        // Not now turns the general ask off for good; Change your study sites still opens the picker.
+        trail.setup && <TrailAsk ask={null} onPick={() => setPicking(true)} onDismiss={() => send({ type: 'trail:setup-dismiss' })} />
       )}
       {other && <OtherSiteAsk other={other} requestOrigins={api.requestOrigins} onAnswer={(read) => send({ type: 'trail:other', origin: other.origin, read })} />}
       <TrailFold
