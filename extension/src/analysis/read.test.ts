@@ -42,7 +42,7 @@ describe('read state', () => {
 
   it('names why it will not or cannot read', () => {
     expect(stateOf(assignment(), undefined, undefined, false)).toMatchObject({ state: 'blocked', reason: 'ai-off' });
-    expect(stateOf(assignment({ detail: null, detailError: 'closed' }), undefined)).toMatchObject({ state: 'empty', reason: 'page-closed' });
+    expect(stateOf(assignment({ detail: null, detailError: 'denied' }), undefined)).toMatchObject({ state: 'empty', reason: 'page-closed' });
     expect(stateOf(assignment({ dueAt: new Date(now.getTime() + 30 * 86_400_000).toISOString() }), undefined)).toMatchObject({ state: 'waiting', reason: 'later' });
     expect(stateOf(assignment({ addedBy: 'student' }), undefined)).toBeNull();
   });
