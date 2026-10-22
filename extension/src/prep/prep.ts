@@ -3,6 +3,8 @@
 // it", end), and the views the UI reads. AI calls go through the local service;
 // multiple choice, flashcards, and math are checked here, written answers by
 // the AI with quotes from the student's text.
+import { loadWaitTimes, quietWait, runningWait, waitKey } from '../core/waits';
+import type { WaitStep } from '../model/wait';
 import {
   brokerEnvelopeSchema,
   PRACTICE_GRADE_ROUTE,
@@ -71,6 +73,9 @@ async function post<T>(settings: AiSettings, route: string, body: unknown, parse
   }
 }
 
+/** A broker reply that came back usable (post returns a sentence when it didn't). */
+const isReply = <T,>(r: T | string): r is T => typeof r !== 'string';
+
 const sourceOf = (a: Assignment) => instructionText(a.detail).slice(0, SOURCE_CHARS);
 const newId = () => crypto.randomUUID().slice(0, 8);
 
@@ -88,7 +93,8 @@ export async function setupPrep({ db, ai, fetch: fetchImpl = fetch, now = () => 
   const record: PrepRecord = existing ?? { assignmentId: a.id, startDay: localDay(now()), status: 'setup', topics: [], terms: [], formats: { selected: [], found: {}, asked: false }, notes: { photos: 0, found: null } };
   await db.preps.put({ ...record, status: 'setup' });
   const request: PrepTopicsRequest = { title: a.title.slice(0, 300), instructions: instructionText(a.detail).slice(0, 20_000), existing: [], images: [] };
-  const reply = await post(settings, PREP_TOPICS_ROUTE, request, (v) => prepTopicsResponseSchema.safeParse(v), fetchImpl);
+  const sheets = (a.detail?.sheets ?? []).flatMap((s) => (s.title ? [s.title] : []));
+  const reply = await quietWait(db, 'prep-setup', a.id, { about: sheets.length ? sheets.join(', ') : a.title }, () => post(settings, PREP_TOPICS_ROUTE, request, (v) => prepTopicsResponseSchema.safeParse(v), fetchImpl), isReply);
   if (typeof reply === 'string') {
     console.warn('loomer: prep setup failed:', reply);
     await db.preps.put({ ...record, status: 'failed', failedAt: now().toISOString(), error: "Loomer couldn't read this test's topics yet, so add your notes or a topic to start." });
@@ -115,7 +121,8 @@ export async function addNotes({ db, ai, fetch: fetchImpl = fetch }: PrepDeps, a
   const settings = await ai();
   if (!(await prepAllowed(db, settings, a))) return "AI help is off for this test, so Loomer can't read your notes.";
   const request: PrepTopicsRequest = { title: a.title.slice(0, 300), instructions: '', existing: activeTopics(prep).map((t) => t.text.slice(0, 160)), images: images.slice(0, 6) };
-  const reply = await post(settings, PREP_TOPICS_ROUTE, request, (v) => prepTopicsResponseSchema.safeParse(v), fetchImpl);
+  const photos = `${request.images.length} ${request.images.length === 1 ? 'photo' : 'photos'} of your notes`;
+  const reply = await quietWait(db, 'prep-notes', assignmentId, { about: photos }, () => post(settings, PREP_TOPICS_ROUTE, request, (v) => prepTopicsResponseSchema.safeParse(v), fetchImpl), isReply);
   if (typeof reply === 'string') {
     console.warn('loomer: notes failed:', reply);
     return "Loomer couldn't read those photos, so try clearer ones.";
@@ -223,7 +230,9 @@ export async function writePractice(deps: PrepDeps, assignmentId: string, sessio
     perTopic: plan.perTopic,
     ask: plan.perTopic ? [] : plan.topics.map((t) => ({ topic: t.text.slice(0, 160), rung: climbed.get(t.id)?.ask ?? 'recall' })),
   };
-  const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
+  const count = plan.kinds.reduce((n, k) => n + k.count, 0);
+  const words = { title: `Writing ${count} ${count === 1 ? 'question' : 'questions'}`, about: fewNames(plan.topics.slice(0, 3)) };
+  const reply = await quietWait(db, 'questions', id, words, () => post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl), isReply);
   if (typeof reply === 'string') {
     console.warn('loomer: practice failed:', reply);
     await db.practices.update(id, { writing: false, error: "Loomer couldn't write practice questions right now, so try again in a bit." });
@@ -340,7 +349,9 @@ export async function answerPractice(deps: PrepDeps, practiceId: string, questio
       const pending: PracticeAnswer = q.kind === 'frq' ? { kind: 'frq', text, status: 'pending', needs: [] } : { kind: q.kind, text, status: 'pending', met: [], missing: [] };
       await db.practices.update(practiceId, { answers: { ...p.answers, [questionId]: pending } });
       const request: PracticeGradeRequest = { kind: q.kind, topic: q.topic.slice(0, 160), prompt: q.prompt.slice(0, 2_000), needs: q.needs.map((n) => n.slice(0, 300)), answer: text };
-      const reply = text ? await post(await ai(), PRACTICE_GRADE_ROUTE, request, (v) => practiceGradeResponseSchema.safeParse(v), fetchImpl) : { needs: q.needs.map((need) => ({ need, met: false, quote: '', hint: 'Write a few words first.' })) };
+      const reply = text
+        ? await quietWait(db, 'grade', practiceId, { about: q.topic }, async () => post(await ai(), PRACTICE_GRADE_ROUTE, request, (v) => practiceGradeResponseSchema.safeParse(v), fetchImpl), isReply)
+        : { needs: q.needs.map((need) => ({ need, met: false, quote: '', hint: 'Write a few words first.' })) };
       const graded = typeof reply === 'string' ? q.needs.map((need) => ({ need, met: false, quote: '', hint: "Loomer couldn't check this one right now." })) : reply.needs;
       // A "met" must quote the student's own words; otherwise it shows without a quote.
       const said = text.toLowerCase().replace(/\s+/g, ' ');
@@ -398,7 +409,7 @@ export async function teachAfter(deps: PrepDeps, practiceId: string, questionId:
     avoidKinds: earlier.map((b) => b.block.kind),
     avoid: askedPrompts([p]),
   };
-  const reply = await post(settings, TEACH_ROUTE, request, (v) => teachResponseSchema.safeParse(v), fetchImpl);
+  const reply = await quietWait(db, 'teach', practiceId, { about: q.topic }, () => post(settings, TEACH_ROUTE, request, (v) => teachResponseSchema.safeParse(v), fetchImpl), isReply);
   const fresh = (await db.practices.get(practiceId))!;
   const update = (status: TeachRecord['status'], block: TeachBlock, checks: PracticeQuestionRecord[]) => {
     const at = fresh.questions.findIndex((x) => x.id === q.id) + 1;
@@ -451,7 +462,7 @@ export async function practiceLike(deps: PrepDeps, practiceId: string, questionI
     perTopic: null,
     ask: [],
   };
-  const reply = await post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl);
+  const reply = await quietWait(db, 'like', practiceId, { about: q.topic }, () => post(settings, PRACTICE_ROUTE, request, (v) => practiceResponseSchema.safeParse(v), fetchImpl), isReply);
   const fresh = (await db.practices.get(practiceId))!;
   const like = typeof reply === 'string' ? [] : reply.questions.flatMap((x) => questionFrom(x, activeTopics(prep), true)).slice(0, 1);
   const at = fresh.questions.findIndex((x) => x.id === questionId) + 1;
@@ -549,11 +560,19 @@ export async function loadPrep(db: LoomerDb, a: Assignment, now: Date): Promise<
   const plan = prep && (await sessionsFor(db, prep, a, now));
   if (!prep || !plan) return null;
   const today = prep.today?.day === localDay(now) ? prep.today.minutes : null;
+  const [times, setupWait, notesWait] = await Promise.all([loadWaitTimes(db), db.waits.get(waitKey('prep-setup', a.id)), db.waits.get(waitKey('prep-notes', a.id))]);
+  const setupSteps: WaitStep[] = [
+    { label: 'Read the instructions', detail: null, status: 'done' },
+    { label: 'Finding topics and key terms', detail: null, status: 'now' },
+    { label: 'Planning your sessions', detail: null, status: 'next' },
+  ];
+  const pending = runningWait(setupWait, times, { title: 'Setting up your plan', steps: setupSteps }, now) ?? runningWait(notesWait, times, { title: 'Reading your notes' }, now);
   return {
     assignmentId: a.id,
     testAt: plan.testAt,
     status: prep.status === 'ready' ? 'ready' : 'setup',
     error: prep.status === 'failed' ? (prep.error ?? null) : null,
+    pending,
     readiness: readiness(plan.topics, plan.checks),
     counts: counts(plan.topics),
     topics: plan.topics,
@@ -620,6 +639,16 @@ export async function loadPracticeModel(db: LoomerDb, now: Date): Promise<Practi
   const a = await db.assignments.get(open.assignmentId);
   const showing = open.showing ? open.blocks.find((b) => b.block.id === open.showing) : undefined;
   const q = open.writing || showing ? undefined : open.questions[open.index];
+  const times = await loadWaitTimes(db);
+  const waits = await db.waits.bulkGet((['questions', 'like', 'teach', 'grade'] as const).map((t) => waitKey(t, open.id)));
+  const [questions, like, teach, grade] = waits;
+  const pending =
+    runningWait(questions, times, { title: 'Writing questions', canCancel: true }, now) ??
+    runningWait(like, times, { title: 'Writing one like it' }, now) ??
+    runningWait(teach, times, { title: 'Writing a short lesson' }, now) ??
+    runningWait(grade, times, { title: 'Checking your answer' }, now);
+  // Writing that ran past its time stopped (the worker went away); say so instead of waiting forever.
+  const stuck = open.writing && !pending && waits.some((w) => w && !w.failed);
   return {
     id: open.id,
     assignmentId: open.assignmentId,
@@ -631,6 +660,7 @@ export async function loadPracticeModel(db: LoomerDb, now: Date): Promise<Practi
     answer: q ? (open.answers[q.id] ?? null) : null,
     teach: showing?.status === 'ready' && !open.endedAt ? showing.block : null,
     done: open.endedAt ? await summaryOf(db, open, now) : null,
-    error: open.error,
+    error: open.error ?? (stuck ? 'Loomer stopped before it finished writing, so try again.' : null),
+    pending,
   };
 }

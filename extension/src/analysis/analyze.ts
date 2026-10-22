@@ -11,19 +11,21 @@ import {
 } from '../../../shared/ai-contract';
 import { instructionText, type Analysis, type Assignment, type LoomerDb, type Quoted } from '../core/db';
 import { mapLimit } from '../core/concurrency';
+import { endWait, startWait, waitKey } from '../core/waits';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings } from '../core/settings';
 import { assignmentPolicy, courseKey, effectiveDue, inDecisionSet, policyAnswer } from './facts';
 
 /** Provider failures are usually transient (timeouts, rate limits). */
-const RETRY_FAILED_AFTER_MS = 10 * 60 * 1000;
+export const RETRY_FAILED_AFTER_MS = 10 * 60 * 1000;
 const CONCURRENCY = 4;
 /** Raise when the analysis prompt changes in a way older results should pick up. 2: a specific 3-to-6-word first step. 3: pace (work spread over days). */
 export const ANALYSIS_VERSION = 3;
 
-export type AnalyzeOptions = { db: LoomerDb; ai: () => Promise<AiSettings>; now?: Date; fetch?: typeof fetch };
+/** `only`: read just this assignment now (read:now), even outside the 14-day window or the retry wait. */
+export type AnalyzeOptions = { db: LoomerDb; ai: () => Promise<AiSettings>; now?: Date; fetch?: typeof fetch; only?: string };
 
-export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fetchImpl = fetch }: AnalyzeOptions) {
+export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fetchImpl = fetch, only }: AnalyzeOptions) {
   const [assignments, courses, context, analyses] = await Promise.all([
     db.assignments.toArray(),
     db.courses.toArray(),
@@ -37,7 +39,8 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
 
   const queue: Assignment[] = [];
   for (const a of assignments) {
-    if (!a.detail || !inDecisionSet(a, effectiveDue(a, now), now)) continue;
+    if (only !== undefined && a.id !== only) continue;
+    if (!a.detail || (only === undefined && !inDecisionSet(a, effectiveDue(a, now), now))) continue;
     const policy = assignmentPolicy(a, courseById.get(courseKey(a)));
     // A restriction found after an analysis removes that AI-derived content.
     if (policy.state === 'blocked' || policyAnswer(a, contextByKey) === 'teacher-forbids-ai') {
@@ -47,7 +50,8 @@ export async function analyzeRequirements({ db, ai, now = new Date(), fetch: fet
     const prior = analysisById.get(a.id);
     // An analysis from an older prompt (before work types, short fields, specific first steps, or pace) is read again once.
     const current = prior?.status === 'ok' && (prior.version ?? 1) >= ANALYSIS_VERSION;
-    if (prior?.detailHash === a.detail.hash && (current || (prior.status === 'failed' && now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS))) continue;
+    const waitingToRetry = prior?.status === 'failed' && only === undefined && now.getTime() - Date.parse(prior.createdAt) < RETRY_FAILED_AFTER_MS;
+    if (prior?.detailHash === a.detail.hash && (current || waitingToRetry)) continue;
     const decision = checkAiDispatch({ aiEnabled: settings.enabled, policy, answer: policyAnswer(a, contextByKey), purpose: 'requirements-analysis' });
     if (decision.allowed) queue.push(a);
   }
@@ -65,6 +69,8 @@ async function analyzeOne(db: LoomerDb, a: Assignment, settings: AiSettings, ai:
     rubric: detail.rubric.slice(0, 30).map((r) => ({ description: r.description.slice(0, 1_000), points: r.points })),
   };
 
+  // Marked while it runs, so the row can say "Reading the instructions".
+  const started = await startWait(db, 'analysis', a.id);
   let reply: BrokerReply<unknown>;
   try {
     const res = await fetchImpl(`${settings.brokerOrigin}${REQUIREMENTS_ROUTE}`, {
@@ -77,6 +83,9 @@ async function analyzeOne(db: LoomerDb, a: Assignment, settings: AiSettings, ai:
   } catch (error) {
     reply = { ok: false, error: `broker unreachable: ${error instanceof Error ? error.message : 'unknown'}` };
   }
+  // The analysis record carries a failure, so a failed call only ends the wait; a good one also counts toward the usual time.
+  if (reply.ok) await endWait(db, 'analysis', a.id, started, null);
+  else await db.waits.delete(waitKey('analysis', a.id));
 
   // Re-check before storing: the source, AI consent, and policy must be unchanged.
   const current = await db.assignments.get(a.id);

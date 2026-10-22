@@ -574,6 +574,9 @@ async function handle(message: Message): Promise<Reply> {
     case 'canvas:refresh':
       await refresh();
       return { ok: true };
+    case 'read:now':
+      void analyzeRequirements({ db, ai: () => aiSettingsItem.getValue(), only: message.assignmentId });
+      return { ok: true };
     case 'ai:set': {
       const ai = await aiSettingsItem.getValue();
       if (message.enabled && !(await browser.permissions.contains({ origins: [`${ai.brokerOrigin}/*`] }))) {

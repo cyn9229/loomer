@@ -1,5 +1,6 @@
 // Data contract for the work-session screen (pick 3B). Logic owns this file; the
 // UI renders a SessionModel from useSessionModel() and acts only via messages.
+import type { Failed, Pending } from './wait';
 import type { NextStep } from '../core/db';
 import type { WorkItem } from './home';
 
@@ -121,6 +122,10 @@ export type SheetTopics = {
   items: TopicItem[];
   /** What to do next, for the "Next:" line. Null when every topic is solid or skipped. */
   next: TopicNext;
+  /** reading: the wait, with the sheet names as `about`. */
+  pending: Pending | null;
+  /** failed: when Loomer reads the sheet again on its own. Null when it won't by itself. */
+  retryAt: string | null;
 } | null;
 
 /**
@@ -203,10 +208,19 @@ export type SessionModel =
       recap: SessionRecap;
       /**
        * The step for next time, after session:next-step. Null before it is asked
-       * for, and for a quiz. `pending` while the AI writes it (a few seconds).
+       * for, and for a quiz. `pending` while the AI writes it (a few seconds);
+       * `failed` when it stopped before it finished.
        */
-      nextStep: { status: 'pending' } | ({ status: 'ready' } & NextStep) | null;
+      nextStep: SessionNextStep;
+      /** The session's focus while Loomer picks it (writing work, near the start). */
+      focusPending: Pending | null;
+      /** No focus could be picked; hints still work. */
+      focusFailed: Failed | null;
+      /** Loomer is reading the latest change for a possible hint. Quiet: most reads end with no hint. */
+      hintPending: Pending | null;
     };
+
+export type SessionNextStep = { status: 'pending'; pending: Pending } | { status: 'failed'; failed: Failed } | ({ status: 'ready' } & NextStep) | null;
 
 /**
  * The end card's recap. `text` is the sentence to show, e.g. "You added 240

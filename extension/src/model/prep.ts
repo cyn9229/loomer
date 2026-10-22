@@ -1,6 +1,7 @@
 // Data contract for test prep: the plan on the test's page, Home's step,
 // the practice view, the diagnosis, and teaching blocks. Logic owns this file;
 // the UI reads it.
+import type { Pending } from './wait';
 import type { PRACTICE_KINDS, PRACTICE_SKILLS, PREP_FORMATS, TEACH_KINDS } from '../../../shared/ai-contract';
 
 export type PrepFormat = (typeof PREP_FORMATS)[number];
@@ -18,6 +19,8 @@ export type TestPrep = {
   /** setup: Loomer is still finding topics (or couldn't: `error`). ready: the plan below is live. */
   status: 'setup' | 'ready';
   error: string | null;
+  /** Setup (with its steps) or reading notes photos, while it runs. */
+  pending: Pending | null;
   /** "5 of 8 topics on this test are solid, and Latin America still needs work." Never a grade. */
   readiness: string;
   counts: { solid: number; shaky: number; unchecked: number };
@@ -116,8 +119,10 @@ export type Practice = {
   /** A teaching block shown as its own step instead of a question; "Check it" sends prep:next. */
   teach: TeachBlock | null;
   done: PracticeSummary | null;
-  /** One sentence when writing failed. */
+  /** One sentence when writing failed, or when writing stopped past its time. */
   error: string | null;
+  /** Writing questions (cancel ends the practice with prep:end), "Try one like it", a teaching block, or checking a written answer. Place it by whether `answer` exists. */
+  pending: Pending | null;
 };
 
 export type PracticeQuestion = {

@@ -1,6 +1,7 @@
 // Requirement-level evidence: checks the linked draft against the requirement
 // list on request. Observed and Needs review must quote the draft or they become
 // Unknown. A check belongs to one draft version and goes stale when it changes.
+import { noteTime } from '../core/waits';
 import {
   brokerEnvelopeSchema,
   REQUIREMENTS_CHECK_ROUTE,
@@ -65,6 +66,7 @@ export async function checkRequirements({ db, ai, fetch: fetchImpl = fetch }: Ch
   // Records are typed first: Dexie's insert type does not narrow a union.
   const pending: RequirementCheck = { assignmentId, status: 'pending', startedAt: now.toISOString() };
   await db.requirementChecks.put(pending);
+  const started = Date.now();
 
   const request: RequirementsCheckRequest = {
     title: a.title.slice(0, 300),
@@ -110,4 +112,5 @@ export async function checkRequirements({ db, ai, fetch: fetchImpl = fetch }: Ch
   });
   const record: RequirementCheck = { assignmentId, status: 'ok', docHash, scope: request.workScope === 'partial' ? 'partial' : 'full', createdAt: now.toISOString(), items };
   await db.requirementChecks.put(record);
+  await noteTime(db, 'check', Date.now() - started);
 }

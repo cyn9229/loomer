@@ -1,7 +1,7 @@
 // Builds the HomeModel from stored evidence. The order comes from the planner
 // (plan.ts); AI output only supplies effort labels, checkpoints read from the
 // instructions, and first-step wording.
-import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, PracticeRecord, PrepRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord } from '../core/db';
+import type { Analysis, Assignment, CollectionRun, Course, DayRoomRecord, PlanChangeRecord, PracticeRecord, PrepRecord, ResumePacket, SheetTopicsRecord, Source, StudentContext, TopicCheckRecord, WaitRecord } from '../core/db';
 import { checkAiDispatch } from '../core/gate';
 import type { AiSettings, Choice } from '../core/settings';
 import type { CheckInfo, Evidence, HomeModel, Insight, NextAction, OlderReview, ResumeBriefing, WorkItem } from '../model/home';
@@ -9,6 +9,8 @@ import { assignmentPolicy, courseKey, effectiveDue, HORIZON_DAYS, inDecisionSet,
 import type { PlanChangeView } from '../model/plan';
 import { comparePlanned, crowdedWeek, dailyBrief, dayIndex, dayWords, dueWords, keepPreviousTop, localDay, lowerFirst, plan, weekdayLong, rankReasons, WORKLOAD_WORDS, type LevelMinutes, type PlanEntry, type Planned, type RoomFor } from './plan';
 import { roomDays, roomLookup } from './room';
+import { readStateOf, type ReadInputs } from './read';
+import { waitKey, type WaitTimes } from '../core/waits';
 import { nextTopic, topicItems } from './topicStanding';
 import { assignmentNoun, insightFor, weakTopicInsight } from './insight';
 import { QUICK_START_MINUTES, slipInsight, slipOf, wantsQuickStart } from './slip';
@@ -61,6 +63,9 @@ export type RecommendInput = {
   planChanges: PlanChangeRecord[];
   /** Minutes a "some" or "little" day gives guessed work (settings). */
   levelMinutes: LevelMinutes;
+  /** AI calls running or failed, and how long each kind usually takes. */
+  waits: WaitRecord[];
+  waitTimes: WaitTimes;
   /** Topics read from sheets, and the student's quick-check answers on them. */
   sheetTopics: SheetTopicsRecord[];
   topicChecks: TopicCheckRecord[];
@@ -292,6 +297,12 @@ function saidOf(ctx: StudentContext | undefined): PlanEntry['said'] {
   };
 }
 
+const readInputsOf = (input: RecommendInput, a: Assignment): ReadInputs => ({
+  aiEnabled: input.ai.enabled,
+  wait: input.waits.find((w) => w.key === waitKey('analysis', a.id)),
+  times: input.waitTimes,
+});
+
 function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
   const { lastRun, now } = input;
   const courseById = new Map(input.courses.map((c) => [c.id, c]));
@@ -300,7 +311,7 @@ function rank(input: RecommendInput, roomFor: RoomFor): Ranking {
 
   const base = input.assignments
     .filter((a) => a.sourceKey === lastRun?.sourceKey && isOpen(a))
-    .map((a) => candidateFor(a, { course: courseById.get(courseKey(a)), analysis: analysisById.get(a.id), context: contextByKey }, now));
+    .map((a) => candidateFor(a, { course: courseById.get(courseKey(a)), analysis: analysisById.get(a.id), context: contextByKey, read: readInputsOf(input, a) }, now));
 
   const canvasOpen = base.filter((c) => !c.a.addedBy).map((c) => c.a);
   for (const c of base) {
@@ -433,16 +444,17 @@ function describeMove(prev: NonNullable<PlanSnapshot>, topId: string, entries: N
   return `${now.title} now needs to start sooner, so Loomer moved ${noun} to the top.`;
 }
 
-type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext> };
+type CandidateInputs = { course: Course | undefined; analysis: Analysis | undefined; context: Map<string, StudentContext>; read: ReadInputs };
 
-function candidateFor(a: Assignment, { course, analysis: stored, context }: CandidateInputs, now: Date): Candidate {
+function candidateFor(a: Assignment, { course, analysis: stored, context, read }: CandidateInputs, now: Date): Candidate {
   const due = effectiveDue(a, now);
   const policy = assignmentPolicy(a, course);
   const blocked = policy.state === 'blocked' || policyAnswer(a, context) === 'teacher-forbids-ai';
   // Only a current, successful analysis counts; never AI content for a blocked assignment.
   const analysis = stored?.status === 'ok' && stored.detailHash === a.detail?.hash && !blocked ? stored : null;
   const ctx = context.get(a.id);
-  return { a, due, policy, analysis, item: toWorkItem(a, due, policy, analysis, blocked, ctx, now), planned: null };
+  const readState = readStateOf(a, stored, policy, policyAnswer(a, context), due, read, now);
+  return { a, due, policy, analysis, item: { ...toWorkItem(a, due, policy, analysis, blocked, ctx, now), read: readState }, planned: null };
 }
 
 /** The WorkItem for one assignment, built with the same rules Home uses. */
@@ -459,7 +471,7 @@ function resumeBriefing(input: RecommendInput, nextAssignmentId: string | null):
   const contextByKey = new Map(input.context.map((c) => [c.key, c]));
   const stored = input.analyses.find((x) => x.assignmentId === a.id);
   const course = input.courses.find((c) => c.id === courseKey(a));
-  const candidate = candidateFor(a, { course, analysis: stored, context: contextByKey }, input.now);
+  const candidate = candidateFor(a, { course, analysis: stored, context: contextByKey, read: readInputsOf(input, a) }, input.now);
   const sources = input.sources.filter((src) => packet.sourceIds.includes(src.id));
 
   const facts: string[] = [];
@@ -498,7 +510,7 @@ function olderReview(input: RecommendInput): OlderReview {
     .flatMap((a) => {
       const ctx = contextByKey.get(a.id);
       if (ctx?.hidden || (ctx?.correction && ctx.correction !== 'turned-in')) return [];
-      const c = candidateFor(a, { course: input.courses.find((x) => x.id === courseKey(a)), analysis: undefined, context: contextByKey }, input.now);
+      const c = candidateFor(a, { course: input.courses.find((x) => x.id === courseKey(a)), analysis: undefined, context: contextByKey, read: readInputsOf(input, a) }, input.now);
       if (c.item.bucket !== 'past') return [];
       // Turned in, but Canvas still shows no submission a day after the due date.
       if (ctx?.correction === 'turned-in') {
@@ -615,6 +627,7 @@ function toWorkItem(
     startBy: null,
     checkpoints: [],
     rankReason: null,
+    read: null,
   };
 }
 

@@ -141,14 +141,16 @@ describe('sendChat', () => {
   it('streams text, runs a tool between rounds, and stores the visual in order', async () => {
     const svg = '<svg viewBox="0 0 10 10"><circle r="4"/></svg>';
     const f = broker([
-      [{ type: 'text', delta: 'Here is ' }, { type: 'text', delta: 'a picture.' }, { type: 'tool_call', id: 'c1', name: 'show_visual', arguments: JSON.stringify({ type: 'svg', title: 'Heat', svg, chart: null, html: null, height: null }) }, { type: 'done' }],
+      [{ type: 'text', delta: 'Here is ' }, { type: 'text', delta: 'a picture.' }, { type: 'tool_start', index: 0, name: 'show_visual' }, { type: 'tool_call', id: 'c1', name: 'show_visual', arguments: JSON.stringify({ type: 'svg', title: 'Heat', svg, chart: null, html: null, height: null }) }, { type: 'done' }],
       [{ type: 'text', delta: 'Roads hold heat.' }, { type: 'done' }],
     ]);
     await sendChat(deps(f), 'general', 'Explain heat islands');
     const [student, loomer] = await db.chatTurns.toArray();
     expect(student).toMatchObject({ role: 'student', blocks: [{ kind: 'markdown', text: 'Explain heat islands' }] });
     expect(loomer!.status).toBe('done');
+    // The "Making a visual" placeholder became the tool line, with the visual right after it, and both waits were timed.
     expect(loomer!.blocks.map((b) => b.kind)).toEqual(['markdown', 'tool', 'visual', 'markdown']);
+    expect((await db.waitTimes.toArray()).map((t) => t.task).sort()).toEqual(['reply', 'visual']);
     // Round two carries the tool call and its result back to the model.
     expect(JSON.stringify(f.calls[1])).toContain('"role":"tool"');
   });

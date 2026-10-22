@@ -1,18 +1,18 @@
 // Builds the SessionModel for the work-session screen from stored state.
+import { loadWaitTimes, overdue, pendingOf, waitKey, waitView, type WaitTimes } from '../core/waits';
 import { parseDocId, studentText, wordCount } from '../adapters/docs/reader';
-import { instructionText, type AssignmentDetail, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source } from '../core/db';
+import { instructionText, type AssignmentDetail, type DocLink, type DocRead, type LoomerDb, type SessionEvent, type Source, type WorkSession } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import { courseKey } from '../analysis/facts';
 import { workItemFor } from '../analysis/recommend';
-import type { ActivityItem, DocState, HelpAvailability, SessionModel, SourceItem } from '../model/session';
+import { loadReadInputs } from '../analysis/read';
+import type { ActivityItem, DocState, HelpAvailability, SessionModel, SessionNextStep, SourceItem } from '../model/session';
 import { recapFor } from './close';
 import { currentSession } from './session';
 import { sourceView } from './sources';
 import { loadSheetTopics, loadTeacherSheets } from './topics';
 import { workHelpDecision, type HelpDecision } from './help';
 
-/** A student message without a reply for this long is no longer shown as pending. */
-const PENDING_MS = 90_000;
 /** A review still marked pending after this long was cut off (the worker stopped). */
 const REVIEW_STALE_MS = 3 * 60_000;
 const ACTIVITY_LIMIT = 10;
@@ -41,15 +41,18 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
   const contextMap = new Map(context.filter((c) => c !== undefined).map((c) => [c.key, c]));
 
   const saved = await sourceView(db, a, sources);
-  const item = workItemFor(a, { course, analysis, context: contextMap }, now);
+  const item = workItemFor(a, { course, analysis, context: contextMap, read: await loadReadInputs(db, ai.enabled, a.id) }, now);
   const step = session.nextStep;
+  const [times, focusWait, hintWait] = await Promise.all([loadWaitTimes(db), db.waits.get(waitKey('focus', session.id)), db.waits.get(waitKey('hint', session.id))]);
+  const focusView = waitView(focusWait, times, { title: 'Picking a focus', about: item.title }, "Loomer stopped before it picked a focus, so hints work without one.", now);
+  const hintView = waitView(hintWait, times, { title: 'Reading your latest change' }, '', now);
   return {
     status: session.state === 'paused' ? 'paused' : 'active',
     sessionId: session.id,
     assignment: item,
     startedAt: session.startedAt,
     plannedUntil: session.plannedUntil ?? null,
-    topics: await loadSheetTopics(db, a.id),
+    topics: await loadSheetTopics(db, a.id, now),
     teacherSheets: await loadTeacherSheets(db, a),
     doc: docState(link, read, a.detail, instructionText(a.detail)),
     sources: saved.items,
@@ -69,8 +72,11 @@ export async function loadSessionModel(db: LoomerDb, ai: AiSettings, now: Date):
     focus: session.focus ? { text: session.focus.text, why: session.focus.why, requirement: session.focus.requirement } : null,
     handledHints: handled.slice(-3).reverse().map((h) => ({ id: h.id, text: h.text, at: h.settledAt ?? h.createdAt })),
     recap: recapFor({ ...a, quiz: item.quiz }, session, events, sources.filter((src) => src.sessionId === session.id).length, checks, now),
-    // A pending step older than this means the worker stopped; the card can ask again.
-    nextStep: !step || (step.status === 'pending' && now.getTime() - Date.parse(step.at) > PENDING_MS) ? null : step.status === 'pending' ? { status: 'pending' } : step,
+    nextStep: nextStepView(step, item.title, times, now),
+    focusPending: session.focus ? null : focusView.pending,
+    focusFailed: session.focus ? null : focusView.failed,
+    // A hint read that stopped is just over; it never shows as a failure.
+    hintPending: hintView.pending,
   };
 }
 
@@ -138,4 +144,12 @@ export function availability(decision: HelpDecision): { availability: HelpAvaila
     case 'quiz':
       return { availability: 'quiz' };
   }
+}
+
+/** The next step as the end card shows it. A step past its time counts as failed, so the card offers to write one. */
+function nextStepView(step: WorkSession['nextStep'], title: string, times: WaitTimes, now: Date): SessionNextStep {
+  if (!step) return null;
+  if (step.status === 'ready') return step;
+  if (overdue('next-step', times, step.at, now)) return { status: 'failed', failed: { text: 'Loomer stopped before it picked a next step, so write your own or try again.', retry: true } };
+  return { status: 'pending', pending: pendingOf('next-step', times, { title: 'Picking a next step', about: title, startedAt: step.at }) };
 }

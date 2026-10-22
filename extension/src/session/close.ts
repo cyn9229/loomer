@@ -1,6 +1,7 @@
 // Ending a session on purpose, from the end card: the recap it shows, one step
 // for next time, and closing with where the assignment stands. Tapping End only
 // opens the card; the session keeps running until the student picks.
+import { noteTime } from '../core/waits';
 import type { Assignment, LoomerDb, NextStep, SessionEvent, TopicCheckRecord, WorkSession } from '../core/db';
 import type { AiSettings } from '../core/settings';
 import type { SessionRecap } from '../model/session';
@@ -94,10 +95,12 @@ export async function nextStepStep({ db, ai, fetch: fetchImpl = fetch }: NextSte
   if (type !== 'writing' || !(await workHelpDecision(db, settings, a.id)).allowed) return ready(planStep);
 
   await db.sessions.update(s.id, { nextStep: { status: 'pending', at: now.toISOString() } });
+  const started = Date.now();
   let step = planStep;
   try {
     const { request } = await focusRequest(db, a, s.focus?.text ? { focus: s.focus.text, handledHints: await db.hints.where('sessionId').equals(s.id).filter((h) => h.state === 'handled').count() } : null);
     const picked = await fetchFocus(settings, request, fetchImpl);
+    if (picked) await noteTime(db, 'next-step', Date.now() - started);
     if (picked && (await workHelpDecision(db, await ai(), a.id)).allowed) step = { text: picked.focus.trim().slice(0, NEXT_STEP_CHARS), aiGenerated: true };
   } catch {
     // Keep the plan's step.

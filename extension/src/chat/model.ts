@@ -1,7 +1,10 @@
 // Builds the ChatModel for one thread from the store, with the switcher's
 // thread list and set-aside conversations. Dexie reads only.
+import { loadWaitTimes, pendingOf, type WaitTimes } from '../core/waits';
+import type { Pending, WaitStep } from '../model/wait';
 import { courseKey, isOpen, offPlan } from '../analysis/facts';
 import { planChangeView, workItemFor } from '../analysis/recommend';
+import { loadReadInputs } from '../analysis/read';
 import type { Assignment, ChatThreadRecord, ChatTurnRecord, LoomerDb, StudentContext } from '../core/db';
 import { lineOf } from './lines';
 import type { AiSettings } from '../core/settings';
@@ -23,12 +26,14 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
     db.studentContext.toArray(),
   ]);
   const records = own.filter((t) => !t.setAsideId).sort((x, y) => x.id - y.id);
+  const times = await loadWaitTimes(db);
   const turns = records.map((t) => ({
     id: t.id,
     role: t.role,
     blocks: t.blocks,
     status: t.status === 'streaming' && now.getTime() - Date.parse(t.createdAt) > STREAM_STALE_MS ? ('error' as const) : t.status,
     error: t.error,
+    pending: t.status === 'streaming' && t.blocks.length === 0 ? turnPending(t, times) : null,
     createdAt: t.createdAt,
   }));
   const streaming = turns.some((t) => t.status === 'streaming');
@@ -42,7 +47,7 @@ export async function loadChatModel(db: LoomerDb, ai: AiSettings, threadKey: Thr
   if (!a) return { ...base, assignment: null, availability: 'unresolved' };
   const [course, analysis, decision] = await Promise.all([db.courses.get(courseKey(a)), db.analyses.get(a.id), workHelpDecision(db, ai, a.id)]);
   const contextMap = new Map(context.filter((c) => c.key === a.id || c.key === courseKey(a)).map((c) => [c.key, c]));
-  return { ...base, assignment: workItemFor(a, { course, analysis, context: contextMap }, now), availability: availability(decision).availability };
+  return { ...base, assignment: workItemFor(a, { course, analysis, context: contextMap, read: await loadReadInputs(db, ai.enabled, a.id) }, now), availability: availability(decision).availability };
 }
 
 /**
@@ -85,4 +90,14 @@ function setAsideList(asideTurns: ChatTurnRecord[], assignments: Assignment[]): 
       return { id, threadKey, title, startedAt: sorted[0]!.createdAt, endedAt: sorted.at(-1)!.createdAt, count: sorted.length, preview: lineOf(sorted.at(-1)!.blocks) ?? '' };
     })
     .sort((x, y) => y.endedAt.localeCompare(x.endedAt));
+}
+
+/** A reply with nothing in it yet: a draft check with its two real steps, or a reply before its first word. */
+function turnPending(t: ChatTurnRecord, times: WaitTimes): Pending {
+  if (!t.review) return pendingOf('reply', times, { title: 'Writing a reply', startedAt: t.createdAt, canCancel: true });
+  const steps: WaitStep[] = [
+    { label: 'Reading your draft', detail: t.review.draftRead ? t.review.about : null, status: t.review.draftRead ? 'done' : 'now' },
+    { label: 'Checking it against the assignment', detail: null, status: t.review.draftRead ? 'now' : 'next' },
+  ];
+  return pendingOf('review', times, { title: 'Checking your draft', about: t.review.about, startedAt: t.createdAt, steps });
 }

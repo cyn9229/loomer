@@ -29,6 +29,7 @@ function item(id: string, startDay: number | null, dueDay: number | null, over: 
     startBy: startDay === null ? null : { at: day(startDay, 9), basis: 'due' },
     checkpoints: [],
     rankReason: null,
+    read: null,
     ...over,
   };
 }

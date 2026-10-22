@@ -5,6 +5,7 @@
 // instructions rule, right after a Canvas check. Without one, the student's
 // linked Doc is read during a session under the stricter work-help rule, since
 // it may hold their answers. Never for a quiz.
+import { loadWaitTimes, noteTime, overdue, pendingOf } from '../core/waits';
 import { brokerEnvelopeSchema, TOPICS_ROUTE, topicsResponseSchema, type TopicsRequest } from '../../../shared/ai-contract';
 import { assignmentPolicy, courseKey, isOpen, policyAnswer } from '../analysis/facts';
 import type { Assignment, LoomerDb, SheetTopicsRecord } from '../core/db';
@@ -77,6 +78,7 @@ async function readTopics({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, a: A
 
   const base = { assignmentId: a.id, docHash: source.hash, createdAt: now.toISOString() };
   await db.sheetTopics.put({ ...base, status: 'pending' });
+  const started = Date.now();
   const sent = bounded(source.sheets);
   const request: TopicsRequest = { title: a.title.slice(0, 300), workType: type, sheets: sent.map((s) => ({ title: s.title, text: s.text })) };
   let failure = 'AI service unreachable';
@@ -106,6 +108,7 @@ async function readTopics({ db, ai, fetch: fetchImpl = fetch }: TopicsDeps, a: A
       });
       const ok: SheetTopicsRecord = { ...base, status: 'ok', topics };
       await db.sheetTopics.put(ok);
+      await noteTime(db, 'topics', Date.now() - started);
       return;
     }
     failure = envelope.success && !envelope.data.ok ? envelope.data.error : `AI service status ${res.status}`;
@@ -131,7 +134,7 @@ export async function embeddedTopicsStep(deps: TopicsDeps, sourceKey: string, no
 }
 
 /** The session's topic list. Null unless the work is practice or study with a linked sheet that Loomer has started reading. Dexie reads only. */
-export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promise<SheetTopics> {
+export async function loadSheetTopics(db: LoomerDb, assignmentId: string, now = new Date()): Promise<SheetTopics> {
   const a = await db.assignments.get(assignmentId);
   if (!a || !((a.detail?.sheets ?? []).some((s) => s.text) || (await db.docLinks.get(assignmentId)))) return null;
   const type = await storedWorkType(db, a);
@@ -139,10 +142,17 @@ export async function loadSheetTopics(db: LoomerDb, assignmentId: string): Promi
   const [record, ctx, checks] = await Promise.all([db.sheetTopics.get(assignmentId), db.studentContext.get(assignmentId), db.topicChecks.where('assignmentId').equals(assignmentId).toArray()]);
   // No record yet means no read has started (AI off, help not allowed, or a quiz): show nothing rather than "reading".
   if (!record) return null;
-  if (record.status === 'pending') return { status: 'reading', items: [], next: null };
-  if (record.status === 'failed') return { status: 'failed', items: [], next: null };
+  const none = { items: [], next: null, pending: null, retryAt: null };
+  if (record.status === 'pending') {
+    const times = await loadWaitTimes(db);
+    // Past its time, the read stopped; the next session step reads the sheet again.
+    if (overdue('topics', times, record.createdAt, now)) return { ...none, status: 'failed' };
+    const names = (a.detail?.sheets ?? []).flatMap((s) => (s.title ? [s.title] : []));
+    return { ...none, status: 'reading', pending: pendingOf('topics', times, { title: 'Listing the topics', about: names.length > 0 ? names.join(', ') : a.title, startedAt: record.createdAt }) };
+  }
+  if (record.status === 'failed') return { ...none, status: 'failed', retryAt: new Date(Date.parse(record.createdAt) + RETRY_FAILED_MS).toISOString() };
   const items = topicItems(record, checks, new Set(ctx?.topicsSkipped ?? []), new Map((a.detail?.sheets ?? []).map((s) => [s.docId, s.title])));
-  return { status: 'ok', items, next: nextTopic(items) };
+  return { status: 'ok', items, next: nextTopic(items), pending: null, retryAt: null };
 }
 
 /** All sheet text Loomer has for an assignment: the teacher's sheets and the student's linked copy. Dexie reads only. */

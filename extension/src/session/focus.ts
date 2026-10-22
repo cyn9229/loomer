@@ -2,6 +2,7 @@
 // sources"), picked once near the start from the requirements, the draft so
 // far, and the last session's focus. Hints prefer to serve it, and the resume
 // briefing carries it, so sessions build on each other. Needs work help.
+import { endWait, startWait } from '../core/waits';
 import { brokerEnvelopeSchema, FOCUS_ROUTE, focusResponseSchema, type FocusRequest } from '../../../shared/ai-contract';
 import { studentText } from '../adapters/docs/reader';
 import { instructionText, type Assignment, type LoomerDb } from '../core/db';
@@ -13,6 +14,9 @@ import { currentSession } from './session';
 
 /** With a linked draft, wait this long for its first read before picking a focus without it. */
 const FIRST_READ_WAIT_MS = 60_000;
+
+/** Shown where the focus would be. Picking a focus never retries, so there is no Try again. */
+const NO_FOCUS = { text: "Loomer couldn't pick a focus for this session, so hints work without one.", retry: false };
 
 export type FocusDeps = { db: LoomerDb; ai: () => Promise<AiSettings>; fetch?: typeof fetch };
 
@@ -34,8 +38,10 @@ export async function focusStep({ db, ai, fetch: fetchImpl = fetch }: FocusDeps,
   // Claim it first, so a slow reply never starts a second request.
   await db.sessions.update(s.id, { focus: null });
 
+  const started = await startWait(db, 'focus', s.id);
   try {
     const picked = await fetchFocus(settings, request, fetchImpl);
+    await endWait(db, 'focus', s.id, started, picked ? null : NO_FOCUS);
     if (!picked) return;
     // Permission or the session may have changed while waiting.
     const fresh = await currentSession(db, now);
@@ -46,6 +52,7 @@ export async function focusStep({ db, ai, fetch: fetchImpl = fetch }: FocusDeps,
     });
   } catch {
     // The focus stays null; hints still work without one.
+    await endWait(db, 'focus', s.id, started, NO_FOCUS);
   }
 }
 

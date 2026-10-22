@@ -86,6 +86,8 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('data:delete-assignment'), assignmentId: z.string() }),
   /** Remove everything Loomer stored and the access it was granted, then return to setup. */
   z.object({ type: z.literal('data:clear-all') }),
+  /** "Read it now" or "Try now": read one assignment's instructions now, even outside the 14-day window or the retry wait. Returns at once; the row shows the wait. */
+  z.object({ type: z.literal('read:now'), assignmentId: z.string() }),
   /** Check the linked draft against the requirements (AI on the student's work; needs work-help permission). */
   z.object({ type: z.literal('requirements:check'), assignmentId: z.string() }),
   /** Student corrections. done-offline and turned-in leave the queue (turned-in is "Mark as done" for hand-added work); kept-active keeps it ranked; null clears. */

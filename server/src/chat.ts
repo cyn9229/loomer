@@ -138,6 +138,7 @@ export function chatRoutes(env: { apiKey: string | undefined; model: string; eff
               if (choice.delta?.content) await send({ type: 'text', delta: choice.delta.content });
               for (const t of choice.delta?.tool_calls ?? []) {
                 const prev = calls.get(t.index) ?? { id: '', name: '', arguments: '' };
+                if (!prev.name && t.function?.name) await send({ type: 'tool_start', index: t.index, name: t.function.name });
                 calls.set(t.index, {
                   id: t.id ?? prev.id,
                   name: t.function?.name ?? prev.name,

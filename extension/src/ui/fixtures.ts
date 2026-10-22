@@ -88,6 +88,7 @@ function item(now: Date, over: Partial<WorkItem> & Pick<WorkItem, 'assignmentId'
     startBy: startByFor(due, checkpoints, over.effort?.label ?? 'Unknown', now),
     checkpoints,
     rankReason: null,
+    read: { state: 'read', at: null, retryAt: null, reason: null, found: null, pending: null },
     ...over,
   };
 }

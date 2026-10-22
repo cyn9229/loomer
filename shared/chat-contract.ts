@@ -52,6 +52,8 @@ export type ChatRequest = z.infer<typeof chatRequestSchema>;
 /** Newline-delimited JSON events the broker streams back. */
 export type ChatStreamEvent =
   | { type: 'text'; delta: string }
+  /** The model started a tool call; its arguments are still streaming. Lets the panel say what is coming ("Making a chart"). */
+  | { type: 'tool_start'; index: number; name: string }
   | { type: 'tool_call'; id: string; name: string; arguments: string }
   | { type: 'done' }
   | { type: 'error'; error: string };

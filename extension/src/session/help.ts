@@ -1,6 +1,7 @@
 // Whether work help is allowed, and "Review my draft" on the student's own work.
 // The review passes the work-help AI check before sending and again before
 // storing the reply. A finding must quote the student's text, or it is dropped.
+import { noteTime } from '../core/waits';
 import {
   brokerEnvelopeSchema,
   REVIEW_ROUTE,
@@ -101,7 +102,7 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
   const settings = await ai();
   const at = () => new Date().toISOString();
   await db.chatTurns.add({ threadKey: assignmentId, role: 'student', blocks: [{ kind: 'markdown', text: 'Review my draft.' }], status: 'done', createdAt: at() });
-  const turnId = await db.chatTurns.add({ threadKey: assignmentId, role: 'loomer', blocks: [], status: 'streaming', createdAt: at() });
+  const turnId = await db.chatTurns.add({ threadKey: assignmentId, role: 'loomer', blocks: [], status: 'streaming', createdAt: at(), review: { draftRead: false, about: null } });
   await noteThread(db, assignmentId, 'review');
   const notice = async (text: string) => {
     await db.chatTurns.update(turnId, { blocks: [{ kind: 'markdown', text }], status: 'error', error: 'notice' });
@@ -113,7 +114,11 @@ export async function requestReview({ db, ai, fetch: fetchImpl = fetch }: HelpDe
   if (!ctx) return notice("Loomer couldn't find that assignment.");
   if (ctx.workScope === 'none' || ctx.studentWork.trim().length === 0) return notice('Link your draft and write a little first so Loomer has something to read.');
   const request: ReviewRequest = ctx;
+  const words = ctx.studentWork.trim().split(/\s+/).length;
+  await db.chatTurns.update(turnId, { review: { draftRead: true, about: `Your draft, ${words.toLocaleString('en-US')} ${words === 1 ? 'word' : 'words'}` } });
+  const started = Date.now();
   const reply = await post(settings, REVIEW_ROUTE, request, fetchImpl);
+  if (reply.ok) await noteTime(db, 'review', Date.now() - started);
   // Permission may have changed while waiting (AI turned off, ban found).
   if (!(await workHelpDecision(db, await ai(), assignmentId)).allowed) return notice("Loomer can't review this one right now, so check the note above.");
   const parsed = reply.ok ? reviewResponseSchema.safeParse(reply.result) : null;

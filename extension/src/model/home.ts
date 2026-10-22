@@ -3,6 +3,7 @@
 // file; UI code imports types from here and treats them as read-only.
 import type { NextStep, RunOutcome, SlipReason } from '../core/db';
 import type { PrepStep } from './prep';
+import type { ReadState } from './wait';
 export type { SlipReason } from '../core/db';
 import type { PlanChangeView } from './plan';
 import type { TopicNext } from './session';
@@ -123,6 +124,8 @@ export type WorkItem = {
   checkpoints: Checkpoint[];
   /** Plain-words reason for this item's place in the plan, e.g. "Second: start by Wed; the essay needs a start by Tue." */
   rankReason: string | null;
+  /** Whether Loomer has read the instructions. Null for hand-added work (nothing of the teacher's to read). */
+  read: ReadState | null;
 };
 
 export type NextAction = {

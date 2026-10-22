@@ -73,7 +73,7 @@ describe('sheet topics', () => {
     for (const [i, right] of [true, false, false].entries()) expect(await recordTopicAnswer(db, block!.quiz.id, i, right, t0)).toBe(true);
     await setTopicSkipped(db, 'k#assignment:2', 'Ellipses', true);
     expect(await loadSheetTopics(db, 'k#assignment:2')).toEqual({
-      status: 'ok',
+      status: 'ok', pending: null, retryAt: null,
       items: [
         { text: 'Parabolas', quote: 'Part A: Parabolas', sheet: null, standing: 'shaky', lastCheck: { correct: 1, total: 3, at: t0.toISOString() }, skipped: false },
         { text: 'Ellipses', quote: 'Part B: Ellipses', sheet: null, standing: 'unchecked', lastCheck: null, skipped: true },
@@ -126,7 +126,7 @@ describe('embedded teacher sheet', () => {
       t0,
     );
     expect(await loadSheetTopics(db, embedded.id)).toEqual({
-      status: 'ok',
+      status: 'ok', pending: null, retryAt: null,
       items: [
         { text: 'Ellipses', quote: 'Part B: Ellipses', sheet: 'Unit 2 Review', standing: 'unchecked', lastCheck: null, skipped: false },
         { text: 'Hyperbolas', quote: 'Part C: Hyperbolas', sheet: 'Extra practice', standing: 'unchecked', lastCheck: null, skipped: false },

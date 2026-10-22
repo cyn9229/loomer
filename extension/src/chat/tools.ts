@@ -36,7 +36,20 @@ const LABELS: Record<ChatToolName, string> = {
   read_my_draft: 'Read your draft',
 };
 
-const isTool = (name: string): name is ChatToolName => Object.hasOwn(chatTools, name);
+/** What the tool line says while the tool runs, from the moment the model names it. */
+export const RUNNING_LABELS: Record<ChatToolName, string> = {
+  list_work: 'Looking at your assignments…',
+  get_assignment: 'Reading the assignment…',
+  get_saved_sources: 'Checking your saved pages…',
+  open_assignment: 'Linking an assignment…',
+  show_visual: 'Making a visual…',
+  quiz_me: 'Writing a quick check…',
+  propose_plan_change: 'Drafting a plan change…',
+  propose_add_assignment: 'Drafting an assignment to add…',
+  read_my_draft: 'Reading your draft…',
+};
+
+export const isTool = (name: string): name is ChatToolName => Object.hasOwn(chatTools, name);
 
 const day = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : null;

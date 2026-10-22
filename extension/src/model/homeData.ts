@@ -4,8 +4,9 @@
 import type { RecommendInput } from '../analysis/recommend';
 import type { LoomerDb, WorkSession } from '../core/db';
 import { localDay } from '../analysis/plan';
+import { loadWaitTimes } from '../core/waits';
 
-export type HomeData = Pick<RecommendInput, 'assignments' | 'courses' | 'analyses' | 'context' | 'lastRun' | 'packets' | 'sources' | 'docUrls' | 'activeSession' | 'room' | 'planChanges' | 'sheetTopics' | 'topicChecks' | 'workedDays' | 'preps' | 'practices'>;
+export type HomeData = Pick<RecommendInput, 'assignments' | 'courses' | 'analyses' | 'context' | 'lastRun' | 'packets' | 'sources' | 'docUrls' | 'activeSession' | 'room' | 'planChanges' | 'sheetTopics' | 'topicChecks' | 'workedDays' | 'preps' | 'practices' | 'waits' | 'waitTimes'>;
 
 export async function loadHomeData(db: LoomerDb): Promise<HomeData> {
   const [lastRun, assignments, courses, analyses, context, packets, sources, links, active, room, planChanges, sheetTopics, topicChecks, sessions, preps, practices] = await Promise.all([
@@ -26,6 +27,7 @@ export async function loadHomeData(db: LoomerDb): Promise<HomeData> {
     db.preps.toArray(),
     db.practices.toArray(),
   ]);
+  const [waits, waitTimes] = await Promise.all([db.waits.toArray(), loadWaitTimes(db)]);
   return {
     lastRun,
     assignments,
@@ -43,6 +45,8 @@ export async function loadHomeData(db: LoomerDb): Promise<HomeData> {
     workedDays: workedDays(sessions),
     preps,
     practices,
+    waits,
+    waitTimes,
   };
 }
 

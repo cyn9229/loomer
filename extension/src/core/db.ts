@@ -7,6 +7,7 @@ import type { Attachment, ChatBlock } from '../model/chat';
 import type { PracticeAnswer, PracticeKind, PracticeSkill, PrepFormat, PrepSessionKind, TeachBlock } from '../model/prep';
 import type { EffortLabel, RoomLevel, WorkType } from '../model/home';
 import type { PlanPreview } from '../model/plan';
+import type { WaitTask } from '../model/wait';
 import type { PolicyAnswer } from './gate';
 import { attachmentBytes, lineOf } from '../chat/lines';
 
@@ -450,6 +451,8 @@ export type ChatTurnRecord = {
   createdAt: string;
   /** Set by "Start fresh": the turn is out of the conversation (and the AI's history) until restored. */
   setAsideId?: string;
+  /** A draft check reply while it runs: whether the draft is read yet, and what it covers. */
+  review?: { draftRead: boolean; about: string | null };
 };
 
 /** A file attached to a chat message, kept whole on this computer. The chat shows its AttachmentView. `at` and `bytes` let the size cap find the oldest without loading files. */
@@ -460,6 +463,24 @@ export type ChatFileRecord = { id: number; threadKey: string; attachment: Attach
  * Updated when a turn starts or finishes (never on each streamed save), so the
  * chat list and the session screen don't re-read every message while Loomer writes.
  */
+/**
+ * One AI call the student may be waiting on: written when it starts, deleted
+ * when it ends well, and kept with `failed` when it ends badly (until the next
+ * try). Key: `<task>:<id>`, for example `analysis:<assignmentId>`.
+ */
+export type WaitRecord = {
+  key: string;
+  task: WaitTask;
+  startedAt: string;
+  failed: { at: string; text: string; retry: boolean } | null;
+  /** The wait's own words when the call site knows them ("Writing 6 questions", "Hawaii and the Congo"). */
+  title?: string;
+  about?: string | null;
+};
+
+/** Recent durations of one kind of AI call, in seconds, oldest first. */
+export type WaitTimeRecord = { task: WaitTask; samples: number[] };
+
 export type ChatThreadRecord = { threadKey: string; lastText: string | null; lastAt: string; pending: 'reply' | 'review' | null };
 
 /** Test prep for one test: its topics, key terms, and formats. Plan days and standings are computed, not stored. */
@@ -549,6 +570,8 @@ export class LoomerDb extends Dexie {
   chatTurns!: EntityTable<ChatTurnRecord, 'id'>;
   chatFiles!: EntityTable<ChatFileRecord, 'id'>;
   chatThreads!: EntityTable<ChatThreadRecord, 'threadKey'>;
+  waits!: EntityTable<WaitRecord, 'key'>;
+  waitTimes!: EntityTable<WaitTimeRecord, 'task'>;
   preps!: EntityTable<PrepRecord, 'assignmentId'>;
   practices!: EntityTable<PracticeRecord, 'id'>;
   dayRoom!: EntityTable<DayRoomRecord, 'key'>;
@@ -631,6 +654,7 @@ export class LoomerDb extends Dexie {
           f.bytes ??= attachmentBytes(f.attachment);
         });
       });
+    this.version(15).stores({ waits: 'key', waitTimes: 'task' });
   }
 }
 

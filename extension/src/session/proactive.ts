@@ -2,6 +2,7 @@
 // not prove the student is stuck. A hint also needs an active session, a good
 // Doc read, permitted AI help, enough new writing, and the cooldown to pass.
 // The model may (and usually should) answer that nothing is useful.
+import { endWait, startWait, waitKey } from '../core/waits';
 import {
   brokerEnvelopeSchema,
   HINT_ISSUES,
@@ -183,6 +184,8 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
   };
 
   let result: unknown = null;
+  // Marked while it runs ("Reading your latest change"); a failed hint is never shown, so the wait just ends.
+  const started = await startWait(db, 'hint', s.id);
   try {
     const res = await (deps.fetch ?? fetch)(`${settings.brokerOrigin}${HINT_ROUTE}`, {
       method: 'POST',
@@ -192,8 +195,11 @@ export async function proactiveStep(deps: ProactiveDeps, now: Date): Promise<num
     const envelope = brokerEnvelopeSchema.safeParse(await res.json().catch(() => null));
     if (envelope.success && envelope.data.ok) result = envelope.data.result;
   } catch {
+    await db.waits.delete(waitKey('hint', s.id));
     return null;
   }
+  if (result === null) await db.waits.delete(waitKey('hint', s.id));
+  else await endWait(db, 'hint', s.id, started, null);
   const parsed = hintResponseSchema.safeParse(result);
   if (!parsed.success) return null;
 

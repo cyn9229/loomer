@@ -1,6 +1,7 @@
 // Ask Loomer engine. Streams a reply from the local broker into the store (the
 // panel's live query shows it as it grows), runs read-only tools between
 // rounds, and enforces consent and the assignment's AI policy before every send.
+import { loadWaitTimes, noteTime, pendingOf } from '../core/waits';
 import { brokerEnvelopeSchema } from '../../../shared/ai-contract';
 import { CHAT_ROUTE, type ChatMessage, type ChatRequest, type ChatStreamEvent, type UserPart } from '../../../shared/chat-contract';
 import { instructionText, type ChatTurnRecord, type LoomerDb } from '../core/db';
@@ -10,7 +11,7 @@ import type { AiSettings } from '../core/settings';
 import { GENERAL_THREAD, type Attachment, type AttachmentView, type ChatBlock, type ThreadKey } from '../model/chat';
 import { isQuiz, storedWorkType } from '../analysis/workType';
 import { serviceSentence, workHelpDecision } from '../session/help';
-import { runTool, type ToolSettings } from './tools';
+import { isTool, RUNNING_LABELS, runTool, type ToolSettings } from './tools';
 
 const MAX_ROUNDS = 4;
 const HISTORY_TURNS = 12;
@@ -150,7 +151,14 @@ export async function sendChat(
     lastFlush = Date.now();
     await db.chatTurns.update(turnId, { blocks: structuredClone(blocks) });
   };
+  const times = await loadWaitTimes(db);
+  const replyStarted = Date.now();
+  let firstWord = true;
   const appendText = (delta: string) => {
+    if (firstWord) {
+      firstWord = false;
+      void noteTime(db, 'reply', Date.now() - replyStarted);
+    }
     const last = blocks.at(-1);
     if (last?.kind === 'markdown') last.text += delta;
     else blocks.push({ kind: 'markdown', text: delta });
@@ -169,17 +177,38 @@ export async function sendChat(
     for (let round = 0; round < MAX_ROUNDS; round++) {
       // Re-check before every round: AI may have been turned off or a rule found.
       if (!(await chatAllowed(db, await deps.ai(), threadKey)).ok) throw new Error('not-allowed');
-      const calls = await streamRound(deps, settings, { context, today, session_minutes_left, messages }, controller.signal, appendText, flush);
+      // Tool lines (or a chart or quick check placeholder) appear when the model names the tool, before its arguments finish.
+      const early: { name: string; block: ChatBlock; at: number }[] = [];
+      const onToolStart = async (name: string) => {
+        const at = new Date();
+        const shape = name === 'show_visual' ? 'visual' : name === 'quiz_me' ? 'quiz' : null;
+        const block: ChatBlock = shape
+          ? { kind: 'pending', shape, pending: pendingOf(shape, times, { title: shape === 'visual' ? 'Making a visual' : 'Writing a quick check', startedAt: at.toISOString(), canCancel: true }) }
+          : { kind: 'tool', label: isTool(name) ? RUNNING_LABELS[name] : 'Working…', status: 'running', startedAt: at.toISOString() };
+        blocks.push(block);
+        early.push({ name, block, at: at.getTime() });
+        await flush(true);
+      };
+      const calls = await streamRound(deps, settings, { context, today, session_minutes_left, messages }, controller.signal, appendText, flush, onToolStart);
       if (calls.length === 0) break;
 
       messages.push({ role: 'assistant', content: null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } })) });
       for (const call of calls) {
-        const status: ChatBlock = { kind: 'tool', label: 'Working…', status: 'running' };
-        blocks.push(status);
+        const claimed = early.findIndex((e) => e.name === call.name);
+        const seen = claimed >= 0 ? early.splice(claimed, 1)[0]! : null;
+        const status: ChatBlock = { kind: 'tool', label: isTool(call.name) ? RUNNING_LABELS[call.name] : 'Working…', status: 'running', startedAt: new Date(seen?.at ?? Date.now()).toISOString() };
+        // A placeholder becomes the tool line; a tool line is reused as is.
+        const at = seen ? blocks.indexOf(seen.block) : -1;
+        if (at >= 0) blocks[at] = status;
+        else blocks.push(status);
         await flush(true);
+        const ran = Date.now();
         const result = await runTool(db, await deps.settings(), call.name, call.arguments, now(), { threadKey, topic });
         Object.assign(status, { label: result.label, status: 'done' });
-        if (result.block) blocks.push(result.block);
+        if (result.block) blocks.splice(blocks.indexOf(status) + 1, 0, result.block);
+        const shape = call.name === 'show_visual' ? 'visual' : call.name === 'quiz_me' ? 'quiz' : null;
+        if (shape && seen) await noteTime(db, shape, Date.now() - seen.at);
+        else await noteTime(db, 'tool', Date.now() - ran);
         messages.push({ role: 'tool', tool_call_id: call.id, content: result.forModel.slice(0, 20_000) });
         await flush(true);
       }
@@ -197,7 +226,8 @@ export async function sendChat(
             : error instanceof Error
             ? error.message
             : 'Something went wrong, so try again.';
-    await db.chatTurns.update(turnId, { blocks, status: stopped ? 'stopped' : 'error', error: stopped ? undefined : message });
+    // A chart or quick check that never arrived leaves no placeholder behind.
+    await db.chatTurns.update(turnId, { blocks: blocks.filter((b) => b.kind !== 'pending'), status: stopped ? 'stopped' : 'error', error: stopped ? undefined : message });
   } finally {
     running.delete(threadKey);
     await noteThread(db, threadKey);
@@ -214,6 +244,7 @@ async function streamRound(
   signal: AbortSignal,
   appendText: (delta: string) => void,
   flush: (force?: boolean) => Promise<void>,
+  onToolStart: (name: string) => Promise<void>,
 ): Promise<ToolCall[]> {
   let res: Response;
   try {
@@ -248,7 +279,8 @@ async function streamRound(
       if (event.type === 'text') {
         appendText(event.delta);
         await flush();
-      } else if (event.type === 'tool_call') calls.push(event);
+      } else if (event.type === 'tool_start') await onToolStart(event.name);
+      else if (event.type === 'tool_call') calls.push(event);
       else if (event.type === 'error') throw new Error(serviceSentence(event.error));
     }
   }
@@ -267,6 +299,8 @@ function parseEvent(line: string): ChatStreamEvent | null {
         return 'id' in e && 'name' in e && 'arguments' in e && typeof e.id === 'string' && typeof e.name === 'string' && typeof e.arguments === 'string'
           ? { type: 'tool_call', id: e.id, name: e.name, arguments: e.arguments }
           : null;
+      case 'tool_start':
+        return 'index' in e && 'name' in e && typeof e.index === 'number' && typeof e.name === 'string' ? { type: 'tool_start', index: e.index, name: e.name } : null;
       case 'done':
         return { type: 'done' };
       case 'error':

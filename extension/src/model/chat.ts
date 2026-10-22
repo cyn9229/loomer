@@ -3,6 +3,7 @@
 // while the reply is being written. Visuals and quizzes come from tool calls
 // the logic has validated; the UI renders them, never executes model HTML in
 // the panel (interactive widgets go only to the sandboxed widget page).
+import type { Pending } from './wait';
 import type { WorkItem, WorkType } from './home';
 import type { PlanChangeView } from './plan';
 import type { HelpAvailability } from './session';
@@ -43,7 +44,9 @@ export type ChatBlock =
   /** Markdown (no raw HTML). May still be growing while the turn is streaming. */
   | { kind: 'markdown'; text: string }
   /** A tool the AI used, shown as a quiet status line, e.g. "Looked at your week". */
-  | { kind: 'tool'; label: string; status: 'running' | 'done' | 'error' }
+  | { kind: 'tool'; label: string; status: 'running' | 'done' | 'error'; startedAt?: string }
+  /** A chart or quick check the model is still writing. Replaced by the tool line and the visual or quiz when it arrives. */
+  | { kind: 'pending'; shape: 'visual' | 'quiz'; pending: Pending }
   | { kind: 'visual'; visual: Visual }
   | { kind: 'quiz'; quiz: Quiz }
   /** A link to open an assignment in the panel (the AI suggests; the student clicks). */
@@ -107,6 +110,8 @@ export type ChatTurn = {
   status: 'streaming' | 'done' | 'error' | 'stopped';
   error?: string;
   createdAt: string;
+  /** Before the first word of a reply, and while a draft check runs (with its steps). */
+  pending: Pending | null;
 };
 
 export type ChatModel = {

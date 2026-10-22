@@ -1,5 +1,6 @@
 // Data contract for the assignment detail screen inside the panel. Logic owns
 // this file; the UI renders useAssignmentDetail(assignmentId).
+import type { Failed, Pending } from './wait';
 import type { StudentCorrection, WorkItem, WorkType } from './home';
 import type { HelpAvailability, SourceItem, SourceNeed, TeacherSheet } from './session';
 import type { TestPrep } from './prep';
@@ -41,7 +42,10 @@ export type AssignmentDetailModel =
       check: RequirementsCheck;
       /** Whether "Check my draft against the requirements" may run (uses AI on the student's work). */
       checkAvailability: HelpAvailability | 'no-doc';
-      checkPending: boolean;
+      /** The draft check while it runs; null otherwise. */
+      checkPending: Pending | null;
+      /** The last draft check ended badly (or stopped); shown where checkPending was. */
+      checkFailed: Failed | null;
       effort: { label: WorkItem['effort']['label']; reason: string | null; quote: string | null };
       /** The instructions rewritten simply (AI interpretation; explains the task, never does it). Null when AI is off or blocked. */
       plainWords: string | null;

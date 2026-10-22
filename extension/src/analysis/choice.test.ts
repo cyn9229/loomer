@@ -63,7 +63,7 @@ const input = (over: Partial<RecommendInput>): RecommendInput => ({
   topicChecks: [],
     workedDays: new Map(),
     preps: [],
-    practices: [],
+    practices: [], waits: [], waitTimes: new Map(),
   ...over,
 });
 const ctx = (key: string, c: Omit<StudentContext, 'key'>): StudentContext => ({ key, ...c });
