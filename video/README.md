@@ -18,7 +18,13 @@ npm run mux        # adds the audio from ../takes/rough-cut-v2.mp4, to out/demo-
 
 ## Media (not in git)
 
-`public/media/` holds APFS clones (`cp -c`) of the screen recording and the camera takes; Remotion's file server does not follow symlinks. `public/slides/` holds the pitch deck pages as 1920x1080 PNGs.
+`public/media/` holds the screen recording (an APFS clone, `cp -c`; Remotion's file server does not follow symlinks) and the camera takes converted to a steady 30 fps with a keyframe every second. Chrome records takes at a variable frame rate with keyframes about 3 seconds apart, which made frame lookups time out mid-render. Convert any new take the same way:
+
+```bash
+ffmpeg -i ../takes/<take>.mp4 -an -vf fps=30 -c:v libx264 -preset veryfast -crf 16 -g 30 -pix_fmt yuv420p public/media/<take>.mp4
+```
+
+`public/slides/` holds the pitch deck pages as 1920x1080 PNGs.
 
 ## Audio
 
