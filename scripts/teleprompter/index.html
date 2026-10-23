@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loomer Teleprompter</title>
+<style>
+  :root {
+    --bg: #000;
+    --text: #fff;
+    --dim: #8a8a8a;
+    --faint: #2a2a2a;
+    --accent: #ff6a3d;
+    --rec: #ff3b30;
+    --bar: 40px;
+    --foot: 34px;
+    --size: 44px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+  body { font: 14px/1.4 system-ui, -apple-system, sans-serif; }
+  button, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--faint); border-radius: 4px; padding: 2px 6px; }
+
+  #bar, #foot { position: fixed; left: 0; right: 0; display: flex; align-items: center; gap: 16px; padding: 0 16px; white-space: nowrap; overflow: hidden; }
+  #bar { top: 0; height: var(--bar); border-bottom: 1px solid var(--faint); }
+  #foot { bottom: 0; height: var(--foot); border-top: 1px solid var(--faint); color: var(--dim); font-size: 12px; }
+  #bar .spacer, #foot .spacer { flex: 1; }
+  #section { font-weight: 600; }
+  .dim { color: var(--dim); }
+  .over { color: var(--accent); }
+  #rec { font-variant-numeric: tabular-nums; }
+  #rec.on { color: var(--rec); font-weight: 600; }
+  #takes a { color: var(--text); margin-right: 12px; text-decoration: none; font-variant-numeric: tabular-nums; }
+  #takes a.over { color: var(--accent); }
+
+  #stage { position: fixed; top: var(--bar); bottom: var(--foot); left: 0; right: 0; overflow: hidden; }
+  #text { max-width: 1000px; margin: 0 auto; padding: 0 32px 60vh; font-size: var(--size); line-height: 1.45; will-change: transform; }
+  #cue { font-size: 18px; line-height: 1.5; color: var(--dim); padding-bottom: 24px; }
+  #paras p { margin: 0 0 0.7em; }
+  #line { position: absolute; left: 0; width: 12px; height: 2px; background: var(--accent); }
+  #line::after { content: ''; position: absolute; left: calc(100vw - 12px); width: 12px; height: 2px; background: var(--accent); }
+
+  #preview { position: fixed; right: 16px; bottom: calc(var(--foot) + 16px); width: 280px; aspect-ratio: 16 / 9; background: #111; transform: scaleX(-1); object-fit: cover; border: 1px solid var(--faint); }
+  #preview.off, #cue.off { display: none; }
+  #count { position: fixed; inset: 0; display: none; place-items: center; font-size: 200px; font-weight: 700; background: rgba(0, 0, 0, 0.6); }
+  #count.on { display: grid; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <span id="section">Loading script…</span>
+  <span id="mode" class="dim"></span>
+  <span id="clip" class="dim"></span>
+  <span class="spacer"></span>
+  <span id="wpm"></span>
+  <span id="res" class="dim"></span>
+  <select id="cam" title="Camera"></select>
+  <select id="mic" title="Microphone"></select>
+  <span id="rec">Ready</span>
+</div>
+
+<div id="stage">
+  <div id="line"></div>
+  <div id="text"><div id="cue"></div><div id="paras"></div></div>
+</div>
+
+<video id="preview" autoplay muted playsinline></video>
+<div id="count"></div>
+
+<div id="foot">
+  <span id="takes"></span>
+  <span class="spacer"></span>
+  <span>R record · Space scroll · ↑↓ speed · ← → section · Home top · C camera · O cue · V preview · +/− size</span>
+</div>
+
+<script type="module">
+// Teleprompter for docs/demo-voiceover.md. One recording per section ("take"),
+// saved by server.mjs into takes/. Sections whose "On screen" line mentions the
+// webcam record video and audio; the rest record audio only, since they play
+// over the screen recording. C overrides that per section.
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(key, fallback) { try { return JSON.parse(localStorage.getItem(`tp.${key}`)) ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(`tp.${key}`, JSON.stringify(value)); } catch {} },
+};
+
+const VIDEO_TYPES = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+const AUDIO_TYPES = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+const EXT = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'audio/mp4': 'm4a', 'audio/webm': 'weba' };
+
+const strip = (s) => s.replace(/\*\*|`/g, '').trim();
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+const clock = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+// Each "### " heading up to "## Fit" is a section. "Video 0:49–1:08 | Title"
+// headings carry the clip length the narration has to fit.
+function parse(md) {
+  const body = md.split(/^## Fit/m)[0];
+  return body.split(/^### /m).slice(1).map((block, i) => {
+    const [heading, ...lines] = block.split('\n');
+    const cueLine = lines.find((l) => l.startsWith('**On screen:**')) ?? '';
+    const paras = lines.filter((l) => l.trim() && l !== cueLine && l.trim() !== '---').map(strip);
+    const t = heading.match(/Video (\d+):(\d+)–(\d+):(\d+)/);
+    const clipMs = t ? ((+t[3] * 60 + +t[4]) - (+t[1] * 60 + +t[2])) * 1000 : null;
+    const title = heading.split('|').pop().trim();
+    const cue = strip(cueLine.replace('**On screen:**', ''));
+    return { id: `${String(i + 1).padStart(2, '0')}-${slug(title)}`, title, cue, paras, clipMs, camera: /webcam/i.test(cue) };
+  });
+}
+
+const state = {
+  sections: [],
+  index: store.get('index', 0),
+  wpm: store.get('wpm', 190),
+  size: store.get('size', 44),
+  showCue: store.get('cue', true),
+  showPreview: store.get('preview', true),
+  takes: [],
+  stream: null,
+  recorder: null,
+  recStart: 0,
+  scrollY: 0,
+  playing: false,
+  lastFrame: 0,
+};
+
+const section = () => state.sections[state.index];
+const usesCamera = (s) => store.get(`camera.${s.id}`, s.camera);
+const readLine = () => Math.round($('stage').clientHeight * 0.18);
+
+// ---- Rendering ----
+
+function renderSection() {
+  const s = section();
+  $('section').textContent = `${state.index + 1}/${state.sections.length}  ${s.title}`;
+  $('mode').textContent = usesCamera(s) ? 'Camera + mic' : 'Voice only';
+  $('clip').textContent = s.clipMs ? `clip ${clock(s.clipMs)}` : '';
+  $('cue').textContent = s.cue;
+  $('cue').classList.toggle('off', !state.showCue);
+  $('paras').replaceChildren(...s.paras.map((p) => Object.assign(document.createElement('p'), { textContent: p })));
+  $('text').style.paddingTop = `${readLine()}px`;
+  $('line').style.top = `${readLine() + state.size * 0.72}px`;
+  toTop();
+  renderTakes();
+}
+
+function renderTakes() {
+  const s = section();
+  const mine = state.takes.filter((t) => t.section === s.id);
+  $('takes').replaceChildren(...(mine.length ? mine.map((t) => {
+    const a = Object.assign(document.createElement('a'), { href: `/takes/${t.file}`, target: '_blank', textContent: `take ${t.take} ${clock(t.ms)}` });
+    if (s.clipMs && t.ms > s.clipMs) a.className = 'over';
+    return a;
+  }) : [Object.assign(document.createElement('span'), { textContent: 'No takes yet' })]));
+}
+
+function renderSettings() {
+  $('wpm').textContent = `${state.wpm} wpm`;
+  document.documentElement.style.setProperty('--size', `${state.size}px`);
+  $('preview').classList.toggle('off', !state.showPreview);
+}
+
+// ---- Scrolling: words per minute, measured from the rendered paragraphs ----
+
+const words = () => section().paras.join(' ').split(/\s+/).filter(Boolean).length;
+const parasStart = () => $('paras').offsetTop - readLine();
+const parasEnd = () => parasStart() + $('paras').offsetHeight - state.size;
+
+function setScroll(y) {
+  state.scrollY = Math.max(0, Math.min(y, parasEnd()));
+  $('text').style.transform = `translateY(${-state.scrollY}px)`;
+}
+
+function toTop() { pause(); setScroll(parasStart()); }
+
+function play() {
+  if (state.playing) return;
+  state.playing = true;
+  state.lastFrame = performance.now();
+  requestAnimationFrame(step);
+}
+
+function pause() { state.playing = false; }
+
+function step(now) {
+  if (!state.playing) return;
+  const pxPerSec = ($('paras').offsetHeight / words()) * (state.wpm / 60);
+  setScroll(state.scrollY + pxPerSec * ((now - state.lastFrame) / 1000));
+  state.lastFrame = now;
+  if (state.scrollY >= parasEnd()) return pause();
+  requestAnimationFrame(step);
+}
+
+// ---- Camera and mic ----
+
+async function openStream() {
+  state.stream?.getTracks().forEach((t) => t.stop());
+  const cam = store.get('camId', '');
+  const mic = store.get('micId', '');
+  state.stream = await navigator.mediaDevices.getUserMedia({
+    video: { deviceId: cam ? { exact: cam } : undefined, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+    // Chrome's voice-call filters make narration sound thin; record the raw mic.
+    audio: { deviceId: mic ? { exact: mic } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false, sampleRate: { ideal: 48000 } },
+  });
+  $('preview').srcObject = state.stream;
+  const v = state.stream.getVideoTracks()[0]?.getSettings();
+  $('res').textContent = v ? `${v.width}×${v.height} ${Math.round(v.frameRate ?? 0)} fps` : '';
+  await listDevices();
+}
+
+async function listDevices() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const fill = (el, kind, current) => {
+    el.replaceChildren(...devices.filter((d) => d.kind === kind).map((d) =>
+      Object.assign(document.createElement('option'), { value: d.deviceId, textContent: d.label || kind, selected: d.deviceId === current })));
+  };
+  fill($('cam'), 'videoinput', state.stream?.getVideoTracks()[0]?.getSettings().deviceId);
+  fill($('mic'), 'audioinput', state.stream?.getAudioTracks()[0]?.getSettings().deviceId);
+}
+
+for (const [el, key] of [[$('cam'), 'camId'], [$('mic'), 'micId']]) {
+  el.addEventListener('change', () => { store.set(key, el.value); el.blur(); openStream().catch(showError); });
+}
+
+// ---- Recording ----
+
+function showError(error) {
+  $('rec').className = '';
+  $('rec').textContent = `Error: ${error.message ?? error}`;
+}
+
+async function countdown() {
+  const el = $('count');
+  el.classList.add('on');
+  for (const n of [3, 2, 1]) {
+    el.textContent = n;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  el.classList.remove('on');
+}
+
+async function startRecording() {
+  if (!state.stream) await openStream();
+  const s = section();
+  const camera = usesCamera(s);
+  const tracks = camera ? state.stream.getTracks() : state.stream.getAudioTracks();
+  const mimeType = (camera ? VIDEO_TYPES : AUDIO_TYPES).find((t) => MediaRecorder.isTypeSupported(t));
+  if (!mimeType) throw new Error('This browser cannot record these formats');
+  const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 192_000 });
+  const chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => saveTake(s, new Blob(chunks, { type: mimeType }), mimeType, performance.now() - state.recStart);
+
+  await countdown();
+  toTop();
+  recorder.start(1000);
+  state.recorder = recorder;
+  state.recStart = performance.now();
+  play();
+  tickRecording();
+}
+
+function tickRecording() {
+  if (!state.recorder) return;
+  $('rec').className = 'on';
+  $('rec').textContent = `● REC ${clock(performance.now() - state.recStart)}`;
+  setTimeout(tickRecording, 250);
+}
+
+function stopRecording() {
+  const recorder = state.recorder;
+  state.recorder = null;
+  pause();
+  recorder.stop();
+  $('rec').className = '';
+  $('rec').textContent = 'Saving…';
+}
+
+async function saveTake(s, blob, mimeType, ms) {
+  const ext = EXT[mimeType.split(';')[0]];
+  const res = await fetch(`/api/takes?section=${s.id}&ext=${ext}&ms=${Math.round(ms)}`, { method: 'POST', body: blob });
+  if (!res.ok) return showError(new Error(`save failed (${res.status})`));
+  const entry = await res.json();
+  state.takes.push(entry);
+  $('rec').textContent = `Saved ${entry.file} (${clock(ms)})`;
+  renderTakes();
+}
+
+// ---- Keyboard ----
+
+const moveSection = (delta) => {
+  state.index = Math.max(0, Math.min(state.sections.length - 1, state.index + delta));
+  store.set('index', state.index);
+  renderSection();
+};
+
+addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLSelectElement || e.metaKey || e.ctrlKey) return;
+  const recording = Boolean(state.recorder);
+  switch (e.code) {
+    case 'KeyR': recording ? stopRecording() : startRecording().catch(showError); break;
+    case 'Escape': if (recording) stopRecording(); break;
+    case 'Space': state.playing ? pause() : play(); break;
+    case 'ArrowUp': state.wpm += 5; store.set('wpm', state.wpm); renderSettings(); break;
+    case 'ArrowDown': state.wpm = Math.max(60, state.wpm - 5); store.set('wpm', state.wpm); renderSettings(); break;
+    case 'ArrowLeft': if (!recording) moveSection(-1); break;
+    case 'ArrowRight': if (!recording) moveSection(1); break;
+    case 'Home': case 'Digit0': toTop(); break;
+    case 'KeyC': if (!recording) { const s = section(); store.set(`camera.${s.id}`, !usesCamera(s)); renderSection(); } break;
+    case 'KeyO': state.showCue = !state.showCue; store.set('cue', state.showCue); renderSection(); break;
+    case 'KeyV': state.showPreview = !state.showPreview; store.set('preview', state.showPreview); renderSettings(); break;
+    case 'Equal': case 'NumpadAdd': state.size += 4; store.set('size', state.size); renderSettings(); renderSection(); break;
+    case 'Minus': case 'NumpadSubtract': state.size = Math.max(20, state.size - 4); store.set('size', state.size); renderSettings(); renderSection(); break;
+    default: return;
+  }
+  e.preventDefault();
+});
+
+addEventListener('wheel', (e) => setScroll(state.scrollY + e.deltaY), { passive: true });
+addEventListener('resize', () => { if (state.sections.length) renderSection(); });
+
+// ---- Start ----
+
+const [md, takes] = await Promise.all([fetch('/api/script').then((r) => r.text()), fetch('/api/takes').then((r) => r.json())]);
+state.sections = parse(md);
+state.takes = takes;
+state.index = Math.min(state.index, state.sections.length - 1);
+renderSettings();
+renderSection();
+openStream().catch(showError);
+</script>
+</body>
+</html>
