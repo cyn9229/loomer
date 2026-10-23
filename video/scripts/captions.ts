@@ -1,8 +1,8 @@
-// Builds src/data/captions.json: demo captions with word timings.
+// Builds src/data/captions.json: captions for everything spoken, with word timings.
 //
 //   node scripts/captions.ts
 //
-// The words are each narration piece's `text` in src/timeline.ts. The timing
+// The words are each spoken piece's `text` (SPOKEN in src/timeline.ts). The timing
 // comes from the audio: the stretches where the speaker is actually talking
 // (ffmpeg silencedetect on the take), with the piece's words spread across them
 // by syllable count. Pauses anchor the timing, so it cannot drift. Pages are
@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { VOICE } from '../src/timeline.ts';
+import { SPOKEN } from '../src/timeline.ts';
 
 type Word = { t: number; end: number; text: string };
 
@@ -86,7 +86,7 @@ function paginate(words: Word[]): Page[] {
 }
 
 const pages: Page[] = [];
-for (const v of VOICE) {
+for (const v of SPOKEN) {
   const words = align(v.text.split(' '), speech(v.file, v.in, v.out)).map((w) => ({ ...w, t: w.t - v.in + v.at, end: w.end - v.in + v.at }));
   pages.push(...paginate(words));
 }

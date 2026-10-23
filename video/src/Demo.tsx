@@ -15,7 +15,8 @@ import { Slides } from './components/Slides.tsx';
 /**
  * The whole demo video, picture only (scripts/audio.ts builds the sound from the same timeline).
  * Layers, bottom to top: the screen recording, its callouts, chapter titles,
- * slides, the privacy list, captions, the camera, and the opening name title.
+ * slides, the privacy list, the camera, the opening name title, and captions
+ * (on top, since the camera fills the frame outside the demo).
  */
 export function Demo() {
   useFonts();
@@ -26,9 +27,9 @@ export function Demo() {
       <Chapters />
       <Slides />
       <PrivacyList />
-      <Captions />
       <Camera />
       <NameTitle />
+      <Captions />
     </AbsoluteFill>
   );
 }

@@ -9,20 +9,14 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { basename } from 'node:path';
-import { CLOSING_START, CLOSING_TAKE, DURATION, INTRO_TAKE, PRIVACY_START, PRIVACY_TAKE, VOICE } from '../src/timeline.ts';
+import { DURATION, SPOKEN } from '../src/timeline.ts';
 
 const MUSIC = 'public/music/digital-clouds.mp3';
-/** Music level before ducking (about -14 dB). The ducker takes it down a further ~10 dB while someone talks. */
-const MUSIC_LEVEL = 0.2;
+/** Music level before ducking (about -23 dB). The ducker takes it down a further ~12 dB while someone talks. */
+const MUSIC_LEVEL = 0.07;
 const COPIES = Math.ceil(DURATION / 95) + 1;
 
-type Piece = { file: string; in: number; out: number; at: number };
-const pieces: Piece[] = [
-  { file: INTRO_TAKE.file, in: INTRO_TAKE.in, out: INTRO_TAKE.out, at: 0 },
-  ...VOICE,
-  { file: PRIVACY_TAKE.file, in: PRIVACY_TAKE.in, out: PRIVACY_TAKE.out, at: PRIVACY_START },
-  { file: CLOSING_TAKE.file, in: CLOSING_TAKE.in, out: CLOSING_TAKE.out, at: CLOSING_START },
-];
+const pieces = SPOKEN;
 
 const run = (args: string[]) => {
   const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'inherit' });
@@ -52,7 +46,7 @@ const music = [
   `[x${COPIES - 2}]atrim=0:${DURATION},volume=${MUSIC_LEVEL},afade=t=in:d=1.5,afade=t=out:st=${(DURATION - 4).toFixed(2)}:d=4[music]`,
   `[0:a]asplit=2[vmix][vkey]`,
   `[vkey]aformat=channel_layouts=stereo[key]`,
-  `[music][key]sidechaincompress=threshold=0.015:ratio=6:attack=40:release=500[ducked]`,
+  `[music][key]sidechaincompress=threshold=0.01:ratio=10:attack=30:release=600[ducked]`,
   `[vmix]aformat=sample_rates=48000:channel_layouts=stereo[vst]`,
   `[vst][ducked]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-15:TP=-1.5:LRA=11,aresample=48000[out]`,
 ].join(';');

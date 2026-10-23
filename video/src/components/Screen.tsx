@@ -1,13 +1,12 @@
 import { AbsoluteFill, Freeze, OffthreadVideo, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
-import { DEMO_END, DEMO_START, GMAIL_TAB, GMAIL_TAB_SRC, SCREEN, SCREEN_EDIT, toSrc } from '../timeline.ts';
+import { DEMO_END, DEMO_START, SCREEN, SCREEN_EDIT } from '../timeline.ts';
 import { settle } from '../lib/motion.ts';
 import { screenTransform } from '../lib/zoom.ts';
 
 /**
  * The edited screen recording: each segment plays at its speed or holds one
- * frame, with the punch-in zooms on top and a blur over the Gmail tab whenever
- * it is on screen. It materializes in (scale and blur settle together) as the
- * demo starts.
+ * frame, with the punch-in zooms on top. It materializes in (scale and blur
+ * settle together) as the demo starts.
  */
 export function Screen() {
   const { fps } = useVideoConfig();
@@ -16,9 +15,6 @@ export function Screen() {
 
   const enter = settle(t - DEMO_START, 0.7);
   const { s, tx, ty } = screenTransform(t);
-  const src = toSrc(t);
-  const tabVisible = GMAIL_TAB_SRC.some(([a, b]) => src >= a && src <= b);
-  const [x0, y0, x1, y1] = GMAIL_TAB;
   // Filters cost time on every frame; only set them while they do something.
   const blur = (1 - enter) * 12;
 
@@ -43,20 +39,6 @@ export function Screen() {
             </Sequence>
           );
         })}
-        {tabVisible && (
-          <div
-            style={{
-              position: 'absolute',
-              left: x0,
-              top: y0,
-              width: x1 - x0,
-              height: y1 - y0,
-              borderRadius: 8,
-              backdropFilter: 'blur(9px)',
-              background: 'rgba(40, 40, 46, 0.35)',
-            }}
-          />
-        )}
       </AbsoluteFill>
     </AbsoluteFill>
   );

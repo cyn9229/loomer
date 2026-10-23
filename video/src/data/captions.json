@@ -1,5 +1,689 @@
 [
  {
+  "start": 0.3,
+  "end": 1.74,
+  "words": [
+   {
+    "t": 0.3,
+    "text": "Getting"
+   },
+   {
+    "t": 0.62,
+    "text": "homework"
+   },
+   {
+    "t": 1.07,
+    "text": "done"
+   },
+   {
+    "t": 1.39,
+    "text": "isn't"
+   },
+   {
+    "t": 1.56,
+    "text": "just"
+   }
+  ]
+ },
+ {
+  "start": 1.74,
+  "end": 3.03,
+  "words": [
+   {
+    "t": 1.74,
+    "text": "about"
+   },
+   {
+    "t": 2.05,
+    "text": "actually"
+   },
+   {
+    "t": 2.51,
+    "text": "doing"
+   },
+   {
+    "t": 2.68,
+    "text": "the"
+   },
+   {
+    "t": 2.86,
+    "text": "work."
+   }
+  ]
+ },
+ {
+  "start": 3.03,
+  "end": 5.84,
+  "words": [
+   {
+    "t": 3.03,
+    "text": "You"
+   },
+   {
+    "t": 3.2,
+    "text": "have"
+   },
+   {
+    "t": 3.52,
+    "text": "to"
+   },
+   {
+    "t": 3.69,
+    "text": "figure"
+   },
+   {
+    "t": 4.15,
+    "text": "out"
+   },
+   {
+    "t": 4.32,
+    "text": "what's"
+   },
+   {
+    "t": 4.5,
+    "text": "due,"
+   },
+   {
+    "t": 4.67,
+    "text": "decide"
+   },
+   {
+    "t": 5.35,
+    "text": "where"
+   },
+   {
+    "t": 5.66,
+    "text": "to"
+   }
+  ]
+ },
+ {
+  "start": 5.84,
+  "end": 8.23,
+  "words": [
+   {
+    "t": 5.84,
+    "text": "start,"
+   },
+   {
+    "t": 6.01,
+    "text": "and"
+   },
+   {
+    "t": 6.19,
+    "text": "somehow"
+   },
+   {
+    "t": 6.86,
+    "text": "pick"
+   },
+   {
+    "t": 7.04,
+    "text": "up"
+   },
+   {
+    "t": 7.21,
+    "text": "where"
+   },
+   {
+    "t": 7.53,
+    "text": "you"
+   },
+   {
+    "t": 7.7,
+    "text": "left"
+   },
+   {
+    "t": 7.88,
+    "text": "off"
+   },
+   {
+    "t": 8.05,
+    "text": "when"
+   }
+  ]
+ },
+ {
+  "start": 8.23,
+  "end": 10.5,
+  "words": [
+   {
+    "t": 8.23,
+    "text": "you"
+   },
+   {
+    "t": 8.4,
+    "text": "get"
+   },
+   {
+    "t": 8.58,
+    "text": "distracted"
+   },
+   {
+    "t": 9.03,
+    "text": "or"
+   },
+   {
+    "t": 9.2,
+    "text": "take"
+   },
+   {
+    "t": 9.52,
+    "text": "a"
+   },
+   {
+    "t": 9.69,
+    "text": "break."
+   }
+  ]
+ },
+ {
+  "start": 10.5,
+  "end": 11.33,
+  "words": [
+   {
+    "t": 10.5,
+    "text": "For"
+   },
+   {
+    "t": 10.67,
+    "text": "students"
+   },
+   {
+    "t": 10.99,
+    "text": "with"
+   },
+   {
+    "t": 11.16,
+    "text": "ADHD,"
+   }
+  ]
+ },
+ {
+  "start": 11.33,
+  "end": 13.48,
+  "words": [
+   {
+    "t": 11.33,
+    "text": "these"
+   },
+   {
+    "t": 11.65,
+    "text": "things"
+   },
+   {
+    "t": 12.08,
+    "text": "can"
+   },
+   {
+    "t": 12.26,
+    "text": "be"
+   },
+   {
+    "t": 12.43,
+    "text": "especially"
+   },
+   {
+    "t": 13.03,
+    "text": "difficult."
+   }
+  ]
+ },
+ {
+  "start": 13.48,
+  "end": 15.6,
+  "words": [
+   {
+    "t": 13.48,
+    "text": "They're"
+   },
+   {
+    "t": 14.1,
+    "text": "called"
+   },
+   {
+    "t": 14.41,
+    "text": "executive-function"
+   },
+   {
+    "t": 15.43,
+    "text": "skills,"
+   }
+  ]
+ },
+ {
+  "start": 15.6,
+  "end": 17.7,
+  "words": [
+   {
+    "t": 15.6,
+    "text": "and"
+   },
+   {
+    "t": 15.78,
+    "text": "they're"
+   },
+   {
+    "t": 16.09,
+    "text": "something"
+   },
+   {
+    "t": 16.54,
+    "text": "I've"
+   },
+   {
+    "t": 16.86,
+    "text": "struggled"
+   },
+   {
+    "t": 17.17,
+    "text": "with"
+   },
+   {
+    "t": 17.35,
+    "text": "a"
+   },
+   {
+    "t": 17.52,
+    "text": "lot"
+   }
+  ]
+ },
+ {
+  "start": 17.7,
+  "end": 19.65,
+  "words": [
+   {
+    "t": 17.7,
+    "text": "myself,"
+   },
+   {
+    "t": 18.01,
+    "text": "along"
+   },
+   {
+    "t": 18.33,
+    "text": "with"
+   },
+   {
+    "t": 18.5,
+    "text": "a"
+   },
+   {
+    "t": 18.68,
+    "text": "lot"
+   },
+   {
+    "t": 18.85,
+    "text": "of"
+   },
+   {
+    "t": 19.03,
+    "text": "my"
+   },
+   {
+    "t": 19.2,
+    "text": "classmates."
+   }
+  ]
+ },
+ {
+  "start": 19.65,
+  "end": 22.17,
+  "words": [
+   {
+    "t": 19.65,
+    "text": "The"
+   },
+   {
+    "t": 20.42,
+    "text": "problem"
+   },
+   {
+    "t": 20.73,
+    "text": "is"
+   },
+   {
+    "t": 20.91,
+    "text": "that"
+   },
+   {
+    "t": 21.08,
+    "text": "traditional"
+   },
+   {
+    "t": 21.68,
+    "text": "study"
+   },
+   {
+    "t": 21.99,
+    "text": "apps"
+   }
+  ]
+ },
+ {
+  "start": 22.17,
+  "end": 23.98,
+  "words": [
+   {
+    "t": 22.17,
+    "text": "and"
+   },
+   {
+    "t": 22.34,
+    "text": "AI"
+   },
+   {
+    "t": 22.52,
+    "text": "study"
+   },
+   {
+    "t": 22.83,
+    "text": "tools"
+   },
+   {
+    "t": 23.01,
+    "text": "mostly"
+   },
+   {
+    "t": 23.32,
+    "text": "just"
+   },
+   {
+    "t": 23.49,
+    "text": "give"
+   },
+   {
+    "t": 23.81,
+    "text": "you"
+   }
+  ]
+ },
+ {
+  "start": 23.98,
+  "end": 25.98,
+  "words": [
+   {
+    "t": 23.98,
+    "text": "information"
+   },
+   {
+    "t": 24.58,
+    "text": "or"
+   },
+   {
+    "t": 24.75,
+    "text": "help"
+   },
+   {
+    "t": 24.93,
+    "text": "you"
+   },
+   {
+    "t": 25.1,
+    "text": "make"
+   },
+   {
+    "t": 25.63,
+    "text": "a"
+   },
+   {
+    "t": 25.81,
+    "text": "plan."
+   }
+  ]
+ },
+ {
+  "start": 25.98,
+  "end": 28.54,
+  "words": [
+   {
+    "t": 25.98,
+    "text": "But"
+   },
+   {
+    "t": 26.15,
+    "text": "when"
+   },
+   {
+    "t": 26.33,
+    "text": "it's"
+   },
+   {
+    "t": 26.5,
+    "text": "time"
+   },
+   {
+    "t": 27.21,
+    "text": "to"
+   },
+   {
+    "t": 27.38,
+    "text": "actually"
+   },
+   {
+    "t": 27.84,
+    "text": "sit"
+   },
+   {
+    "t": 28.01,
+    "text": "down"
+   },
+   {
+    "t": 28.19,
+    "text": "and"
+   },
+   {
+    "t": 28.36,
+    "text": "do"
+   }
+  ]
+ },
+ {
+  "start": 28.54,
+  "end": 29.9,
+  "words": [
+   {
+    "t": 28.54,
+    "text": "the"
+   },
+   {
+    "t": 28.71,
+    "text": "work,"
+   },
+   {
+    "t": 28.89,
+    "text": "you're"
+   },
+   {
+    "t": 29.2,
+    "text": "still"
+   },
+   {
+    "t": 29.38,
+    "text": "on"
+   },
+   {
+    "t": 29.55,
+    "text": "your"
+   },
+   {
+    "t": 29.73,
+    "text": "own."
+   }
+  ]
+ },
+ {
+  "start": 29.9,
+  "end": 31.98,
+  "words": [
+   {
+    "t": 29.9,
+    "text": "That's"
+   },
+   {
+    "t": 30.07,
+    "text": "why"
+   },
+   {
+    "t": 30.83,
+    "text": "I"
+   },
+   {
+    "t": 31,
+    "text": "built"
+   },
+   {
+    "t": 31.18,
+    "text": "Loomer,"
+   },
+   {
+    "t": 31.49,
+    "text": "a"
+   },
+   {
+    "t": 31.67,
+    "text": "Chrome"
+   }
+  ]
+ },
+ {
+  "start": 31.98,
+  "end": 34,
+  "words": [
+   {
+    "t": 31.98,
+    "text": "extension"
+   },
+   {
+    "t": 32.7,
+    "text": "that"
+   },
+   {
+    "t": 32.88,
+    "text": "helps"
+   },
+   {
+    "t": 33.05,
+    "text": "students"
+   },
+   {
+    "t": 33.37,
+    "text": "figure"
+   },
+   {
+    "t": 33.82,
+    "text": "out"
+   }
+  ]
+ },
+ {
+  "start": 34,
+  "end": 36.02,
+  "words": [
+   {
+    "t": 34,
+    "text": "what"
+   },
+   {
+    "t": 34.17,
+    "text": "they"
+   },
+   {
+    "t": 34.35,
+    "text": "need"
+   },
+   {
+    "t": 34.52,
+    "text": "to"
+   },
+   {
+    "t": 34.7,
+    "text": "do,"
+   },
+   {
+    "t": 34.87,
+    "text": "guides"
+   },
+   {
+    "t": 35.53,
+    "text": "them"
+   },
+   {
+    "t": 35.71,
+    "text": "while"
+   }
+  ]
+ },
+ {
+  "start": 36.02,
+  "end": 37.98,
+  "words": [
+   {
+    "t": 36.02,
+    "text": "they're"
+   },
+   {
+    "t": 36.34,
+    "text": "working,"
+   },
+   {
+    "t": 36.65,
+    "text": "and"
+   },
+   {
+    "t": 36.83,
+    "text": "makes"
+   },
+   {
+    "t": 37.14,
+    "text": "it"
+   },
+   {
+    "t": 37.32,
+    "text": "easier"
+   },
+   {
+    "t": 37.63,
+    "text": "to"
+   },
+   {
+    "t": 37.8,
+    "text": "pick"
+   }
+  ]
+ },
+ {
+  "start": 37.98,
+  "end": 39.52,
+  "words": [
+   {
+    "t": 37.98,
+    "text": "up"
+   },
+   {
+    "t": 38.15,
+    "text": "right"
+   },
+   {
+    "t": 38.33,
+    "text": "where"
+   },
+   {
+    "t": 38.64,
+    "text": "they"
+   },
+   {
+    "t": 38.82,
+    "text": "left"
+   },
+   {
+    "t": 38.99,
+    "text": "off."
+   }
+  ]
+ },
+ {
   "start": 40.02,
   "end": 41.76,
   "words": [
@@ -2836,6 +3520,1166 @@
    {
     "t": 230.9,
     "text": "work."
+   }
+  ]
+ },
+ {
+  "start": 233.25,
+  "end": 235.36,
+  "words": [
+   {
+    "t": 233.25,
+    "text": "Since"
+   },
+   {
+    "t": 233.59,
+    "text": "Loomer"
+   },
+   {
+    "t": 233.94,
+    "text": "works"
+   },
+   {
+    "t": 234.13,
+    "text": "with"
+   },
+   {
+    "t": 234.32,
+    "text": "student"
+   },
+   {
+    "t": 234.67,
+    "text": "assignments"
+   },
+   {
+    "t": 235.17,
+    "text": "and"
+   }
+  ]
+ },
+ {
+  "start": 235.36,
+  "end": 238.06,
+  "words": [
+   {
+    "t": 235.36,
+    "text": "writing,"
+   },
+   {
+    "t": 235.71,
+    "text": "privacy"
+   },
+   {
+    "t": 236.21,
+    "text": "and"
+   },
+   {
+    "t": 236.41,
+    "text": "academic"
+   },
+   {
+    "t": 237.06,
+    "text": "integrity"
+   },
+   {
+    "t": 237.72,
+    "text": "have"
+   }
+  ]
+ },
+ {
+  "start": 238.06,
+  "end": 239.76,
+  "words": [
+   {
+    "t": 238.06,
+    "text": "been"
+   },
+   {
+    "t": 238.26,
+    "text": "central"
+   },
+   {
+    "t": 238.6,
+    "text": "design"
+   },
+   {
+    "t": 238.95,
+    "text": "considerations."
+   }
+  ]
+ },
+ {
+  "start": 239.76,
+  "end": 242.47,
+  "words": [
+   {
+    "t": 239.76,
+    "text": "Students"
+   },
+   {
+    "t": 240.54,
+    "text": "control"
+   },
+   {
+    "t": 240.89,
+    "text": "which"
+   },
+   {
+    "t": 241.08,
+    "text": "sites"
+   },
+   {
+    "t": 241.43,
+    "text": "and"
+   },
+   {
+    "t": 241.62,
+    "text": "documents"
+   },
+   {
+    "t": 242.12,
+    "text": "Loomer"
+   }
+  ]
+ },
+ {
+  "start": 242.47,
+  "end": 244.97,
+  "words": [
+   {
+    "t": 242.47,
+    "text": "can"
+   },
+   {
+    "t": 242.66,
+    "text": "access,"
+   },
+   {
+    "t": 243.01,
+    "text": "and"
+   },
+   {
+    "t": 243.2,
+    "text": "they"
+   },
+   {
+    "t": 243.39,
+    "text": "can"
+   },
+   {
+    "t": 243.59,
+    "text": "pause"
+   },
+   {
+    "t": 243.93,
+    "text": "it,"
+   },
+   {
+    "t": 244.13,
+    "text": "exclude"
+   },
+   {
+    "t": 244.63,
+    "text": "sites,"
+   }
+  ]
+ },
+ {
+  "start": 244.97,
+  "end": 246.75,
+  "words": [
+   {
+    "t": 244.97,
+    "text": "or"
+   },
+   {
+    "t": 245.17,
+    "text": "clear"
+   },
+   {
+    "t": 245.36,
+    "text": "their"
+   },
+   {
+    "t": 245.55,
+    "text": "locally"
+   },
+   {
+    "t": 246.05,
+    "text": "stored"
+   },
+   {
+    "t": 246.4,
+    "text": "data."
+   }
+  ]
+ },
+ {
+  "start": 246.75,
+  "end": 249.15,
+  "words": [
+   {
+    "t": 246.75,
+    "text": "Some"
+   },
+   {
+    "t": 247.09,
+    "text": "sensitive"
+   },
+   {
+    "t": 247.95,
+    "text": "sites,"
+   },
+   {
+    "t": 248.3,
+    "text": "including"
+   },
+   {
+    "t": 248.8,
+    "text": "email"
+   }
+  ]
+ },
+ {
+  "start": 249.15,
+  "end": 251.04,
+  "words": [
+   {
+    "t": 249.15,
+    "text": "services,"
+   },
+   {
+    "t": 249.65,
+    "text": "are"
+   },
+   {
+    "t": 250,
+    "text": "excluded"
+   },
+   {
+    "t": 250.5,
+    "text": "by"
+   },
+   {
+    "t": 250.69,
+    "text": "default."
+   }
+  ]
+ },
+ {
+  "start": 251.04,
+  "end": 253,
+  "words": [
+   {
+    "t": 251.04,
+    "text": "AI"
+   },
+   {
+    "t": 251.23,
+    "text": "features"
+   },
+   {
+    "t": 251.73,
+    "text": "are"
+   },
+   {
+    "t": 252.31,
+    "text": "optional"
+   },
+   {
+    "t": 252.81,
+    "text": "and"
+   }
+  ]
+ },
+ {
+  "start": 253,
+  "end": 254.05,
+  "words": [
+   {
+    "t": 253,
+    "text": "disabled"
+   },
+   {
+    "t": 253.51,
+    "text": "by"
+   },
+   {
+    "t": 253.7,
+    "text": "default."
+   }
+  ]
+ },
+ {
+  "start": 254.05,
+  "end": 255.93,
+  "words": [
+   {
+    "t": 254.05,
+    "text": "When"
+   },
+   {
+    "t": 254.24,
+    "text": "enabled,"
+   },
+   {
+    "t": 254.74,
+    "text": "the"
+   },
+   {
+    "t": 254.93,
+    "text": "relevant"
+   },
+   {
+    "t": 255.43,
+    "text": "assignment"
+   }
+  ]
+ },
+ {
+  "start": 255.93,
+  "end": 258.13,
+  "words": [
+   {
+    "t": 255.93,
+    "text": "information"
+   },
+   {
+    "t": 256.59,
+    "text": "and"
+   },
+   {
+    "t": 256.78,
+    "text": "draft"
+   },
+   {
+    "t": 256.97,
+    "text": "text"
+   },
+   {
+    "t": 257.17,
+    "text": "might"
+   },
+   {
+    "t": 257.36,
+    "text": "be"
+   },
+   {
+    "t": 257.55,
+    "text": "sent"
+   },
+   {
+    "t": 257.75,
+    "text": "to"
+   },
+   {
+    "t": 257.94,
+    "text": "an"
+   }
+  ]
+ },
+ {
+  "start": 258.13,
+  "end": 260.67,
+  "words": [
+   {
+    "t": 258.13,
+    "text": "external"
+   },
+   {
+    "t": 258.63,
+    "text": "AI"
+   },
+   {
+    "t": 258.82,
+    "text": "provider"
+   },
+   {
+    "t": 259.33,
+    "text": "to"
+   },
+   {
+    "t": 259.52,
+    "text": "generate"
+   },
+   {
+    "t": 260.17,
+    "text": "guidance."
+   }
+  ]
+ },
+ {
+  "start": 260.67,
+  "end": 262.45,
+  "words": [
+   {
+    "t": 260.67,
+    "text": "We"
+   },
+   {
+    "t": 260.87,
+    "text": "ask"
+   },
+   {
+    "t": 261.06,
+    "text": "for"
+   },
+   {
+    "t": 261.25,
+    "text": "zero"
+   },
+   {
+    "t": 261.6,
+    "text": "data"
+   },
+   {
+    "t": 261.95,
+    "text": "retention"
+   }
+  ]
+ },
+ {
+  "start": 262.45,
+  "end": 263.49,
+  "words": [
+   {
+    "t": 262.45,
+    "text": "from"
+   },
+   {
+    "t": 262.64,
+    "text": "those"
+   },
+   {
+    "t": 262.99,
+    "text": "providers."
+   }
+  ]
+ },
+ {
+  "start": 263.49,
+  "end": 266.15,
+  "words": [
+   {
+    "t": 263.49,
+    "text": "And"
+   },
+   {
+    "t": 263.68,
+    "text": "as"
+   },
+   {
+    "t": 263.87,
+    "text": "we"
+   },
+   {
+    "t": 264.07,
+    "text": "saw"
+   },
+   {
+    "t": 264.26,
+    "text": "with"
+   },
+   {
+    "t": 264.8,
+    "text": "the"
+   },
+   {
+    "t": 264.99,
+    "text": "personal"
+   },
+   {
+    "t": 265.49,
+    "text": "narrative,"
+   }
+  ]
+ },
+ {
+  "start": 266.15,
+  "end": 268.63,
+  "words": [
+   {
+    "t": 266.15,
+    "text": "if"
+   },
+   {
+    "t": 266.75,
+    "text": "a"
+   },
+   {
+    "t": 266.94,
+    "text": "teacher"
+   },
+   {
+    "t": 267.28,
+    "text": "explicitly"
+   },
+   {
+    "t": 267.94,
+    "text": "prohibits"
+   },
+   {
+    "t": 268.44,
+    "text": "AI"
+   }
+  ]
+ },
+ {
+  "start": 268.63,
+  "end": 270.91,
+  "words": [
+   {
+    "t": 268.63,
+    "text": "assistance"
+   },
+   {
+    "t": 269.29,
+    "text": "on"
+   },
+   {
+    "t": 269.48,
+    "text": "an"
+   },
+   {
+    "t": 269.67,
+    "text": "assignment,"
+   },
+   {
+    "t": 270.18,
+    "text": "Loomer"
+   },
+   {
+    "t": 270.52,
+    "text": "turns"
+   },
+   {
+    "t": 270.72,
+    "text": "off"
+   }
+  ]
+ },
+ {
+  "start": 270.91,
+  "end": 273.01,
+  "words": [
+   {
+    "t": 270.91,
+    "text": "its"
+   },
+   {
+    "t": 271.1,
+    "text": "assignment-specific"
+   },
+   {
+    "t": 272.06,
+    "text": "AI"
+   },
+   {
+    "t": 272.26,
+    "text": "features."
+   }
+  ]
+ },
+ {
+  "start": 273.01,
+  "end": 274.97,
+  "words": [
+   {
+    "t": 273.01,
+    "text": "I"
+   },
+   {
+    "t": 273.2,
+    "text": "built"
+   },
+   {
+    "t": 273.4,
+    "text": "Loomer"
+   },
+   {
+    "t": 273.74,
+    "text": "as"
+   },
+   {
+    "t": 273.93,
+    "text": "a"
+   },
+   {
+    "t": 274.13,
+    "text": "Chrome"
+   },
+   {
+    "t": 274.47,
+    "text": "extension"
+   }
+  ]
+ },
+ {
+  "start": 274.97,
+  "end": 276.05,
+  "words": [
+   {
+    "t": 274.97,
+    "text": "in"
+   },
+   {
+    "t": 275.16,
+    "text": "TypeScript"
+   },
+   {
+    "t": 275.66,
+    "text": "and"
+   },
+   {
+    "t": 275.85,
+    "text": "React."
+   }
+  ]
+ },
+ {
+  "start": 276.05,
+  "end": 277.27,
+  "words": [
+   {
+    "t": 276.05,
+    "text": "The"
+   },
+   {
+    "t": 276.24,
+    "text": "hardest"
+   },
+   {
+    "t": 276.58,
+    "text": "challenge"
+   },
+   {
+    "t": 277.08,
+    "text": "was"
+   }
+  ]
+ },
+ {
+  "start": 277.27,
+  "end": 278.66,
+  "words": [
+   {
+    "t": 277.27,
+    "text": "balancing"
+   },
+   {
+    "t": 277.77,
+    "text": "two"
+   },
+   {
+    "t": 277.97,
+    "text": "specific"
+   },
+   {
+    "t": 278.47,
+    "text": "things."
+   }
+  ]
+ },
+ {
+  "start": 278.66,
+  "end": 281.15,
+  "words": [
+   {
+    "t": 278.66,
+    "text": "Loomer"
+   },
+   {
+    "t": 279,
+    "text": "is"
+   },
+   {
+    "t": 279.2,
+    "text": "more"
+   },
+   {
+    "t": 279.54,
+    "text": "useful"
+   },
+   {
+    "t": 280.04,
+    "text": "when"
+   },
+   {
+    "t": 280.23,
+    "text": "it"
+   },
+   {
+    "t": 280.42,
+    "text": "can"
+   },
+   {
+    "t": 280.62,
+    "text": "see"
+   },
+   {
+    "t": 280.81,
+    "text": "more,"
+   }
+  ]
+ },
+ {
+  "start": 281.15,
+  "end": 283.4,
+  "words": [
+   {
+    "t": 281.15,
+    "text": "but"
+   },
+   {
+    "t": 281.35,
+    "text": "students"
+   },
+   {
+    "t": 281.9,
+    "text": "should"
+   },
+   {
+    "t": 282.09,
+    "text": "stay"
+   },
+   {
+    "t": 282.29,
+    "text": "in"
+   },
+   {
+    "t": 282.48,
+    "text": "control"
+   },
+   {
+    "t": 282.82,
+    "text": "of"
+   },
+   {
+    "t": 283.02,
+    "text": "what"
+   },
+   {
+    "t": 283.21,
+    "text": "it"
+   }
+  ]
+ },
+ {
+  "start": 283.4,
+  "end": 285.6,
+  "words": [
+   {
+    "t": 283.4,
+    "text": "reads,"
+   },
+   {
+    "t": 283.59,
+    "text": "and"
+   },
+   {
+    "t": 283.79,
+    "text": "it"
+   },
+   {
+    "t": 283.98,
+    "text": "can"
+   },
+   {
+    "t": 284.45,
+    "text": "help"
+   },
+   {
+    "t": 284.64,
+    "text": "a"
+   },
+   {
+    "t": 284.84,
+    "text": "lot,"
+   },
+   {
+    "t": 285.03,
+    "text": "but"
+   },
+   {
+    "t": 285.22,
+    "text": "it"
+   },
+   {
+    "t": 285.41,
+    "text": "shouldn't"
+   }
+  ]
+ },
+ {
+  "start": 285.6,
+  "end": 287.06,
+  "words": [
+   {
+    "t": 285.6,
+    "text": "do"
+   },
+   {
+    "t": 285.8,
+    "text": "the"
+   },
+   {
+    "t": 285.99,
+    "text": "learning"
+   },
+   {
+    "t": 286.33,
+    "text": "for"
+   },
+   {
+    "t": 286.53,
+    "text": "the"
+   },
+   {
+    "t": 286.72,
+    "text": "students."
+   }
+  ]
+ },
+ {
+  "start": 287.06,
+  "end": 289.18,
+  "words": [
+   {
+    "t": 287.06,
+    "text": "So,"
+   },
+   {
+    "t": 287.26,
+    "text": "Loomer"
+   },
+   {
+    "t": 287.6,
+    "text": "only"
+   },
+   {
+    "t": 287.95,
+    "text": "reads"
+   },
+   {
+    "t": 288.14,
+    "text": "what"
+   },
+   {
+    "t": 288.33,
+    "text": "students"
+   },
+   {
+    "t": 288.68,
+    "text": "approve,"
+   }
+  ]
+ },
+ {
+  "start": 289.18,
+  "end": 290.83,
+  "words": [
+   {
+    "t": 289.18,
+    "text": "and"
+   },
+   {
+    "t": 289.37,
+    "text": "it"
+   },
+   {
+    "t": 289.56,
+    "text": "guides"
+   },
+   {
+    "t": 289.91,
+    "text": "with"
+   },
+   {
+    "t": 290.1,
+    "text": "hints"
+   },
+   {
+    "t": 290.29,
+    "text": "and"
+   },
+   {
+    "t": 290.48,
+    "text": "questions"
+   }
+  ]
+ },
+ {
+  "start": 290.83,
+  "end": 292.4,
+  "words": [
+   {
+    "t": 290.83,
+    "text": "instead"
+   },
+   {
+    "t": 291.17,
+    "text": "of"
+   },
+   {
+    "t": 291.37,
+    "text": "just"
+   },
+   {
+    "t": 291.56,
+    "text": "finished"
+   },
+   {
+    "t": 292.06,
+    "text": "answers."
+   }
+  ]
+ },
+ {
+  "start": 292.4,
+  "end": 294.96,
+  "words": [
+   {
+    "t": 292.4,
+    "text": "Next,"
+   },
+   {
+    "t": 292.59,
+    "text": "I"
+   },
+   {
+    "t": 292.79,
+    "text": "want"
+   },
+   {
+    "t": 292.98,
+    "text": "to"
+   },
+   {
+    "t": 293.17,
+    "text": "test"
+   },
+   {
+    "t": 293.89,
+    "text": "Loomer"
+   },
+   {
+    "t": 294.23,
+    "text": "with"
+   },
+   {
+    "t": 294.42,
+    "text": "students"
+   },
+   {
+    "t": 294.77,
+    "text": "who"
+   }
+  ]
+ },
+ {
+  "start": 294.96,
+  "end": 297.3,
+  "words": [
+   {
+    "t": 294.96,
+    "text": "have"
+   },
+   {
+    "t": 295.31,
+    "text": "executive-function"
+   },
+   {
+    "t": 296.42,
+    "text": "challenges"
+   },
+   {
+    "t": 296.92,
+    "text": "and"
+   },
+   {
+    "t": 297.11,
+    "text": "learn"
+   }
+  ]
+ },
+ {
+  "start": 297.3,
+  "end": 299.46,
+  "words": [
+   {
+    "t": 297.3,
+    "text": "whether"
+   },
+   {
+    "t": 297.65,
+    "text": "it"
+   },
+   {
+    "t": 297.84,
+    "text": "actually"
+   },
+   {
+    "t": 298.34,
+    "text": "helps"
+   },
+   {
+    "t": 298.53,
+    "text": "them"
+   },
+   {
+    "t": 298.73,
+    "text": "start"
+   },
+   {
+    "t": 298.92,
+    "text": "sooner"
+   },
+   {
+    "t": 299.26,
+    "text": "and"
+   }
+  ]
+ },
+ {
+  "start": 299.46,
+  "end": 301.07,
+  "words": [
+   {
+    "t": 299.46,
+    "text": "get"
+   },
+   {
+    "t": 299.65,
+    "text": "back"
+   },
+   {
+    "t": 299.84,
+    "text": "to"
+   },
+   {
+    "t": 300.03,
+    "text": "their"
+   },
+   {
+    "t": 300.22,
+    "text": "interrupted"
+   },
+   {
+    "t": 300.88,
+    "text": "work."
+   }
+  ]
+ },
+ {
+  "start": 301.07,
+  "end": 303.14,
+  "words": [
+   {
+    "t": 301.07,
+    "text": "With"
+   },
+   {
+    "t": 301.26,
+    "text": "Loomer,"
+   },
+   {
+    "t": 302.03,
+    "text": "I"
+   },
+   {
+    "t": 302.22,
+    "text": "want"
+   },
+   {
+    "t": 302.41,
+    "text": "students"
+   },
+   {
+    "t": 302.76,
+    "text": "to"
+   },
+   {
+    "t": 302.95,
+    "text": "spend"
+   }
+  ]
+ },
+ {
+  "start": 303.14,
+  "end": 305.06,
+  "words": [
+   {
+    "t": 303.14,
+    "text": "less"
+   },
+   {
+    "t": 303.33,
+    "text": "time"
+   },
+   {
+    "t": 303.68,
+    "text": "managing"
+   },
+   {
+    "t": 304.18,
+    "text": "schoolwork"
+   },
+   {
+    "t": 304.52,
+    "text": "and"
+   },
+   {
+    "t": 304.72,
+    "text": "more"
+   }
+  ]
+ },
+ {
+  "start": 305.06,
+  "end": 306.52,
+  "words": [
+   {
+    "t": 305.06,
+    "text": "time"
+   },
+   {
+    "t": 305.41,
+    "text": "on"
+   },
+   {
+    "t": 305.6,
+    "text": "the"
+   },
+   {
+    "t": 305.79,
+    "text": "work"
+   },
+   {
+    "t": 305.98,
+    "text": "that"
+   },
+   {
+    "t": 306.17,
+    "text": "matters."
+   }
+  ]
+ },
+ {
+  "start": 306.52,
+  "end": 307.91,
+  "words": [
+   {
+    "t": 306.52,
+    "text": "Thanks"
+   },
+   {
+    "t": 307.02,
+    "text": "for"
+   },
+   {
+    "t": 307.21,
+    "text": "watching."
    }
   ]
  }

@@ -16,7 +16,12 @@ export type Box = readonly [x0: number, y0: number, x1: number, y1: number];
 
 // ---- Intro ----
 
-export const INTRO_TAKE = { file: 'media/01-the-problem-and-introduction-take5.mp4', in: 0.75, out: 40.3 };
+export const INTRO_TAKE = {
+  file: 'media/01-the-problem-and-introduction-take5.mp4',
+  in: 0.75,
+  out: 40.3,
+  text: "Getting homework done isn't just about actually doing the work. You have to figure out what's due, decide where to start, and somehow pick up where you left off when you get distracted or take a break. For students with ADHD, these things can be especially difficult. They're called executive-function skills, and they're something I've struggled with a lot myself, along with a lot of my classmates. The problem is that traditional study apps and AI study tools mostly just give you information or help you make a plan. But when it's time to actually sit down and do the work, you're still on your own. That's why I built Loomer, a Chrome extension that helps students figure out what they need to do, guides them while they're working, and makes it easier to pick up right where they left off.",
+};
 export const DEMO_START = INTRO_TAKE.out - INTRO_TAKE.in;
 
 // ---- Screen recording edit ----
@@ -115,26 +120,6 @@ const held = (id: string) => {
 export const holdStart = (id: string, offset = 0) => held(id).t0 + offset;
 export const holdEnd = (id: string, offset = 0) => held(id).t1 + offset;
 
-/** Screen-recording time shown at final time `t`. */
-export function toSrc(t: number): number {
-  const p = SCREEN_EDIT.find((s) => t < s.t1) ?? SCREEN_EDIT[SCREEN_EDIT.length - 1];
-  return 'hold' in p.seg ? p.seg.hold : p.seg.src[0] + Math.max(0, t - p.t0) * (p.seg.speed ?? 1);
-}
-
-/**
- * Where the Gmail tab (it shows the user's address) sits while the recording is
- * zoomed out, and when that is. Found by template matching; zoomed-in frames
- * push the tab off screen.
- */
-export const GMAIL_TAB: Box = [316, 42, 560, 84];
-export const GMAIL_TAB_SRC: readonly Range[] = [
-  [0.0, 3.5], [20.9, 25.5], [27.0, 28.2], [29.8, 33.0], [34.5, 41.5], [43.9, 49.8], [51.4, 52.9],
-  [55.8, 58.5], [61.9, 68.7], [69.8, 75.8], [79.4, 80.8], [84.0, 86.5], [89.1, 97.2], [98.8, 105.3],
-  [106.2, 125.1], [126.3, 131.0], [133.6, 146.5], [148.1, 161.3], [169.5, 170.5], [171.7, 174.1],
-  [177.7, 188.4], [189.1, 197.7], [199.2, 203.7], [205.3, 210.2], [211.4, 213.6], [215.2, 218.6],
-  [220.2, 225.0], [226.5, 235.3], [240.5, 246.4], [247.9, 251.1],
-];
-
 // ---- Demo narration ----
 
 /**
@@ -187,8 +172,18 @@ export const VOICE: readonly VoicePiece[] = [
 
 // ---- Privacy and closing ----
 
-export const PRIVACY_TAKE = { file: 'media/11-privacy-and-academic-integrity-take1.mp4', in: 0.2, out: 40.0 };
-export const CLOSING_TAKE = { file: 'media/12-technical-implementation-and-closing-take1.mp4', in: 0.2, out: 35.5 };
+export const PRIVACY_TAKE = {
+  file: 'media/11-privacy-and-academic-integrity-take1.mp4',
+  in: 0.2,
+  out: 40.0,
+  text: 'Since Loomer works with student assignments and writing, privacy and academic integrity have been central design considerations. Students control which sites and documents Loomer can access, and they can pause it, exclude sites, or clear their locally stored data. Some sensitive sites, including email services, are excluded by default. AI features are optional and disabled by default. When enabled, the relevant assignment information and draft text might be sent to an external AI provider to generate guidance. We ask for zero data retention from those providers. And as we saw with the personal narrative, if a teacher explicitly prohibits AI assistance on an assignment, Loomer turns off its assignment-specific AI features.',
+};
+export const CLOSING_TAKE = {
+  file: 'media/12-technical-implementation-and-closing-take1.mp4',
+  in: 0.2,
+  out: 35.5,
+  text: "I built Loomer as a Chrome extension in TypeScript and React. The hardest challenge was balancing two specific things. Loomer is more useful when it can see more, but students should stay in control of what it reads, and it can help a lot, but it shouldn't do the learning for the students. So, Loomer only reads what students approve, and it guides with hints and questions instead of just finished answers. Next, I want to test Loomer with students who have executive-function challenges and learn whether it actually helps them start sooner and get back to their interrupted work. With Loomer, I want students to spend less time managing schoolwork and more time on the work that matters. Thanks for watching.",
+};
 export const PRIVACY_START = DEMO_END;
 export const CLOSING_START = PRIVACY_START + PRIVACY_TAKE.out - PRIVACY_TAKE.in;
 export const DURATION = CLOSING_START + CLOSING_TAKE.out - CLOSING_TAKE.in;
@@ -196,6 +191,14 @@ export const DURATION = CLOSING_START + CLOSING_TAKE.out - CLOSING_TAKE.in;
 /** Final time of a moment in the privacy or closing take. */
 const privacy = (take: number) => PRIVACY_START + take - PRIVACY_TAKE.in;
 const closing = (take: number) => CLOSING_START + take - CLOSING_TAKE.in;
+
+/** Everything spoken in the video, in order: what the captions and the audio are built from. */
+export const SPOKEN: readonly VoicePiece[] = [
+  { ...INTRO_TAKE, at: 0 },
+  ...VOICE,
+  { ...PRIVACY_TAKE, at: PRIVACY_START },
+  { ...CLOSING_TAKE, at: CLOSING_START },
+];
 
 // ---- Camera ----
 

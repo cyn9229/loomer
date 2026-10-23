@@ -7,8 +7,7 @@
     "check": "node scripts/check.ts",
     "captions": "node scripts/captions.ts",
     "audio": "node scripts/audio.ts",
-    "render": "remotion render src/index.ts Demo out/demo-video-picture.mp4 --muted --concurrency=8",
-    "mux": "ffmpeg -y -i out/demo-video-picture.mp4 -i out/audio.m4a -map 0:v -map 1:a -c copy -movflags +faststart out/demo-video.mp4",
+    "render": "node scripts/render.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
