@@ -14,59 +14,59 @@ The problem is that traditional study apps and even AI study tools mostly give y
 That's why I built Loomer, a Chrome extension that helps students figure out what they need to do, guides them while they're working, and makes it easier to pick up right where they left off.
 
 ### Video 0:00–0:26 | Home and the plan
-**On screen:** Home with **Replay data**: next step "Identify chlorophyll's role in leaves" with **Start working**, **Not today**, **Set a time** → scroll: Photosynthesis short response, Urban heat islands essay, **Later** (Personal narrative, **No AI on this one**), **Past due** (0:13) → **Week** view (0:19).
+**On screen:** Home: next step with Start working, Not today, Set a time (0:00). Scroll the plan: photosynthesis, heat islands essay, Later with No AI, Past due (0:13). Week view (0:19).
 
 Here's Loomer in the side panel, using a labeled replay of a Canvas course. At the top is my next step. I can start working, skip it for today, or set a time.
 
 Below that is the rest of my plan: my photosynthesis response, the heat islands essay, what's coming later, and what's past due. This personal narrative is marked No AI, because the teacher doesn't allow it. And the week view shows everything at once.
 
 ### Video 0:26–0:49 | Reading the essay
-**On screen:** Urban heat islands essay: **In plain words**, **Tomorrow** / **Tue** / **Wed** tiles, **What it asks for** with "Comparison of evidence" opened (0:26).
+**On screen:** Open the heat islands essay (0:26). What it asks for, then expand a requirement. Date tiles: start tomorrow, draft due Tue, essay due Wed.
 
 Next, I open the urban heat islands essay. Loomer lists what the teacher is asking for, and I can expand each requirement to see what it means.
 
 It also caught a checkpoint in the instructions. The essay is due Wednesday, but the draft is due Tuesday, so Loomer says to start tomorrow.
 
 ### Video 0:49–1:08 | Starting a session
-**On screen:** **Start working** → **Use this** on "Heat island essay draft" → **Yes, it's allowed** (0:49) → Demo Doc with **Your focus**: "Compare how each source uses evidence" (0:58).
+**On screen:** Start working (0:49). Link the Doc. Yes, AI is allowed. Focus appears: compare how each source uses evidence (0:58).
 
 When I click Start working, I link my Google Doc and confirm that my teacher allows AI help. Then Loomer reads my draft and picks one thing to focus on: compare how each source uses evidence.
 
 ### Video 1:08–1:46 | Research and saving sources
-**On screen:** EPA "What Are Heat Islands?" → right-click → loomer → **Add page to Loomer** (1:08) → **Sources 1**, "Not in your draft yet" (1:20) → UW–Madison News article (1:26) → **Save this page as a source?** → **Save** → **Sources 2** (1:34).
+**On screen:** EPA article: right-click, Add page to Loomer (1:08). Sources tab shows it (1:20). UW–Madison article (1:26). Loomer offers to save it. Save (1:34).
 
 Now I start researching. On this article, I right-click and add the page to Loomer, and it shows up under my sources. Loomer even tracks whether I've used it in my draft yet.
 
 Then I open a second article. Because it's related to what I'm working on, Loomer offers to save it as a source on its own. To make that suggestion, it only looks at the page's title and address.
 
 ### Video 1:46–2:05 | Asking for help
-**On screen:** **Ask for a hint**: "I'm struggling to compare these sources. What should I focus on?" → reply (1:46) → "Just write my thesis for me." → refusal with a sentence frame (1:55).
+**On screen:** Ask for a hint: struggling to compare these sources (1:46). Ask it to write my thesis. Refusal with a sentence frame (1:55).
 
 If I'm stuck, I can ask for a hint. I'll say I'm struggling to compare these sources, and Loomer tells me what to focus on.
 
 But if I ask it to just write my thesis, it refuses and gives me a sentence frame, so I still write my own argument.
 
 ### Video 2:05–2:52 | General chat
-**On screen:** Home → **Ask Loomer anything** → **General** (2:05) → "Explain the urban heat effect simply, using a diagram." → "How cities stay warmer" diagram (2:11) → "Quiz me on this" → three questions, wrong picks with explanations → "0 of 3 right" (2:28).
+**On screen:** General chat (2:05). Ask for a diagram. Diagram appears (2:11). Quiz me. Wrong answers, each explained (2:28).
 
 There's also a general chat for anything school related. I'll ask it to explain the urban heat effect simply, using a diagram, and Loomer draws a visual of how cities stay warmer. It labels the diagram as AI-made, so I know to check it against my sources.
 
 Then I ask it to quiz me. I'm getting these wrong on purpose for the demo, but each time, Loomer explains the right answer. And the quiz is just practice, so my teacher never sees it.
 
 ### Video 2:52–3:30 | Writing and a hint
-**On screen:** Home → **Keep going** → Doc: type "I think trees are the best answer because they make the biggest difference, and the city should plant them as soon as possible." (2:52) → **Hint**: "What does each source's evidence show, and how do their methods differ?" → **Show the line**: "Both sources talk about heat in cities." (3:12).
+**On screen:** Back to the session, Keep going. Type the new sentence in the Doc (2:52). Hint card. Show the line (3:12).
 
 Now I go back to my essay session and keep writing in my Google Doc. I add: I think trees are the best answer because they make the biggest difference, and the city should plant them as soon as possible.
 
 Loomer also has a hint for me: what does each source's evidence show, and how do their methods differ? Show the line points to the exact sentence in my draft that it's about.
 
 ### Video 3:30–3:52 | Checking my draft
-**On screen:** Essay page → **Check my draft** (3:30) → **4 open**, "Accurate summary of both sources" checked with a quote (3:37) → "Comparison of evidence" opened: what's missing and the quoted line (3:43).
+**On screen:** Essay checklist: Check my draft (3:30). 1 done with evidence, 4 open (3:37). Open one to see why (3:43).
 
 Then I go to the checklist and ask Loomer to check my draft against the teacher's requirements. One requirement is done, and Loomer shows the evidence from my draft. The other four still need work, and it tells me why.
 
 ### Video 3:52–4:11 | Ending the session
-**On screen:** **End** → **Done for today** (3:55) → **Next time**: "Compare how each source supports its claim" → **Save and close** (4:04) → Home leads with that step (4:07).
+**On screen:** End, then Done for today (3:55). Next step appears. Save and close (4:04). Home shows the step (4:07).
 
 When I'm finished, I end the session and pick Done for today. Loomer suggests a next step based on my draft and the requirements, and I can edit it before I save and close. Next time I open Loomer, that step is the first thing I see.
 
