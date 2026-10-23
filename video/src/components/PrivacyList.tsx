@@ -1,5 +1,6 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { PRIVACY_LIST } from '../timeline.ts';
+import { blurFilter } from '../lib/filters.ts';
 import { settle } from '../lib/motion.ts';
 
 const ORANGE = '#fc4811';
@@ -24,7 +25,7 @@ export function PrivacyList() {
           color: '#fff',
           opacity: title,
           transform: `translateY(${(1 - title) * 18}px)`,
-          filter: `blur(${((1 - title) * 8).toFixed(2)}px)`,
+          filter: blurFilter((1 - title) * 8),
         }}
       >
         {PRIVACY_LIST.title}
@@ -41,7 +42,7 @@ export function PrivacyList() {
                 gap: 26,
                 opacity: p,
                 transform: `translateY(${(1 - p) * 16}px)`,
-                filter: `blur(${((1 - p) * 6).toFixed(2)}px)`,
+                filter: blurFilter((1 - p) * 6),
               }}
             >
               <svg width={38} height={38} viewBox="0 0 38 38" style={{ flex: 'none' }}>

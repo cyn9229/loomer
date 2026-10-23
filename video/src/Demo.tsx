@@ -6,15 +6,16 @@ import { AbsoluteFill, continueRender, delayRender } from 'remotion';
 import { Callouts } from './components/Callouts.tsx';
 import { Camera } from './components/Camera.tsx';
 import { Captions } from './components/Captions.tsx';
+import { Chapters } from './components/Chapters.tsx';
 import { NameTitle } from './components/NameTitle.tsx';
 import { PrivacyList } from './components/PrivacyList.tsx';
 import { Screen } from './components/Screen.tsx';
 import { Slides } from './components/Slides.tsx';
 
 /**
- * The whole demo video, picture only (the audio comes from rough-cut v2).
- * Layers, bottom to top: the screen recording, its callouts, slides, the
- * privacy list, captions, the camera, and the opening name title.
+ * The whole demo video, picture only (scripts/audio.ts builds the sound from the same timeline).
+ * Layers, bottom to top: the screen recording, its callouts, chapter titles,
+ * slides, the privacy list, captions, the camera, and the opening name title.
  */
 export function Demo() {
   useFonts();
@@ -22,6 +23,7 @@ export function Demo() {
     <AbsoluteFill style={{ background: '#0d0c11' }}>
       <Screen />
       <Callouts />
+      <Chapters />
       <Slides />
       <PrivacyList />
       <Captions />

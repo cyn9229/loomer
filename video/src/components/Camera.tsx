@@ -38,14 +38,18 @@ export function Camera() {
   );
 }
 
-/** One take, framed a little tighter (the ceiling was in shot) and lifted a touch (backlit by windows). */
+/**
+ * One take, framed a little tighter (the ceiling was in shot). The brightness
+ * lift for the backlit room is baked into the media files; picture-in-picture
+ * clips use 640x360 copies (media/pip/), since they show at 336 px wide.
+ */
 function Take({ clip, fadeIn }: { clip: CameraClip; fadeIn: boolean }) {
   const { fps } = useVideoConfig();
   const local = useCurrentFrame() / fps;
   return (
     <OffthreadVideo
-      src={staticFile(clip.file)}
-      startFrom={Math.round(clip.from * fps)}
+      src={staticFile(clip.small ? clip.file.replace('media/', 'media/pip/') : clip.file)}
+      trimBefore={Math.round(clip.from * fps)}
       muted
       style={{
         position: 'absolute',
@@ -56,7 +60,6 @@ function Take({ clip, fadeIn }: { clip: CameraClip; fadeIn: boolean }) {
         opacity: fadeIn ? ramp(local, 0, 0.25) : 1,
         transform: 'scale(1.14)',
         transformOrigin: '50% 85%',
-        filter: 'brightness(1.07) contrast(1.05) saturate(1.04)',
       }}
     />
   );

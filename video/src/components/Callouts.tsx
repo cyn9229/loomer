@@ -3,6 +3,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { HEIGHT, WIDTH } from '../timeline.ts';
 import { clamp, during, lerp, ramp, settle } from '../lib/motion.ts';
 import { PLACED, mapBox, screenTransform, zoomOf, type Placed } from '../lib/zoom.ts';
+import { blurFilter } from '../lib/filters.ts';
 import { glass, ink } from './style.ts';
 
 const ORANGE = '#fc4811';
@@ -107,7 +108,7 @@ function One({ c, t }: { c: Placed; t: number }) {
           borderRadius: 22,
           opacity: card,
           transform: `${anchor} translate(${(1 - card) * 26 * drift[0]}px, ${(1 - card) * 26 * drift[1]}px) scale(${0.955 + 0.045 * card})`,
-          filter: `blur(${((1 - card) * 9).toFixed(2)}px)`,
+          filter: blurFilter((1 - card) * 9),
         }}
       >
         <Rise t={t} at={c.start + 1.12} leave={leave}>

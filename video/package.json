@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "studio": "remotion studio src/index.ts",
+    "check": "node scripts/check.ts",
     "captions": "node scripts/captions.ts",
-    "render": "remotion render src/index.ts Demo out/demo-video-picture.mp4 --muted",
-    "mux": "ffmpeg -y -i out/demo-video-picture.mp4 -i ../takes/rough-cut-v2.mp4 -map 0:v -map 1:a -c copy -movflags +faststart out/demo-video.mp4",
+    "audio": "node scripts/audio.ts",
+    "render": "remotion render src/index.ts Demo out/demo-video-picture.mp4 --muted --concurrency=8",
+    "mux": "ffmpeg -y -i out/demo-video-picture.mp4 -i out/audio.m4a -map 0:v -map 1:a -c copy -movflags +faststart out/demo-video.mp4",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

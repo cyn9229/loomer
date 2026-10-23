@@ -1,5 +1,6 @@
 import { AbsoluteFill, Img, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { SLIDES } from '../timeline.ts';
+import { blurFilter } from '../lib/filters.ts';
 import { settle } from '../lib/motion.ts';
 
 /**
@@ -22,7 +23,7 @@ export function Slides() {
             style={{
               opacity: Math.max(0, enter - leave),
               transform: `scale(${1.045 - 0.045 * enter - (s.reveal ? 0.03 * leave : 0)})`,
-              filter: `blur(${blur.toFixed(2)}px)`,
+              filter: blurFilter(blur),
             }}
           >
             <Img src={staticFile(s.file)} style={{ width: '100%', height: '100%' }} />

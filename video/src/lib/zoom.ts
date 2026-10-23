@@ -1,10 +1,10 @@
 // Punch-in zooms for the demo callouts. The screen layer and the callout
 // graphics share this, so the ring always sits exactly on its target.
-import { CALLOUTS, HEIGHT, WIDTH, fromSrc, type Box, type Callout } from '../timeline.ts';
+import { CALLOUTS, HEIGHT, WIDTH, type Box, type Callout } from '../timeline.ts';
 import { clamp, settle } from './motion.ts';
 
-/** A callout on the final timeline, with the translate that frames its target when fully zoomed. */
-export type Placed = Callout & { start: number; end: number; tx: number; ty: number };
+/** A callout with the translate that frames its target when fully zoomed. */
+export type Placed = Callout & { tx: number; ty: number };
 
 /** Moves the target 30% of the way toward the frame center, without ever showing past the recording's edges. */
 export const PLACED: readonly Placed[] = CALLOUTS.map((c) => {
@@ -15,14 +15,12 @@ export const PLACED: readonly Placed[] = CALLOUTS.map((c) => {
   const dy = cy + (HEIGHT / 2 - cy) * 0.3;
   return {
     ...c,
-    start: fromSrc(c.src[0]),
-    end: fromSrc(c.src[1]),
     tx: clamp(dx - cx * c.zoom, WIDTH * (1 - c.zoom), 0),
     ty: clamp(dy - cy * c.zoom, HEIGHT * (1 - c.zoom), 0),
   };
 });
 
-/** How far a callout's punch-in is (0 to 1) at time t. It is fully out again as the still stretch ends. */
+/** How far a callout's punch-in is (0 to 1) at time t. It is fully out again as the callout ends. */
 export const zoomOf = (c: Placed, t: number) => settle(t - c.start, 0.9) - settle(t - (c.end - 0.55), 0.75);
 
 export type Transform = { s: number; tx: number; ty: number };
