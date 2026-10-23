@@ -110,7 +110,7 @@ Neighborhood Hacks allows 2 to 6 minutes. Estimates at 150 words per minute:
 | Intro (narration) | about 1:17 |
 | Screen recording | 4:11 (its narration takes about 3:25) |
 | Privacy (narration) | about 0:44 |
-| Closing (narration) | about 0:45 |
-| **Total** | **about 6:57** |
+| Closing (narration) | about 0:47 |
+| **Total** | **about 6:59** |
 
 The intro, privacy, and closing together need to come down to about 1:49 for the whole video to fit in 6:00.
