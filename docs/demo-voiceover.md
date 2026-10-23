@@ -1,9 +1,9 @@
 # Loomer | Neighborhood Hacks 2026 Demo Script
 
-Matched to `loomer-demo.mp4` (6:49, screen only, no audio). "Video m:ss" is the position in that file before any trims. Section lengths in the final cut depend on the trims at the bottom.
+Matched to `Loomer Demo Prelim.mp4` (4:11, screen only, no audio). "Video m:ss" is the position in that file. Each demo section's narration is sized to fit its clip at about 150 words per minute.
 
 ### Intro | The problem and introduction
-**On screen:** Founder webcam, then footage of Canvas assignments, an unfinished Google Doc, and Loomer opening. (Not in `loomer-demo.mp4`.)
+**On screen:** Founder webcam, then footage of Canvas assignments, an unfinished Google Doc, and Loomer opening. (Not in the screen recording.)
 
 Think about everything that goes into completing a homework assignment. You have to keep track of what's due, figure out what to prioritize, get yourself to start, and stay focused long enough to make progress. And if you get interrupted, you have to remember what you were doing when you come back.
 
@@ -17,36 +17,26 @@ That's why I built Loomer.
 
 Loomer is a Chrome extension designed to support students with executive-function challenges by understanding their assignments, helping them work through those assignments, and making it easier to pick up where they left off.
 
-### Video 0:00–1:05 | Understanding and prioritizing assignments
-**On screen:** Home with **Replay data**, leading with "Identify chlorophyll's role in leaves" (Photosynthesis short response, due Saturday) → Your plan → **Later** shows Personal narrative with **No AI on this one** → **Week**: Tue "Submit a full draft for peer review", Wed essay due → Urban heat islands essay → **In plain words** → **Tomorrow** Start by, **Tue** Draft due, **Wed** Due 7:59 PM → **What it asks for**, with "Comparison of evidence" opened.
+### Video 0:00–0:49 | Understanding and prioritizing assignments
+**On screen:** Home with **Replay data**, leading with "Identify chlorophyll's role in leaves" (0:00) → Your plan → **Later**: Personal narrative with **No AI on this one** (0:13) → **Past due** (0:16) → **Week**: Tue "Submit a full draft for peer review", Wed essay due (0:19) → Urban heat islands essay: **In plain words**, **Tomorrow** / **Tue** / **Wed** tiles, **What it asks for** (0:26).
 
-Here's Loomer running with a labeled replay of a Canvas course. The extension also supports read-only access to real Canvas accounts.
+Here's Loomer running with a labeled replay of a Canvas course. It also supports read-only access to real Canvas accounts.
 
-On Home, Loomer picks one next step for me. Right now, that's my short Biology response, because it's due Saturday.
+On Home, Loomer picks one next step: my short Biology response, due Saturday.
 
-Below that is my plan. Loomer looks at each assignment's deadlines and requirements and recommends when to start, not just when it's due. This personal narrative is marked No AI on this one, because the teacher's instructions don't allow AI tools.
+Below that is my plan. Loomer recommends when to start each assignment, not just when it's due. This personal narrative is marked No AI on this one, because the teacher doesn't allow AI tools.
 
-For example, this comparative essay isn't due until Wednesday. But the teacher's instructions mention that a full draft is due Tuesday for peer review.
+This comparative essay isn't due until Wednesday. But the instructions say a full draft is due Tuesday for peer review, so Loomer recommends starting tomorrow.
 
-Loomer picks up on that earlier checkpoint and recommends starting tomorrow.
+It also explains the instructions in plain language and keeps the requirements visible, so I don't have to keep rereading the assignment.
 
-It also breaks down the teacher's instructions into plain language and keeps the requirements visible, so I don't have to keep going back and rereading the assignment.
+### Video 0:49–1:08 | Starting a work session
+**On screen:** **Start working** → **Which Doc is your draft?** → **Use this** on "Heat island essay draft" → **Yes, it's allowed** (0:49) → Demo Doc with **Your focus**: "Compare how each source uses evidence" (0:58).
 
-### Video 1:05–1:25 | Starting a work session
-**On screen:** Start working → **Which Doc is your draft?** → **Use this** on "Heat island essay draft" → **Does your teacher allow AI help on this one?** → **Yes, it's allowed** → Demo Doc with **Your focus**: "Compare how each source uses evidence" and **Writing · 176 words**.
+Let's say I work on the essay anyway. I start a session and pick the Google Doc I'm writing in, which Loomer found in the instructions. It asks if AI help is allowed, then reads my draft and suggests one thing to focus on.
 
-Let's say I decide to work on the essay anyway, since I have time now.
-
-I can start a session and connect the Google Doc I'm actually writing in. Loomer found the link in the assignment instructions, so I just pick it.
-
-It also asks whether the teacher allows AI help on this assignment, because it couldn't find a rule in the instructions.
-
-Once the draft is connected, Loomer reads it alongside the instructions and suggests one thing to focus on: comparing how each source uses evidence.
-
-That helps reduce the amount of time spent figuring out how to begin.
-
-### Video 1:25–2:42 | Research and saving sources
-**On screen:** EPA "What Are Heat Islands?" → right-click → loomer → **Add page to Loomer** → **Sources 1** ("Not in your draft yet", **This session** log) → UW–Madison News article → wait → **Save this page as a source?** → **Save** → **2 sources**.
+### Video 1:08–1:46 | Research and saving sources
+**On screen:** EPA "What Are Heat Islands?" → right-click → loomer → **Add page to Loomer** (1:08) → **Sources 1** with "Not in your draft yet" (1:20) → UW–Madison News article (1:26) → **Save this page as a source?** → **Save** → **Sources 2** (1:34).
 
 As I'm researching, I can save relevant sources directly from the browser.
 
@@ -54,24 +44,20 @@ The Sources tab shows what I've saved and whether I've used it in my draft yet.
 
 Loomer can also notice when I stay on a related research page and offer to save it. To make that suggestion, it only uses the page's title and address. Saving it is still my choice.
 
-### Video 2:42–3:23 | Asking Loomer for help
-**On screen:** **Ask for a hint**: "I'm struggling to compare these sources. What should I focus on?" → answer suggesting a two-column evidence chart (a **Hint** card also appears above the chat) → "Just write my thesis for me." → "I can't write the thesis for you…" with a sentence frame.
+### Video 1:46–2:05 | Asking Loomer for help
+**On screen:** **Ask for a hint**: "I'm struggling to compare these sources. What should I focus on?" → answer (1:46) → "Just write my thesis for me." → "I can't write the thesis for you…" with a sentence frame (1:55).
 
-I can also ask for help whenever I need it.
+I can also ask for help any time. When I'm stuck comparing sources, Loomer uses the assignment and my draft to suggest what to focus on. If I ask it to write my thesis, it won't. It gives me a sentence frame, so I build my own argument.
 
-If I'm struggling to compare my sources, I can ask Loomer what to focus on. Because I'm already working on this assignment, it uses the instructions and my draft to guide me. Here, it suggests a two-column evidence chart.
+### Video 2:05–2:52 | Learning with the general assistant
+**On screen:** Home → **Ask Loomer anything** → **General** (2:05) → "Explain the urban heat effect simply, using a diagram." → "How cities stay warmer" diagram (2:11) → "Quiz me on this" → three questions, wrong picks with explanations → "0 of 3 right" (2:28).
 
-If I ask it to write my thesis for me, it won't. Instead, it gives me a sentence frame, so I can build my own argument from the evidence.
-
-### Video 3:23–4:36 | Learning with the general assistant
-**On screen:** Home (now leading with the essay and **Keep going**) → **Ask Loomer anything** → **General**: "Explain the urban heat effect simply, using a diagram." → "How cities stay warmer" diagram → "Quiz me on this" → three questions, wrong picks with explanations → "0 of 3 right. This is just practice, and your teacher never sees it."
-
-There's also a general learning assistant. Here, I'm asking it to explain urban heat islands with a diagram.
+There's also a general learning assistant. I can ask about a concept, my week, or how to study for a test. Here, I'm asking it to explain urban heat islands with a diagram. It labels the diagram as AI-made, so I know to check it against my sources.
 
 Then I ask it to quiz me. When I pick a wrong answer, it explains why. And it's only practice, so my teacher never sees it.
 
-### Video 4:36–6:00 | Writing and hints
-**On screen:** **Keep going** → Doc: type "I think trees are the best answer because they make the biggest difference, and the city should plant them as soon as possible." → **Writing · 199 words** → **Hint**: "What does each source's evidence show, and how do their methods differ?" → **Show the line**: "For: Comparison of evidence" and "Both sources talk about heat in cities."
+### Video 2:52–3:30 | Writing and hints
+**On screen:** Home → **Keep going** → Doc: type "I think trees are the best answer because they make the biggest difference, and the city should plant them as soon as possible." (2:52) → **Hint**: "What does each source's evidence show, and how do their methods differ?" → **Show the line**: "Both sources talk about heat in cities." (3:12).
 
 Back in my draft, I add my argument.
 
@@ -79,32 +65,18 @@ While I'm working, Loomer can occasionally offer a hint about my draft. This one
 
 It isn't constantly interrupting me or trying to write the essay itself. The idea is to make useful guidance available while I'm working, especially when I might be stuck.
 
-### Video 6:00–6:32 | Checking actual progress
-**On screen:** Essay page → **What it asks for** → **Check my draft** → **Checking your draft** → **4 open**, "Accurate summary of both sources" checked with a quote → "Comparison of evidence" opened: what's missing, the quoted line, and the hint.
+### Video 3:30–3:52 | Checking actual progress
+**On screen:** Essay page → **Check my draft** (3:30) → **4 open**, "Accurate summary of both sources" checked with a quote (3:37) → "Comparison of evidence" opened: what's missing and the quoted line (3:43).
 
-One of the biggest challenges with longer assignments is keeping track of all the requirements while you're working.
+Long assignments have a lot of requirements to keep track of. So I ask Loomer to check my draft against the teacher's instructions. One requirement is done, with a quote from my draft as evidence. Four still need work, and for each one, it explains what's missing.
 
-Here, I can ask Loomer to check my current draft against the teacher's instructions.
+### Video 3:52–4:11 | Ending and resuming work
+**On screen:** **End** → recap → **Done for today** (3:55) → **Next time**: "Compare how each source supports its claim" → **Save and close** (4:04) → Home leads with that step and **Keep going** (4:07).
 
-It goes through each requirement. My summary of both sources is done, and it quotes the part of my draft that shows it. Four still need work. For comparison of evidence, it explains what's missing and points to the sentence it means.
-
-So instead of rereading the entire rubric and mentally comparing it to my draft, I have a clearer picture of what I should work on next.
-
-### Video 6:32–6:49 | Ending and resuming work
-**On screen:** **End** → session recap → **Done for today** → **Next time**: "Compare how each source supports its claim" → **Save and close** → Home leads with that step, "Pick up where you left off.", and **Keep going**. (Hold the last frame; the narration runs longer than the clip.)
-
-Now let's say I'm done working for today.
-
-Loomer gives me a quick recap of the session, including the sources I saved.
-
-It also suggests a concrete step for next time, based on my draft and the assignment requirements. I can edit that suggestion before saving it.
-
-When I come back, the step I saved is the first thing I see, with Keep going right there.
-
-That continuity is especially important when interruptions and difficulty restarting work are recurring problems.
+When I'm done for today, Loomer recaps the session and suggests a concrete next step, which I can edit before saving. When I come back, that step is the first thing I see, with Keep going right there. That continuity matters most when restarting work is the hard part.
 
 ### Privacy and academic integrity
-**On screen:** Not in `loomer-demo.mp4`. Record a short clip of **Privacy & controls** (site exclusions, **Pause Loomer**, **Clear all**), or run this over the architecture graphic.
+**On screen:** Not in the screen recording. Record a short clip of **Privacy & controls** (site exclusions, **Pause Loomer**, **Clear all**), or run this over the architecture graphic.
 
 Because Loomer works with student assignments and writing, privacy and academic integrity have been central design considerations.
 
@@ -131,16 +103,16 @@ Thanks for watching.
 
 ---
 
-## Trims to fit 6 minutes
+## Fit
 
-Neighborhood Hacks allows 2 to 6 minutes. The screen recording alone is 6:49, so it needs cuts. These are the waits and slow stretches in `loomer-demo.mp4`. Per the truth rules in [demo-script.md](demo-script.md), put a caption with the real duration on any trimmed wait ("35 seconds later, trimmed").
+Neighborhood Hacks allows 2 to 6 minutes. Estimates at 150 words per minute:
 
-| Video | What happens | Suggestion |
-|---|---|---|
-| 0:26–0:34 | Idle on the Week view | Cut to about 3 s |
-| 1:14–1:24 | Deleting a leftover sentence from the last take (202 → 176 words) | Cut; viewers may wonder why I deleted my own work |
-| 1:57–2:35 | Waiting on the UW–Madison tab for the save offer (38 s) | Cut to about 3 s with a "38 seconds later, trimmed" caption |
-| 3:30–3:58 | Typing the diagram request and waiting for the diagram | Cut the wait to about 3 s |
-| 4:03–4:23 | Waiting for the quiz | Cut to about 3 s |
-| 4:39–5:32 | Typing the new sentence (53 s) | Speed up 4x or cut to the last few words |
-| 6:08–6:15 | Waiting for Check my draft | Cut to about 3 s |
+| Part | Length |
+|---|---|
+| Intro (narration) | about 1:17 |
+| Screen recording | 4:11 (its narration takes about 3:25) |
+| Privacy (narration) | about 0:44 |
+| Closing (narration) | about 1:06 |
+| **Total** | **about 7:18** |
+
+The intro, privacy, and closing together need to come down to about 1:49 for the whole video to fit in 6:00.
