@@ -80,10 +80,9 @@
 
 <script type="module">
 // Teleprompter for docs/demo-voiceover.md. One recording per section ("take"),
-// saved by server.mjs into takes/. Sections whose "On screen" line mentions the
-// webcam record video and audio; the rest record audio only, since they play
-// over the screen recording. C overrides that per section. E edits the
-// section's narration in place; saving writes it back into the script file.
+// saved by server.mjs into takes/. Every section records camera and mic; C
+// switches a section to mic only. E edits the section's narration in place;
+// saving writes it back into the script file.
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -111,7 +110,7 @@ function parse(md) {
     const clipMs = t ? ((+t[3] * 60 + +t[4]) - (+t[1] * 60 + +t[2])) * 1000 : null;
     const title = heading.split('|').pop().trim();
     const cue = strip(cueLine.replace('**On screen:**', ''));
-    return { id: `${String(i + 1).padStart(2, '0')}-${slug(title)}`, title, cue, paras, clipMs, camera: /webcam/i.test(cue) };
+    return { id: `${String(i + 1).padStart(2, '0')}-${slug(title)}`, title, cue, paras, clipMs };
   });
 }
 
@@ -134,7 +133,7 @@ const state = {
 };
 
 const section = () => state.sections[state.index];
-const usesCamera = (s) => store.get(`camera.${s.id}`, s.camera);
+const usesCamera = (s) => store.get(`camera.${s.id}`, true);
 const readLine = () => Math.round($('stage').clientHeight * 0.18);
 
 // ---- Rendering ----

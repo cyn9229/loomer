@@ -5,11 +5,13 @@ Matched to `Loomer Demo Prelim.mp4` (4:11, screen only, no audio). "Video m:ss" 
 ### Intro | The problem and introduction
 **On screen:** Founder webcam, then footage of Canvas assignments, an unfinished Google Doc, and Loomer opening. (Not in the screen recording.)
 
-Getting homework done takes more than the work itself. You have to track what's due, decide what comes first, get yourself to start, and remember where you left off after a break.
+Getting homework done isn't just about actually doing the work. You have to figure out what's due, decide where to start, and somehow pick up where you left off when you get distracted or take a break.
 
-These are executive-function skills, and for students with ADHD, they can be especially hard. I've struggled with this myself, and so have my classmates.
+For students with ADHD, these things can be especially difficult. They're called executive-function skills, and they're something I've struggled with myself, along with a lot of my classmates.
 
-Canvas and AI chatbots don't help with that part. So I built Loomer, a Chrome extension that helps students understand their assignments, work through them, and pick up where they left off.
+The problem is that traditional study apps and even AI study tools mostly give you information or help you make a plan. But when it's time to actually sit down and do the work, you're still on your own.
+
+That's why I built Loomer, a Chrome extension that helps students figure out what they need to do, guides them while they're working, and makes it easier to pick up right where they left off.
 
 ### Video 0:00–0:49 | Understanding and prioritizing assignments
 **On screen:** Home with **Replay data**, leading with "Identify chlorophyll's role in leaves" (0:00) → Your plan → **Later**: Personal narrative with **No AI on this one** (0:13) → **Past due** (0:16) → **Week**: Tue "Submit a full draft for peer review", Wed essay due (0:19) → Urban heat islands essay: **In plain words**, **Tomorrow** / **Tue** / **Wed** tiles, **What it asks for** (0:26).
