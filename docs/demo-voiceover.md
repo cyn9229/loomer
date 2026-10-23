@@ -5,17 +5,11 @@ Matched to `Loomer Demo Prelim.mp4` (4:11, screen only, no audio). "Video m:ss" 
 ### Intro | The problem and introduction
 **On screen:** Founder webcam, then footage of Canvas assignments, an unfinished Google Doc, and Loomer opening. (Not in the screen recording.)
 
-Think about everything that goes into completing a homework assignment. You have to keep track of what's due, figure out what to prioritize, get yourself to start, and stay focused long enough to make progress. And if you get interrupted, you have to remember what you were doing when you come back.
+Getting homework done takes more than the work itself. You have to track what's due, decide what comes first, get yourself to start, and remember where you left off after a break.
 
-These are all skills associated with executive functioning, and for students with ADHD, they can be especially difficult.
+These are executive-function skills, and for students with ADHD, they can be especially hard. I've struggled with this myself, and so have my classmates.
 
-As a high school student, I've experienced some of these problems myself, and I've seen the same things happen to my classmates. Sometimes it's procrastinating because getting started feels overwhelming. Other times, it's getting distracted halfway through or coming back to an assignment and having to figure out where you left off.
-
-We already use tools like Canvas, calendars, and AI chatbots for school. But they're often disconnected from the actual work we're doing, and students still have to manage much of that process themselves.
-
-That's why I built Loomer.
-
-Loomer is a Chrome extension designed to support students with executive-function challenges by understanding their assignments, helping them work through those assignments, and making it easier to pick up where they left off.
+Canvas and AI chatbots don't help with that part. So I built Loomer, a Chrome extension that helps students understand their assignments, work through them, and pick up where they left off.
 
 ### Video 0:00–0:49 | Understanding and prioritizing assignments
 **On screen:** Home with **Replay data**, leading with "Identify chlorophyll's role in leaves" (0:00) → Your plan → **Later**: Personal narrative with **No AI on this one** (0:13) → **Past due** (0:16) → **Week**: Tue "Submit a full draft for peer review", Wed essay due (0:19) → Urban heat islands essay: **In plain words**, **Tomorrow** / **Tue** / **Wed** tiles, **What it asks for** (0:26).
@@ -107,10 +101,10 @@ Neighborhood Hacks allows 2 to 6 minutes. Estimates at 150 words per minute:
 
 | Part | Length |
 |---|---|
-| Intro (narration) | about 1:17 |
+| Intro (narration) | about 0:34 |
 | Screen recording | 4:11 (its narration takes about 3:25) |
 | Privacy (narration) | about 0:44 |
 | Closing (narration) | about 0:47 |
-| **Total** | **about 6:59** |
+| **Total** | **about 6:16** |
 
 The intro, privacy, and closing together need to come down to about 1:49 for the whole video to fit in 6:00.
