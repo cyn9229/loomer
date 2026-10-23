@@ -89,15 +89,13 @@ And as we saw with the personal narrative, if a teacher explicitly prohibits AI 
 ### Technical implementation and closing
 **On screen:** Simple architecture graphic → extension and working product → founder webcam full-screen.
 
-I built Loomer as a Chrome extension using TypeScript and React, with browser permissions and local storage to manage academic context.
+I built Loomer as a Chrome extension in TypeScript and React.
 
-One of the harder engineering challenges was deciding exactly when the extension should be allowed to access information, and ensuring that AI-generated guidance actually corresponds to the student's assignment and draft.
+The hardest challenge was balancing two things. Loomer is more useful when it can see more, but students should stay in control of what it reads. And it can help a lot, but it shouldn't do the learning for them. So Loomer only reads what students approve, and it guides with hints and questions instead of finished answers.
 
-To address that, I built permission checks and evidence verification into the workflow, rather than relying entirely on what the AI says.
+Next, I want to test Loomer with students who have executive-function challenges, and learn whether it actually helps them start sooner and get back to interrupted work.
 
-There's still a lot I want to improve. In particular, I want to test Loomer with students who experience executive-function challenges and learn whether its guidance actually helps them start assignments faster, return to interrupted work, and complete more of what they plan to do.
-
-As a student, I've seen how much effort can go into managing schoolwork before the learning even begins. With Loomer, I want to make that process a little easier, so students can spend more of their time on the work that matters.
+With Loomer, I want students to spend less time managing schoolwork, and more time on the work that matters.
 
 Thanks for watching.
 
@@ -112,7 +110,7 @@ Neighborhood Hacks allows 2 to 6 minutes. Estimates at 150 words per minute:
 | Intro (narration) | about 1:17 |
 | Screen recording | 4:11 (its narration takes about 3:25) |
 | Privacy (narration) | about 0:44 |
-| Closing (narration) | about 1:06 |
-| **Total** | **about 7:18** |
+| Closing (narration) | about 0:45 |
+| **Total** | **about 6:57** |
 
 The intro, privacy, and closing together need to come down to about 1:49 for the whole video to fit in 6:00.
