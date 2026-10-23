@@ -41,6 +41,11 @@
   #line::after { content: ''; position: absolute; left: calc(100vw - 12px); width: 12px; height: 2px; background: var(--accent); }
 
   #preview { position: fixed; right: 16px; bottom: calc(var(--foot) + 16px); width: 280px; aspect-ratio: 16 / 9; background: #111; transform: scaleX(-1); object-fit: cover; border: 1px solid var(--faint); }
+  #stage.editing { overflow-y: auto; }
+  #stage.editing #text { transform: none !important; }
+  #stage.editing #line { display: none; }
+  #paras[contenteditable] { outline: none; caret-color: var(--accent); }
+  #stage.editing #paras p { white-space: pre-wrap; border-left: 2px solid var(--accent); margin-left: -14px; padding-left: 12px; }
   #preview.off, #cue.off { display: none; }
   #count { position: fixed; inset: 0; display: none; place-items: center; font-size: 200px; font-weight: 700; background: rgba(0, 0, 0, 0.6); }
   #count.on { display: grid; }
@@ -70,14 +75,15 @@
 <div id="foot">
   <span id="takes"></span>
   <span class="spacer"></span>
-  <span>R record · Space scroll · ↑↓ speed · ← → section · Home top · C camera · O cue · V preview · +/− size</span>
+  <span id="keys">R record · E edit · Space scroll · ↑↓ speed · ← → section · Home top · C camera · O cue · V preview · +/− size</span>
 </div>
 
 <script type="module">
 // Teleprompter for docs/demo-voiceover.md. One recording per section ("take"),
 // saved by server.mjs into takes/. Sections whose "On screen" line mentions the
 // webcam record video and audio; the rest record audio only, since they play
-// over the screen recording. C overrides that per section.
+// over the screen recording. C overrides that per section. E edits the
+// section's narration in place; saving writes it back into the script file.
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -117,6 +123,8 @@ const state = {
   showCue: store.get('cue', true),
   showPreview: store.get('preview', true),
   takes: [],
+  version: '',
+  editing: false,
   stream: null,
   recorder: null,
   recStart: 0,
@@ -135,7 +143,7 @@ function renderSection() {
   const s = section();
   $('section').textContent = `${state.index + 1}/${state.sections.length}  ${s.title}`;
   $('mode').textContent = usesCamera(s) ? 'Camera + mic' : 'Voice only';
-  $('clip').textContent = s.clipMs ? `clip ${clock(s.clipMs)}` : '';
+  renderTiming();
   $('cue').textContent = s.cue;
   $('cue').classList.toggle('off', !state.showCue);
   $('paras').replaceChildren(...s.paras.map((p) => Object.assign(document.createElement('p'), { textContent: p })));
@@ -143,6 +151,15 @@ function renderSection() {
   $('line').style.top = `${readLine() + state.size * 0.72}px`;
   toTop();
   renderTakes();
+}
+
+// Estimated read time at the current pace, next to the clip it has to fit.
+function renderTiming() {
+  const s = section();
+  const readMs = (words() / state.wpm) * 60_000;
+  const el = $('clip');
+  el.textContent = `read ${clock(readMs)}${s.clipMs ? ` · clip ${clock(s.clipMs)}` : ''}`;
+  el.className = s.clipMs && readMs > s.clipMs ? 'over' : 'dim';
 }
 
 function renderTakes() {
@@ -157,6 +174,7 @@ function renderTakes() {
 
 function renderSettings() {
   $('wpm').textContent = `${state.wpm} wpm`;
+  if (state.sections.length) renderTiming();
   document.documentElement.style.setProperty('--size', `${state.size}px`);
   $('preview').classList.toggle('off', !state.showPreview);
 }
@@ -287,6 +305,44 @@ async function saveTake(s, blob, mimeType, ms) {
   renderTakes();
 }
 
+// ---- Editing: the paragraphs become one plain-text field; a line break starts
+// a new paragraph and an emptied paragraph is dropped. ----
+
+function startEditing() {
+  pause();
+  state.editing = true;
+  $('stage').classList.add('editing');
+  $('paras').contentEditable = 'plaintext-only';
+  $('paras').focus();
+  $('rec').className = '';
+  $('rec').textContent = 'Editing · ⌘S save · Esc cancel';
+}
+
+function stopEditing() {
+  state.editing = false;
+  $('paras').removeAttribute('contenteditable');
+  $('stage').classList.remove('editing');
+  $('stage').scrollTop = 0;
+  renderSection();
+}
+
+async function saveEdit() {
+  const paras = $('paras').innerText.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  const res = await fetch('/api/section', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ index: state.index, base: state.version, paras }),
+  });
+  // Stay in edit mode on failure so the text can still be copied out.
+  if (res.status === 409) return showError(new Error('script changed on disk. Copy your edit, reload, and edit again'));
+  if (!res.ok) return showError(new Error(`save failed (${res.status})`));
+  const { md, version } = await res.json();
+  state.sections = parse(md);
+  state.version = version;
+  stopEditing();
+  $('rec').textContent = 'Saved to docs/demo-voiceover.md';
+}
+
 // ---- Keyboard ----
 
 const moveSection = (delta) => {
@@ -296,11 +352,23 @@ const moveSection = (delta) => {
 };
 
 addEventListener('keydown', (e) => {
+  if (state.editing) {
+    if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') {
+      e.preventDefault();
+      saveEdit().catch(showError);
+    } else if (e.code === 'Escape') {
+      e.preventDefault();
+      stopEditing();
+      $('rec').textContent = 'Edit canceled';
+    }
+    return;
+  }
   if (e.target instanceof HTMLSelectElement || e.metaKey || e.ctrlKey) return;
   const recording = Boolean(state.recorder);
   switch (e.code) {
     case 'KeyR': recording ? stopRecording() : startRecording().catch(showError); break;
     case 'Escape': if (recording) stopRecording(); break;
+    case 'KeyE': if (!recording) startEditing(); break;
     case 'Space': state.playing ? pause() : play(); break;
     case 'ArrowUp': state.wpm += 5; store.set('wpm', state.wpm); renderSettings(); break;
     case 'ArrowDown': state.wpm = Math.max(60, state.wpm - 5); store.set('wpm', state.wpm); renderSettings(); break;
@@ -317,13 +385,14 @@ addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
-addEventListener('wheel', (e) => setScroll(state.scrollY + e.deltaY), { passive: true });
-addEventListener('resize', () => { if (state.sections.length) renderSection(); });
+addEventListener('wheel', (e) => { if (!state.editing) setScroll(state.scrollY + e.deltaY); }, { passive: true });
+addEventListener('resize', () => { if (state.sections.length && !state.editing) renderSection(); });
 
 // ---- Start ----
 
-const [md, takes] = await Promise.all([fetch('/api/script').then((r) => r.text()), fetch('/api/takes').then((r) => r.json())]);
-state.sections = parse(md);
+const [script, takes] = await Promise.all([fetch('/api/script'), fetch('/api/takes').then((r) => r.json())]);
+state.version = script.headers.get('x-version') ?? '';
+state.sections = parse(await script.text());
 state.takes = takes;
 state.index = Math.min(state.index, state.sections.length - 1);
 renderSettings();
