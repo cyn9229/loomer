@@ -1,10 +1,10 @@
-import { OffthreadVideo, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
-import { CAMERA, CAMERA_KEYS, FULL, BR, type CameraClip } from '../timeline.ts';
+import { Freeze, OffthreadVideo, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { BR, CAMERA_KEYS, CAMERA_SHOTS, FULL, type Shot } from '../timeline.ts';
 import { clamp, ramp, track } from '../lib/motion.ts';
 
 /**
  * The camera as one object: a frame that springs between full screen and the
- * corners (see CAMERA_KEYS), showing whichever take is placed at that moment.
+ * corners (see CAMERA_KEYS), showing the shots in CAMERA_SHOTS.
  */
 export function Camera() {
   const { fps } = useVideoConfig();
@@ -24,32 +24,35 @@ export function Camera() {
         borderRadius: radius,
         overflow: 'hidden',
         opacity,
-        transform: `scale(${scale})`,
+        transform: scale === 1 ? undefined : `scale(${scale})`,
         background: '#111015',
         boxShadow: `0 24px 60px rgba(0,0,0,${0.5 * edge}), 0 0 0 1px rgba(255,255,255,${0.16 * edge})`,
       }}
     >
-      {CAMERA.map((clip, i) => (
-        <Sequence key={`${clip.file}-${clip.start}`} from={Math.round(clip.start * fps)} durationInFrames={Math.round((clip.end - clip.start) * fps)}>
-          <Take clip={clip} fadeIn={i > 0} />
-        </Sequence>
-      ))}
+      {CAMERA_SHOTS.map((shot) => {
+        const from = Math.round(shot.start * fps);
+        return (
+          <Sequence key={`${shot.file}-${from}-${shot.freeze ? 'hold' : 'play'}`} from={from} durationInFrames={Math.max(1, Math.round(shot.end * fps) - from)}>
+            <Take shot={shot} />
+          </Sequence>
+        );
+      })}
     </div>
   );
 }
 
 /**
- * One take, framed a little tighter (the ceiling was in shot). The brightness
+ * One shot, framed a little tighter (the ceiling was in shot). The brightness
  * lift for the backlit room is baked into the media files; picture-in-picture
- * clips use 640x360 copies (media/pip/), since they show at 336 px wide.
+ * shots use the 640x360 copies (media/pip/), since they show at 336 px wide.
  */
-function Take({ clip, fadeIn }: { clip: CameraClip; fadeIn: boolean }) {
+function Take({ shot }: { shot: Shot }) {
   const { fps } = useVideoConfig();
   const local = useCurrentFrame() / fps;
-  return (
+  const video = (
     <OffthreadVideo
-      src={staticFile(clip.small ? clip.file.replace('media/', 'media/pip/') : clip.file)}
-      trimBefore={Math.round(clip.from * fps)}
+      src={staticFile(shot.small ? shot.file.replace('media/', 'media/pip/') : shot.file)}
+      trimBefore={Math.max(0, Math.round(shot.from * fps))}
       muted
       style={{
         position: 'absolute',
@@ -57,10 +60,11 @@ function Take({ clip, fadeIn }: { clip: CameraClip; fadeIn: boolean }) {
         width: '100%',
         height: '100%',
         objectFit: 'cover',
-        opacity: fadeIn ? ramp(local, 0, 0.25) : 1,
+        opacity: shot.fade ? ramp(local, 0, shot.fade) : 1,
         transform: 'scale(1.14)',
         transformOrigin: '50% 85%',
       }}
     />
   );
+  return shot.freeze ? <Freeze frame={0}>{video}</Freeze> : video;
 }

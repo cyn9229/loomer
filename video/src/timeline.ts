@@ -103,6 +103,70 @@ export const SCREEN_EDIT: readonly Placed[] = (() => {
 
 export const DEMO_END = SCREEN_EDIT[SCREEN_EDIT.length - 1].t1;
 
+/** Stretches of the edit with no cut: each segment picks up exactly where the last one stopped. */
+const RUNS: readonly { t0: number; t1: number }[] = (() => {
+  const srcEnd = (s: Segment) => ('hold' in s ? s.hold : s.src[1]);
+  const srcStart = (s: Segment) => ('hold' in s ? s.hold : s.src[0]);
+  const runs: { t0: number; t1: number }[] = [];
+  SCREEN_EDIT.forEach((p, i) => {
+    const prev = SCREEN_EDIT[i - 1];
+    if (prev && Math.abs(srcEnd(prev.seg) - srcStart(p.seg)) < 0.02) runs[runs.length - 1].t1 = p.t1;
+    else runs.push({ t0: p.t0, t1: p.t1 });
+  });
+  return runs;
+})();
+
+/** Recording time shown at final time `t`, following the edit exactly (speed changes are instant). */
+function screenSrcLinear(t: number): number {
+  const p = SCREEN_EDIT.find((s) => t < s.t1) ?? SCREEN_EDIT[SCREEN_EDIT.length - 1];
+  return 'hold' in p.seg ? p.seg.hold : p.seg.src[0] + Math.max(0, t - p.t0) * (p.seg.speed ?? 1);
+}
+
+const EASE = 0.4;
+const EASE_SAMPLES = 9;
+/**
+ * Recording time shown at final time `t`, with speed changes eased: within a
+ * stretch without cuts, the position is averaged over EASE seconds, so fast
+ * forwards and freezes ramp in and out instead of snapping. Cuts stay cuts.
+ */
+export function screenSrc(t: number): number {
+  const run = RUNS.find((r) => t < r.t1) ?? RUNS[RUNS.length - 1];
+  let sum = 0;
+  for (let k = 0; k < EASE_SAMPLES; k++) {
+    const tau = t + EASE * (k / (EASE_SAMPLES - 1) - 0.5);
+    sum += screenSrcLinear(clamp(tau, run.t0, run.t1 - 1e-6));
+  }
+  return sum / EASE_SAMPLES;
+}
+
+const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+
+/**
+ * screenSrc as stretches of constant speed, for rendering: decoding a video
+ * plays fast forward but is slow to seek, so the eased curve becomes long
+ * steady plays with short steps only where the speed ramps. Each chunk covers
+ * final frames [from, to) and plays the recording from source frame `src` at
+ * `rate` (0 holds the frame). It stays within half a source frame of the curve.
+ */
+export type ScreenChunk = { from: number; to: number; src: number; rate: number };
+export const SCREEN_CHUNKS: readonly ScreenChunk[] = (() => {
+  const first = Math.round(DEMO_START * FPS);
+  const last = Math.round(DEMO_END * FPS);
+  const srcF = (f: number) => screenSrc(Math.min(f / FPS, DEMO_END - 1e-6)) * FPS;
+  const chunks: ScreenChunk[] = [];
+  let f = first;
+  while (f < last) {
+    const src = srcF(f);
+    const rate = f + 1 < last ? Math.max(0, srcF(f + 1) - src) : 1;
+    const steady = rate < 0.02 ? 0 : rate;
+    let to = f + 1;
+    while (to < last && Math.abs(src + (to - f) * steady - srcF(to)) <= 0.5) to++;
+    chunks.push({ from: f, to, src, rate: steady });
+    f = to;
+  }
+  return chunks;
+})();
+
 /** Final time of a moment in the screen recording (its first appearance in the edit). */
 export function at(src: number, offset = 0): number {
   for (const { t0, seg } of SCREEN_EDIT) {
@@ -202,32 +266,40 @@ export const SPOKEN: readonly VoicePiece[] = [
 
 // ---- Camera ----
 
-/** A camera take placed on the final timeline: final [start, end) shows take time `from` onward. */
-export type CameraClip = { file: string; start: number; end: number; from: number; small?: boolean };
+/**
+ * A camera shot on the final timeline: from `start` to `end` it plays the take
+ * from take time `from`, or holds that one frame (`freeze`). A shot with
+ * `fade` dissolves in over the shot beneath it. `small` shots use the 640x360
+ * copies made for the picture-in-picture.
+ */
+export type Shot = { file: string; start: number; end: number; from: number; freeze?: boolean; fade?: number; small?: boolean };
 
-const PIP_LEAD = 0.3;
-const PIP_TAIL = 0.4;
-/** Gaps between narration pieces up to this long keep the camera up (the take keeps playing). */
-const PIP_BRIDGE = 3.2;
+const FADE = 0.3;
+const FRAME = 1 / FPS;
 
-/** Camera picture-in-picture during the demo: each narration piece with a little lead and tail. */
-export const DEMO_CAMERA: readonly CameraClip[] = VOICE.map((v) => ({
-  file: v.file,
-  start: v.at - PIP_LEAD,
-  end: v.at + (v.out - v.in) + PIP_TAIL,
-  from: Math.max(0, v.in - PIP_LEAD),
-  small: true,
-})).map((clip, i, all) => {
-  const next = all[i + 1];
-  return next && next.start - clip.end <= PIP_BRIDGE ? { ...clip, end: next.start } : clip;
-});
-
-export const CAMERA: readonly CameraClip[] = [
-  { file: INTRO_TAKE.file, start: 0, end: DEMO_START, from: INTRO_TAKE.in },
-  ...DEMO_CAMERA,
-  { file: PRIVACY_TAKE.file, start: PRIVACY_START, end: CLOSING_START, from: PRIVACY_TAKE.in },
-  { file: CLOSING_TAKE.file, start: CLOSING_START, end: DURATION, from: CLOSING_TAKE.in },
-];
+/**
+ * The camera follows the voice. Each spoken piece plays its own frames, so
+ * lips match the audio. Between pieces the camera holds the last frame (cuts
+ * sit in breaths, so the mouth is closed) instead of playing on silently. A
+ * piece that continues where the last one stopped needs no transition; any
+ * other change of take dissolves in over the held frame, never through black.
+ */
+export const CAMERA_SHOTS: readonly Shot[] = (() => {
+  const demo = new Set(VOICE);
+  const shots: Shot[] = [];
+  SPOKEN.forEach((v, i) => {
+    const small = demo.has(v);
+    const end = v.at + v.out - v.in;
+    const prev = SPOKEN[i - 1];
+    const continues = prev && prev.file === v.file && Math.abs(v.in - prev.out) < 0.12;
+    const lead = i === 0 || continues ? 0 : Math.min(FADE, v.in);
+    shots.push({ file: v.file, start: v.at - lead, end, from: v.in - lead, fade: lead || undefined, small });
+    const next = SPOKEN[i + 1];
+    const until = next ? next.at : DURATION;
+    if (until > end + 0.001) shots.push({ file: v.file, start: end, end: until, from: v.out - FRAME, freeze: true, small });
+  });
+  return shots;
+})();
 
 /** Camera frame: x, y, width, height, corner radius, opacity, scale. */
 export type Frame = readonly [number, number, number, number, number, number, number];
@@ -250,12 +322,6 @@ export const CAMERA_KEYS: readonly CameraKey[] = (() => {
     { t: 20.45, frame: BR, response: 0.8 }, // "The problem is..." slide 4
     { t: DEMO_START, frame: BL, response: 0.7 },
   ];
-  // During the demo the camera tucks away only in longer gaps between narration pieces.
-  DEMO_CAMERA.forEach((clip, i) => {
-    const next = DEMO_CAMERA[i + 1];
-    if (i > 0 && DEMO_CAMERA[i - 1].end < clip.start) keys.push({ t: clip.start, frame: BL, response: 0.5 });
-    if (!next || next.start > clip.end) keys.push({ t: clip.end - 0.15, frame: hidden(BL), response: 0.45 });
-  });
   keys.push(
     { t: PRIVACY_START, frame: FULL, response: 0.8 },
     { t: privacy(7.51), frame: BR, response: 0.8 }, // "Students control..." privacy list
