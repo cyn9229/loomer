@@ -1,6 +1,6 @@
-# loomer
+# Loomer
 
-**Know what you're getting into, and pick up where you left off.**
+**An AI study companion for students with ADHD that understands the work they're actually doing.**
 
 Loomer is a Chrome extension (Manifest V3, side panel) for students who use Canvas and Google Docs. It collects assignments in the background, reads their requirements before suggesting anything, plans when to start each one, recommends one concrete next step with the evidence behind it, explains concepts (with diagrams, charts, small interactive demos, and quick checks) without doing the work, offers a quiet hint after you pause writing, and helps you resume where you left off. It is local-first and open source (MIT).
 
@@ -51,11 +51,11 @@ Rehearse it automatically: `npm run e2e:replay` (first time: `npx playwright ins
 
 ## Support matrix
 
-Evidence classes: **unit** = focused automated tests (`npm test`, 96 tests); **replay** = the built extension driven in Chromium against the local replay (`npm run e2e:replay`); **live** = a real signed-in account, read-only.
+Evidence classes: **unit** = focused automated tests (`npm test`, 197 tests); **replay** = the built extension driven in Chromium against the local replay (`npm run e2e:replay`); **live** = a real signed-in account, read-only.
 
 | Capability | Evidence | Notes |
 | --- | --- | --- |
-| Canvas collection from the background worker, panel closed | live | school.instructure.com student account: `users/self`, courses, planner, unopened assignment detail, course assignment lists, syllabus; logged-out returns 401 JSON. A full Loomer run collected 53 assignments in 10 courses and read their requirements. |
+| Canvas collection from the background worker, panel closed | live | A real high school Canvas, student account, read-only: `users/self`, courses, planner, unopened assignment detail, course assignment lists, syllabus; logged-out returns 401 JSON. A full Loomer run collected 53 assignments in 10 courses and read their requirements. |
 | Canvas quiz and discussion prompts, linked Canvas files and teacher Docs | unit, replay | Implemented; not yet seen in live data. Files are linked, not downloaded. |
 | Expired Canvas session | unit | Reported as auth-expired; known data kept. |
 | Google Docs reading (owned Doc) | live | Plain-text export from the worker. Edits detected 1-3 s after typing at 5 s polling; Google returned 429 after ~10 rapid reads, so reads are paced (15 s minimum, backoff). |

@@ -1,4 +1,4 @@
-// Teaching blocks (round 44, 4A): after a miss, or when a topic stays shaky,
+// Teaching blocks: after a miss, or when a topic stays shaky,
 // practice shows a short block as its own step, then a check on the same idea.
 // The block starts from the student's exact answer and takes the form that
 // fits the content: a compare table for case studies, a timeline for causes

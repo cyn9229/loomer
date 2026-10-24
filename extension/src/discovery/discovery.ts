@@ -10,7 +10,7 @@ import { canonicalLink, hostMatches } from '../core/url';
 import { currentSession } from '../session/session';
 import { assignmentTerms, matchTab } from './relevance';
 
-/** Seconds on a matching tab before suggesting. The handoff proposed 60; 30 keeps it demonstrable. */
+/** Seconds on a matching tab before suggesting. */
 export const DWELL_MS = 30_000;
 
 type Candidate = { tabId: number; url: string; title: string; matched: string[]; since: number };

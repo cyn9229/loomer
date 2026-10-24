@@ -112,7 +112,7 @@ export function buildSessionFixtures(now: Date) {
       },
     },
 
-    // Round 45 waits: the focus being picked, a quiet hint read, and the next step at the end.
+    // Waits: the focus being picked, a quiet hint read, and the next step at the end.
     'focus-pending': {
       ...base,
       startedAt: ago(1),
@@ -123,7 +123,7 @@ export function buildSessionFixtures(now: Date) {
     'hint-pending': { ...base, hintPending: wait('Looking for a hint', 'Your latest paragraph', 6, [10, 30]) },
     'next-pending': { ...base, nextStep: { status: 'pending', pending: wait('Picking where to start next time', null, 3, [3, 10]) } },
 
-    // Round 47, the study trail: the ask, the general ask without tab access, an unknown site, and what Loomer noticed.
+    // The study trail: the ask, the general ask without tab access, an unknown site, and what Loomer noticed.
     'trail-ask': { ...base, trail: { ...noTrail, ask: { origin: 'https://quizlet.com', name: 'Quizlet' } } },
     'trail-setup': { ...base, trail: { ...noTrail, setup: true } },
     'trail-other': { ...base, trail: { ...noTrail, picked: [{ origin: 'https://quizlet.com', name: 'Quizlet', paused: false }], other: { origin: 'https://brainscape.com', matched: 'the Monroe Doctrine' } } },

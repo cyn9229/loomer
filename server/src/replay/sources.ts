@@ -1,4 +1,4 @@
-// Two fixed research pages for the repeatable demo (handoff section 17). They
+// Two fixed research pages for the repeatable demo. They
 // are labeled demonstration material and contain simple, inspectable facts, so
 // the demo does not depend on live websites that can change or disappear.
 import { Hono } from 'hono';

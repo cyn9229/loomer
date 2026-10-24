@@ -360,7 +360,7 @@ button.focus-sub:hover {
   color: var(--muted);
 }
 
-/* Round 46, 1A: Home's step is a short title (one line at 320px when it is
+/* Home's step is a short title (one line at 320px when it is
    about 24 characters), one line of why, the button, and one quiet line that
    opens the item's page. */
 .h1.next-t {
@@ -2331,7 +2331,7 @@ details > summary .icon {
   font-weight: 600;
   color: var(--green-ink);
 }
-/* Round 46: words, sources, and the checklist ride in the line under the title. */
+/* Words, sources, and the checklist ride in the line under the title. */
 .w-meta .wnum {
   font: inherit;
   color: var(--text);
@@ -2718,7 +2718,7 @@ details > summary .icon {
   color: var(--green-ink);
 }
 
-/* Round 46: a requirement is one line; tapping it opens the note, quote, and hint. */
+/* A requirement is one line; tapping it opens the note, quote, and hint. */
 .rq.tap {
   display: block;
   padding: 0;
@@ -6592,7 +6592,7 @@ details > summary .icon {
   color: var(--text);
 }
 
-/* ------------------------------------------------------------ Round 44: confidence, outcomes, the diagnosis (practice.tsx)
+/* ------------------------------------------------------------ Confidence, outcomes, the diagnosis (practice.tsx)
    Sure or Guessing is asked after the tap. Four outcomes, each with a mark:
    solid (check), shaky (half), mix-up (red "!", wrong but sure), and not
    learned yet (striped). */
@@ -6899,7 +6899,7 @@ details > summary .icon {
   color: var(--muted);
 }
 
-/* ------------------------------------------------------------ Round 44: sessions, time, reminders, reread (prep.tsx)
+/* ------------------------------------------------------------ Sessions, time, reminders, reread (prep.tsx)
    The plan is study sessions on a quiet rail: the label and minutes, the step,
    "Back after 3 days", and a reminder switch for a session later today. */
 .prep-time {
@@ -7124,7 +7124,7 @@ details > summary .icon {
   transform: translateX(12px);
 }
 
-/* ------------------------------------------------------------ Waits (wait.tsx, round 45, 1B)
+/* ------------------------------------------------------------ Waits (wait.tsx)
    The box a result will fill, drawn now: its label, a still outline, a short
    title, what it's about and the usual time, and the seconds so far. Nothing
    moves; only the seconds change, once a second. */
@@ -7376,7 +7376,7 @@ details > summary .icon {
   margin-top: 10px;
 }
 
-/* Has Loomer read it? (readState.tsx, round 45, 6A): a few words on rows that
+/* Has Loomer read it? (readState.tsx): a few words on rows that
    aren't simply read, and one line on the assignment's page. */
 .read-w {
   font-weight: 500;
@@ -7452,7 +7452,7 @@ details > summary .icon {
   margin: 12px 18px 0;
 }
 
-/* ------------------------------------------------------------ The study trail (trail.tsx, round 47)
+/* ------------------------------------------------------------ The study trail (trail.tsx)
    A quiet row that asks once, the site picker, one line in Help that opens
    to what Loomer noticed, and a line under a topic studied elsewhere. Nothing
    counts up live, and nothing moves. */

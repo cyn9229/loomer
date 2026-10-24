@@ -5,7 +5,7 @@
 // (List by start day, or Week day by day, which also holds busy days and your
 // changes), the sync footer, and the Ask bar. The next step is a short title,
 // a subtitle with the specifics, one quiet line of why, the button, and one
-// quiet line that opens the item's page, where the evidence lives (round 46, 1A). Views render only what the model
+// quiet line that opens the item's page, where the evidence lives. Views render only what the model
 // says; they never invent progress, time estimates, or checks.
 import { useState, type ReactNode } from 'react';
 import type { EditableFields } from '../model/detail';
@@ -331,7 +331,7 @@ function Focus({ model, now, actions, onMoved }: FocusProps) {
 const READ_ORDER: Record<ReadState['state'], number> = { read: 0, reading: 1, changed: 1, failed: 2, blocked: 2, empty: 2, waiting: 3 };
 
 /**
- * The first read, one row per assignment (round 45): what Loomer found in the
+ * The first read, one row per assignment: what Loomer found in the
  * ones it read (the last few), the one it's reading now with its usual time
  * and seconds, any it couldn't read, and the next few in line.
  */
@@ -381,7 +381,7 @@ function Finding() {
 }
 
 /**
- * The next step (round 46, 1A): a short title, a subtitle with the specifics
+ * The next step: a short title, a subtitle with the specifics
  * (the topics, or what the work asks), one quiet line of why, and the
  * button. One quiet line under it names the assignment and opens its page,
  * where the evidence, readiness, and plan live. Below that, only actions:

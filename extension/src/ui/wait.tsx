@@ -1,5 +1,4 @@
-// Waits that say what Loomer is doing (round 45, 1B, with round 46's short
-// titles). The box a result will fill is drawn right away (WaitSlot): its
+// Waits that say what Loomer is doing. The box a result will fill is drawn right away (WaitSlot): its
 // label, a still gray outline of what's coming, a short title ("Writing 6
 // questions"), what it's about, how long it usually takes, and the seconds so
 // far. Past 1.5 times the usual time it says so, with Keep waiting and Cancel
@@ -162,7 +161,7 @@ export function WaitOutline({ shape }: { shape: WaitShape }) {
 }
 
 /**
- * The box a result will fill, drawn now with its own label (round 45, 1B), so
+ * The box a result will fill, drawn now with its own label, so
  * the result arrives in the same place and the page barely moves.
  */
 export function WaitSlot({ label, pending, shape = 'text', onCancel, className }: { label: string; pending: Pending; shape?: WaitShape; onCancel?: () => void; className?: string }) {

@@ -9,4 +9,3 @@ web-ext.config.ts
 .env.*
 !.env.example
 e2e-out/
-takes/

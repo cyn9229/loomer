@@ -5,7 +5,7 @@
 // the assignment asks for, one line per requirement that opens to its
 // evidence. Start working, then Canvas, the draft, and Ask Loomer; workload,
 // the student's time guess, checkpoint quotes, sources, Did it already?, Hide,
-// and Delete fold into More options (round 46). Renders the
+// and Delete fold into More options. Renders the
 // AssignmentDetailModel when it has loaded, and the WorkItem alone before.
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import type { AssignmentDetailModel, RequirementItem } from '../model/detail';

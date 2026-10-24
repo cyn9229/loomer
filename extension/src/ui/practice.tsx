@@ -1,4 +1,4 @@
-// Test prep practice in its own view (round 43, 6A): one question at a time
+// Test prep practice in its own view: one question at a time
 // with nothing else on screen, in the test's own formats. Multiple choice and
 // flashcards answer at once; short answers, free responses and Explain it back
 // get feedback that names what is there and what is missing, quoting the
@@ -521,7 +521,7 @@ export function TopicLine({
   lastCheck: { correct: number; total: number } | null;
   mixup?: boolean;
   progress?: number;
-  /** Studied on another site (round 47): one line under the name, "Studied on Quizlet · next: one quick check". */
+  /** Studied on another site: one line under the name, "Studied on Quizlet · next: one quick check". */
   elsewhere?: string | null;
 }) {
   if (progress !== undefined)

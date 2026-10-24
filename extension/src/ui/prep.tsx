@@ -1,4 +1,4 @@
-// Test prep on a test's page (round 43, 1A). While Loomer finds the topics
+// Test prep on a test's page. While Loomer finds the topics
 // (setup), the page says so, or shows why it couldn't, with the editor: the
 // topics found (remove or add), topics from notes (keep or remove), what's on
 // the test (formats Canvas or the guide named are picked already), and Add
@@ -6,7 +6,7 @@
 // page leads with "4 of 8 ready" over one thin bar (topics the student's own
 // checks made ready for the test, never a grade), Start practice, and the plan
 // as one row per session (its title, and the topics or formats under it). Topics, mistakes, and rereads fold to one row each
-// (round 46); opened, each topic is one thin bar from its progress, and a
+//; opened, each topic is one thin bar from its progress, and a
 // mix-up keeps its mark. The skill ladder behind progress never shows.
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { readAttachment } from '../chat/attachments';

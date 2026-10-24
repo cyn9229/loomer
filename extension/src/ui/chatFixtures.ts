@@ -219,7 +219,7 @@ export function buildChatFixtures(now: Date, items: WorkItem[]) {
       ]),
     }),
     stopped: general({ turns: turns(now, [['explain photosynthesis', [{ kind: 'markdown', text: 'Plants turn light, water and carbon dioxide into' }], { status: 'stopped' }]]) }),
-    // Round 45 waits: before the first word, a draft check with its steps, and a chart being made.
+    // Waits: before the first word, a draft check with its steps, and a chart being made.
     'reply-pending': general({
       streaming: true,
       turns: turns(now, [['what does figure 2 show', [], { status: 'streaming', pending: chatWait(now, 'Writing a reply', null, 2, [2, 6]) }]]),

@@ -1,4 +1,4 @@
-// Has Loomer read this assignment yet? (round 45, 6A). A plan row says so in
+// Has Loomer read this assignment yet?. A plan row says so in
 // a few words after its class, but only when it isn't simply read, so read
 // rows stay quiet. The assignment's page says it in one sentence that names
 // the assignment, with the one action that helps when there is one; a read

@@ -1,5 +1,4 @@
-// The study trail (round 47: 1B, 2B, 3A, 4A, with the student picking the
-// sites). During a session, Loomer notices which of the assignment's topics
+// The study trail, with the student picking the sites. During a session, Loomer notices which of the assignment's topics
 // come up on the study sites the student picked, so they never have to keep
 // Loomer up to date. No AI, no page text kept, nothing leaves the computer;
 // only the results stay. The first time a known study site is in front, a

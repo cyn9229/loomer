@@ -107,7 +107,7 @@ export function buildPrepFixtures(now: Date) {
       plan: [],
       mistakes: [],
     },
-    // Round 45 waits: setup with its steps, and reading photos of notes.
+    // Waits: setup with its steps, and reading photos of notes.
     'setup-reading': {
       ...base,
       ...fresh,
@@ -126,7 +126,7 @@ export function buildPrepFixtures(now: Date) {
       }),
     },
     'notes-reading': { ...base, pending: wait('Reading your notes', '3 photos of your notes', 6, [10, 40]) },
-    // Round 47: topics studied on other sites get one line each, and their bars don't move.
+    // Topics studied on other sites get one line each, and their bars don't move.
     'studied-elsewhere': {
       ...base,
       topics: TOPICS.map((t) =>
@@ -289,7 +289,7 @@ export function buildPracticeFixtures() {
 
 export type PracticeFixtureName = keyof ReturnType<typeof buildPracticeFixtures>;
 
-// Round 44: the diagnostic with Sure or Guessing, its diagnosis, and teaching blocks.
+// The diagnostic with Sure or Guessing, its diagnosis, and teaching blocks.
 const HAWAII: PracticeQuestion = {
   id: 'q-haw',
   topic: 'Hawaii',

@@ -31,7 +31,7 @@ type ChatViewProps = {
   now: Date;
   draft: string;
   setDraft: (text: string) => void;
-  /** The study trail (round 47): the ask, the site picker, and what Loomer noticed, rendered by the panel. */
+  /** The study trail: the ask, the site picker, and what Loomer noticed, rendered by the panel. */
   trail: ReactNode;
   /** The proactive hint, rendered by the panel. */
   hint: ReactNode;

@@ -1,4 +1,4 @@
-// Attaching files and screenshots in Ask Loomer (round 41, 2A). The paperclip
+// Attaching files and screenshots in Ask Loomer. The paperclip
 // in the composer opens File or Screenshot; files can also be dropped on the
 // chat or pasted into the composer. Each one is read on this computer
 // (readAttachment, captureScreen) and waits in the composer as a small card
