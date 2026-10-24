@@ -14,6 +14,15 @@ export const HEIGHT = 1080;
 export type Range = readonly [start: number, end: number];
 export type Box = readonly [x0: number, y0: number, x1: number, y1: number];
 
+// ---- Title card ----
+
+/**
+ * The opening title card: slide 1 of the deck, before the intro. It renders as
+ * its own composition (Title), so the main timeline below starts at 0 after it;
+ * the audio is shifted by its length (scripts/audio.ts).
+ */
+export const TITLE = { file: 'slides/slide01.png', duration: 4.0 };
+
 // ---- Intro ----
 
 export const INTRO_TAKE = {

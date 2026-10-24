@@ -1,6 +1,6 @@
 // Builds the video's sound from src/timeline.ts, the same timeline the picture
 // uses: the intro, every demo narration piece, privacy and closing takes, and
-// background music ducked under the voice.
+// background music ducked under the voice, all after the title card.
 //
 //   node scripts/audio.ts      writes out/voice.wav (voice only, for checks) and out/audio.m4a
 //
@@ -9,14 +9,17 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { basename } from 'node:path';
-import { DURATION, SPOKEN } from '../src/timeline.ts';
+import { DURATION, SPOKEN, TITLE } from '../src/timeline.ts';
 
 const MUSIC = 'public/music/digital-clouds.mp3';
 /** Music level before ducking (about -23 dB). The ducker takes it down a further ~12 dB while someone talks. */
 const MUSIC_LEVEL = 0.07;
-const COPIES = Math.ceil(DURATION / 95) + 1;
+/** The title card plays first, so everything spoken starts after it; the music starts under it. */
+const OFFSET = TITLE.duration;
+const TOTAL = DURATION + OFFSET;
+const COPIES = Math.ceil(TOTAL / 95) + 1;
 
-const pieces = SPOKEN;
+const pieces = SPOKEN.map((p) => ({ ...p, at: p.at + OFFSET }));
 
 const run = (args: string[]) => {
   const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'inherit' });
@@ -29,12 +32,12 @@ const MONO = 'aformat=sample_rates=48000:channel_layouts=mono';
 // 1. Voice: each piece trimmed, faded at its cut points, and placed on the bed.
 const inputs = pieces.flatMap((p) => ['-i', `../takes/${basename(p.file)}`]);
 const voice = [
-  `anullsrc=r=48000:cl=mono,atrim=0:${DURATION}[bed]`,
+  `anullsrc=r=48000:cl=mono,atrim=0:${TOTAL}[bed]`,
   ...pieces.map(
     (p, i) =>
       `[${i}:a]atrim=${p.in}:${p.out},asetpts=PTS-STARTPTS,${MONO},afade=t=in:d=0.02,afade=t=out:st=${(p.out - p.in - 0.04).toFixed(3)}:d=0.04,adelay=${Math.round(p.at * 1000)}:all=1[v${i}]`,
   ),
-  `[bed]${pieces.map((_, i) => `[v${i}]`).join('')}amix=inputs=${pieces.length + 1}:normalize=0:duration=first,atrim=0:${DURATION},${MONO}[out]`,
+  `[bed]${pieces.map((_, i) => `[v${i}]`).join('')}amix=inputs=${pieces.length + 1}:normalize=0:duration=first,atrim=0:${TOTAL},${MONO}[out]`,
 ].join(';');
 run([...inputs, '-filter_complex', voice, '-map', '[out]', '-c:a', 'pcm_s16le', 'out/voice.wav']);
 
@@ -43,7 +46,7 @@ const music = [
   `[1:a]${MONO.replace('mono', 'stereo')}[m0]`,
   ...Array.from({ length: COPIES - 1 }, (_, i) => `[${i + 2}:a]aformat=sample_rates=48000:channel_layouts=stereo[c${i}]`),
   ...Array.from({ length: COPIES - 1 }, (_, i) => `[${i ? `x${i - 1}` : 'm0'}][c${i}]acrossfade=d=2.5:c1=tri:c2=tri[x${i}]`),
-  `[x${COPIES - 2}]atrim=0:${DURATION},volume=${MUSIC_LEVEL},afade=t=in:d=1.5,afade=t=out:st=${(DURATION - 4).toFixed(2)}:d=4[music]`,
+  `[x${COPIES - 2}]atrim=0:${TOTAL},volume=${MUSIC_LEVEL},afade=t=in:d=1.5,afade=t=out:st=${(TOTAL - 4).toFixed(2)}:d=4[music]`,
   `[0:a]asplit=2[vmix][vkey]`,
   `[vkey]aformat=channel_layouts=stereo[key]`,
   `[music][key]sidechaincompress=threshold=0.01:ratio=10:attack=30:release=600[ducked]`,
@@ -54,6 +57,6 @@ run([
   '-i', 'out/voice.wav',
   ...Array.from({ length: COPIES }, () => ['-i', MUSIC]).flat(),
   '-filter_complex', music,
-  '-map', '[out]', '-c:a', 'aac', '-b:a', '192k', '-t', String(DURATION), 'out/audio.m4a',
+  '-map', '[out]', '-c:a', 'aac', '-b:a', '192k', '-t', String(TOTAL), 'out/audio.m4a',
 ]);
-console.log(`wrote out/voice.wav and out/audio.m4a (${DURATION.toFixed(2)} s, ${pieces.length} pieces, music x${COPIES})`);
+console.log(`wrote out/voice.wav and out/audio.m4a (${TOTAL.toFixed(2)} s, ${pieces.length} pieces, music x${COPIES})`);
