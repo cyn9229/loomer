@@ -274,7 +274,7 @@ export const SPOKEN: readonly VoicePiece[] = [
  */
 export type Shot = { file: string; start: number; end: number; from: number; freeze?: boolean; fade?: number; small?: boolean };
 
-const FADE = 0.3;
+const FADE = 0.4;
 const FRAME = 1 / FPS;
 
 /**
@@ -292,7 +292,8 @@ export const CAMERA_SHOTS: readonly Shot[] = (() => {
     const end = v.at + v.out - v.in;
     const prev = SPOKEN[i - 1];
     const continues = prev && prev.file === v.file && Math.abs(v.in - prev.out) < 0.12;
-    const lead = i === 0 || continues ? 0 : Math.min(FADE, v.in);
+    // The first demo piece starts dissolving no earlier than the demo itself (the intro renders as its own part).
+    const lead = i === 0 || continues ? 0 : Math.min(FADE, v.in, i === 1 ? v.at - DEMO_START : FADE);
     shots.push({ file: v.file, start: v.at - lead, end, from: v.in - lead, fade: lead || undefined, small });
     const next = SPOKEN[i + 1];
     const until = next ? next.at : DURATION;

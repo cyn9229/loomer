@@ -1,6 +1,7 @@
 import { Freeze, OffthreadVideo, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BR, CAMERA_KEYS, CAMERA_SHOTS, FULL, type Shot } from '../timeline.ts';
-import { clamp, ramp, track } from '../lib/motion.ts';
+import { clamp, track } from '../lib/motion.ts';
+import { blurFilter } from '../lib/filters.ts';
 
 /**
  * The camera as one object: a frame that springs between full screen and the
@@ -13,6 +14,9 @@ export function Camera() {
   // 1 at full screen, 0 as a picture-in-picture: shadows and the hairline only show on the small frame.
   const full = clamp((w - BR[2]) / (FULL[2] - BR[2]), 0, 1);
   const edge = 1 - full;
+  // At a change of take, blur briefly through the crossover, so two faces never show at once.
+  const change = CAMERA_SHOTS.find((s) => s.fade && t >= s.start && t < s.start + s.fade);
+  const soften = change ? Math.sin(Math.PI * ((t - change.start) / change.fade!)) * 10 : 0;
   return (
     <div
       style={{
@@ -29,6 +33,7 @@ export function Camera() {
         boxShadow: `0 24px 60px rgba(0,0,0,${0.5 * edge}), 0 0 0 1px rgba(255,255,255,${0.16 * edge})`,
       }}
     >
+      <div style={{ position: 'absolute', inset: 0, filter: blurFilter(soften) }}>
       {CAMERA_SHOTS.map((shot) => {
         const from = Math.round(shot.start * fps);
         return (
@@ -37,6 +42,7 @@ export function Camera() {
           </Sequence>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -60,7 +66,7 @@ function Take({ shot }: { shot: Shot }) {
         width: '100%',
         height: '100%',
         objectFit: 'cover',
-        opacity: shot.fade ? ramp(local, 0, shot.fade) : 1,
+        opacity: shot.fade ? smooth(local / shot.fade) : 1,
         transform: 'scale(1.14)',
         transformOrigin: '50% 85%',
       }}
@@ -68,3 +74,9 @@ function Take({ shot }: { shot: Shot }) {
   );
   return shot.freeze ? <Freeze frame={0}>{video}</Freeze> : video;
 }
+
+/** 0 to 1, slow at both ends. */
+const smooth = (p: number) => {
+  const x = clamp(p, 0, 1);
+  return x * x * (3 - 2 * x);
+};
