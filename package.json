@@ -18,7 +18,7 @@
   "engines": {
     "node": ">=22.18"
   },
-  "license": "MIT",
+  "license": "UNLICENSED",
   "devDependencies": {
     "playwright": "^1.64.1"
   }

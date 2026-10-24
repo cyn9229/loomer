@@ -1,8 +1,13 @@
-# Loomer
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="extension/public/brand/loomer-lockup-on-dark.png">
+    <img alt="Loomer" src="extension/public/brand/loomer-lockup.png" width="360">
+  </picture>
+</p>
 
-**An AI study companion for students with ADHD that understands the work they're actually doing.**
+<p align="center"><strong>An AI study companion for students with ADHD that understands the work they're actually doing.</strong></p>
 
-Loomer is a Chrome extension (Manifest V3, side panel) for students who use Canvas and Google Docs. It collects assignments in the background, reads their requirements before suggesting anything, plans when to start each one, recommends one concrete next step with the evidence behind it, explains concepts (with diagrams, charts, small interactive demos, and quick checks) without doing the work, offers a quiet hint after you pause writing, and helps you resume where you left off. It is local-first and open source (MIT).
+Loomer is a Chrome extension (Manifest V3, side panel) for students who use Canvas and Google Docs. It collects assignments in the background, reads their requirements before suggesting anything, plans when to start each one, recommends one concrete next step with the evidence behind it, explains concepts (with diagrams, charts, small interactive demos, and quick checks) without doing the work, offers a quiet hint after you pause writing, and helps you resume where you left off. It is local-first.
 
 Hackathon prototype for Neighborhood Hacks 2026. Read [SECURITY.md](SECURITY.md) for exactly what leaves the device and the known limits.
 
@@ -117,4 +122,4 @@ Rules worth knowing before changing things:
 
 ## License
 
-[MIT](LICENSE)
+Copyright © 2026 Chris Nie. All rights reserved.
